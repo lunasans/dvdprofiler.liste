@@ -1,12 +1,11 @@
 <?php
 require_once __DIR__ . '/../config/config.php';
 
-// Optional: Zugriffsschutz (z. B. nur Admins)
-//session_start();
-//if (!isset($_SESSION['is_admin']) || $_SESSION['is_admin'] !== true) {
-//    header('Location: ../index.php');
-//    exit;
-// }
+session_start();
+if (!isset($_SESSION['user_id'])) {
+    header('Location: ../login.php');
+    exit;
+}
 
 ?>
 <!DOCTYPE html>
