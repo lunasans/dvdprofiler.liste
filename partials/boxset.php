@@ -12,7 +12,7 @@ $boxParents = $pdo->query("
 ?>
 
 <div class="static-page">
-  <h2>📦 BoxSets</h2>
+  <h2>BoxSets</h2>
 
   <?php if (empty($boxParents)): ?>
     <p>Keine BoxSets gefunden.</p>

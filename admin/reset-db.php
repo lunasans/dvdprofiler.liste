@@ -7,4 +7,4 @@ header('Content-Type: text/plain');
 $pdo->exec("DELETE FROM actors");
 $pdo->exec("DELETE FROM dvds");
 
-echo "🧹 Datenbank wurde geleert (dvds & actors)";
+echo "Datenbank wurde geleert (dvds & actors)";

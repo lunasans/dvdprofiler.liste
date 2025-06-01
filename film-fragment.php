@@ -19,7 +19,7 @@ $dvd = $stmt->fetch();
 
 // Rückmeldung wenn Film nicht gefunden wurde
 if (!$dvd) {
-    echo "<div style='color: red;'>❌ Film mit ID $id nicht gefunden.</div>";
+    echo "<div style='color: red;'> Film mit ID $id nicht gefunden.</div>";
     exit;
 }
 

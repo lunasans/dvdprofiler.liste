@@ -56,7 +56,7 @@ h1 {
   display: flex;
   gap: var(--gap);
   align-items: stretch;
-  /* ⬅️ wichtig: beide Spalten gleich hoch */
+  /*  wichtig: beide Spalten gleich hoch */
 }
 
 /* ──────────────────────────────────────────────────────────────────── */

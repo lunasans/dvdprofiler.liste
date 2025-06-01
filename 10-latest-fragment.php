@@ -16,7 +16,7 @@ foreach ($latest as $dvd) {
     $runtime  = (int)$dvd['runtime'];
     $genres   = htmlspecialchars($dvd['genre']);
 
-    $tooltip = "🎭 $genres\n🕓 {$runtime} Min";
+    $tooltip = " $genres\n {$runtime} Min";
 
 echo "
 <div class='latest-card'>
@@ -24,7 +24,7 @@ echo "
         <div class='card-image'>
             <img src='$cover' alt='Cover von $title'>
             <div class='hover-info'>
-                🎭 $genres<br>🕓 {$runtime} Min
+                 $genres<br> {$runtime} Min
             </div>
         </div>
         <div class='latest-title'>

@@ -20,7 +20,7 @@ $search = trim($_GET['q'] ?? '');
 <!-- ───────────── Header ───────────── -->
 <header class="smart-header">
   <div class="header-inner">
-    <div class="logo">🎬 Sammlung</div>
+    <div class="logo">DVD-Sammlung</div>
 
     <nav class="main-nav" id="mainNav">
       <a href="index.php">Home</a>
@@ -37,12 +37,12 @@ $search = trim($_GET['q'] ?? '');
 
 <!-- ───────────── Hauptlayout ───────────── -->
 <div class="layout">
-  <!-- 🔹 Linke Film-Liste + Tabs + Pagination -->
+  <!--  Linke Film-Liste + Tabs + Pagination -->
   <div class="film-list-area">
     <?php include __DIR__ . '/partials/film-list.php'; ?>
   </div>
 
-  <!-- 🔸 Rechte Detailansicht -->
+  <!--  Rechte Detailansicht -->
   <div class="detail-panel" id="detail-container">
     <!-- wird dynamisch per JS gefüllt -->
   </div>

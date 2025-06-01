@@ -5,7 +5,7 @@ require_once __DIR__ . '/../functions.php';
 ini_set('display_errors', 1);
 error_reporting(E_ALL);
 
-// 📦 Gesamte Anzahl
+// Gesamte Anzahl
 $totalFilms = $pdo->query("SELECT COUNT(*) FROM dvds")->fetchColumn();
 
 // Altersfreigabe
@@ -18,10 +18,10 @@ $ratingAgeStmt = $pdo->query("
 ");
 $ratingAgeData = $ratingAgeStmt->fetchAll(PDO::FETCH_KEY_PAIR);
 
-// ⏱ Durchschnittliche Laufzeit
+//  Durchschnittliche Laufzeit
 $avgRuntime = $pdo->query("SELECT ROUND(AVG(runtime)) FROM dvds WHERE runtime > 0")->fetchColumn();
 
-// 🕒 Gesamtlaufzeit
+//  Gesamtlaufzeit
 $totalRuntime = $pdo->query("SELECT SUM(runtime) FROM dvds WHERE runtime > 0")->fetchColumn();
 
 // Umrechnung:
@@ -31,14 +31,14 @@ $tage = floor($totalRuntime / 60 / 24);     // Minuten → Stunden → Tage
 $jahre = floor($tage / 365);
 $monate = floor(($tage % 365) / 30);
 
-// 📅 Durchschnittliches Erscheinungsjahr
+//  Durchschnittliches Erscheinungsjahr
 $avgYear = $pdo->query("SELECT ROUND(AVG(year)) FROM dvds WHERE year > 0")->fetchColumn();
 
-// 🗂 CollectionType Verteilung
+//  CollectionType Verteilung
 $collectionStmt = $pdo->query("SELECT collection_type, COUNT(*) AS count FROM dvds GROUP BY collection_type ORDER BY count DESC");
 $collections = $collectionStmt->fetchAll();
 
-// 🎭 Top Genres
+//  Top Genres
 $genreStmt = $pdo->query("
     SELECT genre, COUNT(*) AS count
     FROM (
@@ -63,7 +63,7 @@ $genreStmt = $pdo->query("
 ");
 $topGenres = $genreStmt->fetchAll();
 
-// 📅 Filme pro Jahr
+//  Filme pro Jahr
 $yearStmt = $pdo->query("SELECT year, COUNT(*) AS count FROM dvds WHERE year > 0 GROUP BY year ORDER BY year ASC");
 $yearData = $yearStmt->fetchAll(PDO::FETCH_KEY_PAIR);
 ?>

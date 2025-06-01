@@ -17,7 +17,7 @@ $stmt->execute($param ?: ['%', '']);
 $actors = $stmt->fetchAll();
 ?>
 
-<h2>🎭 Schauspieler<?= $letter ? ' mit "' . htmlspecialchars($letter) . '"' : '' ?></h2>
+<h2>Schauspieler<?= $letter ? ' mit "' . htmlspecialchars($letter) . '"' : '' ?></h2>
 
 <div class="actor-filter">
   <?php foreach (range('A', 'Z') as $l): ?>

@@ -45,7 +45,7 @@ function startImport() {
         });
 }
 
-// 📈 Fortschrittsbalken + Logging
+// Fortschrittsbalken + Logging
 function scrollLogToBottom() {
     const log = document.getElementById('log');
     log.scrollTop = log.scrollHeight;

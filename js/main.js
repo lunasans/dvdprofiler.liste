@@ -101,7 +101,7 @@ function bindRoutingLinks() {
   });
 }
 
-// 🎬 Detailansicht laden
+// Detailansicht laden
 function bindToggleLinks() {
   document.querySelectorAll('.toggle-detail').forEach(link => {
     link.addEventListener('click', function (e) {
@@ -120,25 +120,7 @@ function bindToggleLinks() {
   });
 }
 
-// 📦 Klappfunktion für BoxSets
-//function bindBoxsetToggles() {
-//  document.querySelectorAll('.boxset-toggle').forEach(btn => {
-//    btn.removeEventListener('click', btn._boxsetHandler);
-
-//    btn._boxsetHandler = () => {
-// Finde die boxset-children, die direkt nach dem aktuellen .dvd-wrapper folgt
-//      const group = btn.closest('.dvd-wrapper').nextElementSibling;
-//      const target = group?.querySelector('.boxset-children');
-//      if (!target) return;
-//
-//      const isOpen = target.classList.toggle('open');
-//      btn.innerText = isOpen ? 'Box-Inhalte ausblenden' : 'Box-Inhalte anzeigen';
-//    };
-//
-//    btn.addEventListener('click', btn._boxsetHandler);
-//  });
-//}
-
+//  Klappfunktion für BoxSets
 function bindBoxsetToggles() {
   document.querySelectorAll('.boxset-toggle').forEach(btn => {
     btn.addEventListener('click', function () {
@@ -157,7 +139,7 @@ document.addEventListener('DOMContentLoaded', () => {
   bindBoxsetToggles();
 });
 
-// ❌ Detail schließen (per Button)
+//  Detail schließen (per Button)
 document.addEventListener('click', function (e) {
   if (e.target.classList.contains('close-detail-button')) {
     const container = document.getElementById('detail-container');
@@ -175,7 +157,7 @@ document.addEventListener('click', function (e) {
   }
 });
 
-// ⎋ Esc-Taste schließt Detail
+//  Esc-Taste schließt Detail
 document.addEventListener('keydown', function (e) {
   if (e.key === 'Escape') {
     const container = document.getElementById('detail-container');
@@ -193,7 +175,7 @@ document.addEventListener('keydown', function (e) {
   }
 });
 
-// ▶️ YouTube-Trailer
+//  YouTube-Trailer
 document.addEventListener('click', function (e) {
   const placeholder = e.target.closest('.trailer-placeholder');
   if (placeholder) {
@@ -220,7 +202,7 @@ function setViewMode(mode) {
   localStorage.setItem('viewMode', mode);
 }
 
-// 🚀 Initialisierung
+//  Initialisierung
 window.addEventListener('popstate', loadFromUrl);
 window.addEventListener('DOMContentLoaded', () => {
   loadFromUrl();

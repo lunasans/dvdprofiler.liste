@@ -339,7 +339,7 @@ h1 {
 .cover-pair {
   display: flex;
   justify-content: center;
-  /* 🎯 ZENTRIERT horizontal */
+  /* ZENTRIERT horizontal */
   align-items: flex-start;
   /* optional: richtet Cover oben aus */
   gap: 1rem;
@@ -413,7 +413,7 @@ h1 {
 
 .actor-list ul {
   list-style: none;
-  /* 🔥 entfernt die Punkte */
+  /* entfernt die Punkte */
   columns: 2;
   padding-left: 0;
   gap: 1.5rem;

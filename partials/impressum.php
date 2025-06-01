@@ -3,9 +3,9 @@
 
   <h2>Angaben gemäß § 5 TMG</h2>
   <p style="margin-bottom: 1.5em;">
-    René Neuhaus<br>
+    <br>
     Privatperson<br>
-    E-Mail: <a href="mailto:info@rene-neuhaus.eu">info@rene-neuhaus.eu</a>
+    E-Mail: <a href="mailto:info@rene-neuhaus.eu"></a>
   </p>
 
 <p style="margin-bottom: 1.5em;">

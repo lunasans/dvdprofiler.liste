@@ -4,7 +4,7 @@ require_once __DIR__ . '/../functions.php';
 
 $name = trim($_GET['name'] ?? '');
 if (!$name) {
-    echo "<p>❌ Kein Schauspieler angegeben.</p>";
+    echo "<p>Kein Schauspieler angegeben.</p>";
     return;
 }
 
