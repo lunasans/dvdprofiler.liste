@@ -31,5 +31,44 @@
 
 <script src="js/import.js"></script>
 
+<script>
+function startImport() {
+    const log = document.getElementById('log');
+    log.textContent = '';
+    setStep(1, 'pending');
+    fetch('import-handler.php')
+        .then(res => res.text())
+        .then(text => {
+            log.textContent = text;
+            log.scrollTop = log.scrollHeight;
+            setStep(1, 'done');
+            setStep(2, 'done');
+            setStep(3, 'done');
+            setStep(4, 'done');
+            updateProgress(100);
+        });
+}
+
+function confirmReset() {
+    if (!confirm("Bist du sicher? Alle Filme und Schauspieler werden gelöscht!")) return;
+    fetch('reset-db.php')
+        .then(res => res.text())
+        .then(txt => {
+            document.getElementById('log').textContent = txt + '\n\nStarte Import.\n';
+            startImport();
+        });
+}
+
+function setStep(n, status) {
+    document.getElementById('s' + n).className = 'step ' + status;
+}
+
+function updateProgress(percent) {
+    const bar = document.getElementById('progress');
+    bar.style.width = percent + '%';
+    bar.textContent = percent + '%';
+}
+</script>
+
 </body>
 </html>
