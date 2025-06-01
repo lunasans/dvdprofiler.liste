@@ -1,6 +1,6 @@
 // ⚠️ Datenbank-Reset mit Bestätigung
 function confirmReset() {
-    if (!confirm("⚠️ Bist du sicher? Alle Filme und Schauspieler werden gelöscht!")) return;
+    if (!confirm("Bist du sicher? Alle Filme und Schauspieler werden gelöscht!")) return;
     fetch('reset-db.php')
         .then(res => res.text())
         .then(txt => {
