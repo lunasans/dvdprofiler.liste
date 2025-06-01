@@ -19,7 +19,7 @@ require_once __DIR__ . '/../config/config.php';
 <body>
   <header class="smart-header">
     <div class="header-inner">
-      <div class="logo">🎬 Adminbereich</div>
+      <div class="logo">Adminbereich</div>
       <nav class="main-nav">
         <a href="index.php">Dashboard</a>
         <a href="backup.php">Backups</a>
