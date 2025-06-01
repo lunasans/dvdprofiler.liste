@@ -14,3 +14,6 @@ Dieses Projekt ist ein webbasiertes Tool zur Verwaltung einer privaten Filmsamml
 <li>Adminbereich (ab Version 1.3.5) mit Updatefunktion</li>
 <li>Besucherzähler, responsive Design, DSGVO-konformes Impressum</li>
 </ol>
+
+<h2>Screenshots</h2>
+<img src="https://rnu.ovh/6l"></img>
