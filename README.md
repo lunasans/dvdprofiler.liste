@@ -1,2 +1,2 @@
 # dvdprofiler.liste
-Zur Darstellung  einer DvD Sammlung die über dvdprofiler verwaltet wird. 
+Zum import der collection.xml, die aus DVDProfiler exportiert wird. 
