@@ -1,0 +1,931 @@
+/* Google Font einbinden */
+@import url('https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;600;700&display=swap');
+
+/* Farb- und Abstands-Variablen */
+:root {
+  --clr-bg: #f4f7f9;
+  --clr-card: #ffffff;
+  --clr-primary: #3498db;
+  --clr-secondary: #2c3e50;
+  --clr-accent: #e74c3c;
+  --clr-text: #333333;
+  --gap: 1.5rem;
+  --radius: 8px;
+}
+
+a {
+  text-decoration: none;
+}
+
+.static-page {
+  padding: 1.05rem;
+  max-width: 700px;
+  margin: auto;
+  line-height: 1.7;
+  font-size: 1rem;
+}
+
+.static-page p {
+  margin-bottom: 1.25em;
+}
+
+/* Basis */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Open Sans', sans-serif;
+  background: var(--clr-bg);
+  color: var(--clr-text);
+  line-height: 1.6;
+  padding: var(--gap);
+}
+
+h1 {
+  font-weight: 600;
+  color: var(--clr-secondary);
+  margin-bottom: var(--gap);
+  text-align: center;
+}
+
+/* Layout */
+.layout {
+  display: flex;
+  gap: var(--gap);
+  align-items: stretch;
+  /* ⬅️ wichtig: beide Spalten gleich hoch */
+}
+
+/* Filmliste als Grid-Karten */
+.film-list {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1rem;
+  padding: 1rem 0;
+}
+
+@media (max-width: 1000px) {
+  .film-list {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 700px) {
+  .film-list {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 500px) {
+  .film-list {
+    grid-template-columns: 1fr;
+  }
+}
+
+.film-list-area {
+  flex: 1 1 60%;
+}
+
+.dvd {
+  background: var(--clr-card);
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transition: transform 0.2s, box-shadow 0.2s;
+  height: 100%;
+}
+
+.dvd:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.dvd img {
+  width: 100%;
+  height: 280px;
+  object-fit: cover;
+}
+
+.dvd-details {
+  padding: 0.8rem;
+  font-size: 0.85rem;
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.dvd-details h2 {
+  font-size: 1.1rem;
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+} 
+
+.dvd-details h2 a {
+  color: var(--clr-secondary);
+  text-decoration: none;
+}
+
+.dvd-details h2 a:hover {
+  color: var(--clr-primary);
+}
+
+.dvd-details p {
+  font-size: 0.9rem;
+}
+
+.dvd-details strong {
+  color: var(--clr-secondary);
+}
+
+.dvd-wrapper {
+  position: relative;
+}
+
+.dvd-action-area {
+  margin-top: -0.5rem;
+  padding-left: 1rem;
+  padding-bottom: 0.5rem;
+}
+
+.dvd .boxset-toggle {
+  margin-top: 0.5rem;
+  background: none;
+  border: none;
+  color: #007bff;
+  font-weight: bold;
+  cursor: pointer;
+  font-size: 0.9rem;
+  padding: 0;
+}
+
+
+/* Detail-Panel */
+.detail-panel {
+  flex: 1 1 50%;
+  background: var(--clr-card);
+  border-radius: var(--radius);
+  padding: var(--gap);
+  box-shadow: 9px 9px 4px rgba(0, 0, 0, 0.1);
+  max-height: auto;
+  overflow-y: auto;
+  margin-top: 110px;
+}
+
+.detail-panel h2 {
+  font-size: 1.5rem;
+  margin-bottom: var(--gap);
+}
+
+.detail-panel .thumb,
+.detail-inline .thumb {
+  max-width: 200px;
+  width: 100%;
+  height: auto;
+  margin-bottom: var(--gap);
+}
+
+/* ──────────────────────────────────────────────────────────────────── */
+/* footer                                                               */
+/* ──────────────────────────────────────────────────────────────────── */
+
+.site-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 1rem 2rem;
+  background: #f5f5f5;
+  border-top: 1px solid #ccc;
+  font-size: 0.9rem;
+  color: #444;
+}
+
+.footer-left,
+.footer-center,
+.footer-right {
+  flex: 1;
+}
+
+.footer-center {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.footer-right {
+  text-align: right;
+}
+
+.footer-right a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.footer-right a:hover {
+  text-decoration: underline;
+}
+
+.version {
+  font-weight: bold;
+  color: #888;
+  font-size: 0.85rem;
+}
+
+/* ──────────────────────────────────────────────────────────────────── */
+/* 10 Neueste Filme – Karten mit Hover-Overlay                        */
+/* ──────────────────────────────────────────────────────────────────── */
+
+.latest-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: var(--gap);
+}
+
+.latest-card {
+  background: var(--clr-card);
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  text-align: center;
+  position: relative;
+  text-decoration: none;
+}
+
+.latest-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.latest-card img {
+  width: 100%;
+  height: 160px;
+  /* feste Kartenhöhe */
+  object-fit: cover;
+  display: block;
+  border-bottom: 1px solid #ddd;
+}
+
+.latest-title {
+  padding: 0.5rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--clr-secondary);
+
+}
+
+.latest-title a {
+  text-decoration: none !important;
+
+}
+
+.latest-title .year {
+  font-weight: 400;
+  font-size: 0.85em;
+  color: #777;
+}
+
+/* Overlay-Box bei Hover */
+.card-image {
+  position: relative;
+}
+
+.hover-info {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-size: 0.75rem;
+  line-height: 1.2;
+  padding: 0.6rem;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.latest-card:hover .hover-info {
+  opacity: 1;
+}
+
+.card-image {
+  position: relative;
+}
+
+.hover-info {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: rgba(0, 0, 0, 0.75);
+  color: white;
+  font-size: 0.75rem;
+  padding: 0.4rem;
+  text-align: left;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  pointer-events: none;
+}
+
+.latest-card:hover .hover-info {
+  opacity: 1;
+}
+
+/* Cover */
+
+.cover-pair {
+  display: flex;
+  justify-content: center;
+  /* 🎯 ZENTRIERT horizontal */
+  align-items: flex-start;
+  /* optional: richtet Cover oben aus */
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+  /* für kleinere Bildschirme */
+}
+
+.cover-pair img.thumb {
+  max-height: 240px;
+  border-radius: 6px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+/* Mode switch*/
+
+.film-list.grid-mode {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 1.5rem;
+  align-items: stretch; /* neu */
+}
+
+
+.film-list.list-mode {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.film-list.list-mode .dvd {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+  border: 1px solid #ddd;
+  padding: 1rem;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.film-list.list-mode .cover-area img {
+  max-height: 120px;
+  width: auto;
+}
+
+/* Schauspieler & Trailer */
+
+.meta-card {
+  background: #f8f8f8;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 1rem;
+  margin: 1rem 0;
+
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+}
+
+.meta-card p {
+  margin: 0.4rem 0;
+}
+
+.row-actors-trailer {
+  display: flex;
+  gap: var(--gap);
+  margin-top: var(--gap);
+}
+
+.actor-list {
+  flex: 1 1 60%;
+}
+
+.actor-list ul {
+  list-style: none;
+  /* 🔥 entfernt die Punkte */
+  columns: 2;
+  padding-left: 0;
+  gap: 1.5rem;
+}
+
+@media (max-width: 600px) {
+  .actor-list ul {
+    list-style: none;
+    columns: 1;
+  }
+}
+
+.actor-list li {
+  margin-bottom: 0.3rem;
+  /* etwas Abstand zwischen den Namen */
+}
+
+.trailer-box {
+  width: 50%;
+  max-width: 480px;
+  aspect-ratio: 16 / 9;
+  position: relative;
+  cursor: pointer;
+  overflow: hidden;
+  border-radius: 6px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+.trailer-box img {
+  width: 50%;
+  height: 50%;
+  object-fit: cover;
+}
+
+.play-icon {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 3rem;
+  color: white;
+  text-shadow: 0 0 10px rgba(0, 0, 0, 0.7);
+}
+
+/* Verschönerter Close-Button */
+.close-detail-button {
+  display: inline-block;
+  margin-top: var(--gap);
+  padding: 0.4rem 0.8rem;
+  background: var(--clr-accent);
+  color: white;
+  border-radius: var(--radius);
+  text-decoration: none;
+  font-weight: 600;
+  transition: background 0.2s;
+}
+
+.close-detail-button:hover {
+  background: darken(var(--clr-accent), 10%);
+}
+
+/* Scrollbar im Detail-Panel (modern) */
+.detail-panel::-webkit-scrollbar {
+  width: 8px;
+}
+
+.detail-panel::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+}
+
+/* Utility */
+.hidden {
+  display: none !important;
+}
+
+/* ───────────────────────────────────────────────── */
+/* Pagination – Pill-Style mit Prev/Next und Ellipsen */
+/* ───────────────────────────────────────────────── */
+
+.pagination {
+  display: flex;
+  flex-wrap: nowrap;
+  /* alle Buttons in einer Zeile */
+  justify-content: center;
+  /* Mittig ausrichten */
+  gap: 0.5rem;
+  margin: var(--gap) 0;
+
+
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.pagination::-webkit-scrollbar {
+  display: none;
+}
+
+.pagination a,
+.pagination .current,
+.pagination .page-arrow,
+.pagination .dots {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2em;
+  padding: 0.4em 0.8em;
+  border-radius: var(--radius);
+  text-decoration: none;
+  color: var(--clr-secondary);
+  transition: background 0.2s, color 0.2s, transform 0.15s;
+}
+
+/* aktive Seite */
+.pagination .current {
+  background: var(--clr-primary);
+  color: #fff;
+  cursor: default;
+  font-weight: 600;
+}
+
+/* Link-Buttons */
+.pagination a:hover:not(.page-arrow) {
+  background: var(--clr-primary);
+  color: #fff;
+  transform: translateY(-2px);
+}
+
+/* Prev/Next-Buttons */
+.pagination .page-arrow {
+  font-weight: bold;
+}
+
+.pagination .page-arrow:hover {
+  background: var(--clr-secondary);
+  color: #fff;
+  transform: translateY(-2px);
+}
+
+/* Ellipsen */
+.pagination .dots {
+  background: transparent;
+  color: #777;
+  cursor: default;
+  padding: 0;
+  min-width: auto;
+}
+
+.site-footer {
+  background: var(--clr-secondary);
+  color: #fff;
+  text-align: center;
+  padding: 1rem var(--gap);
+  margin-top: var(--gap);
+  font-size: 0.9rem;
+}
+
+/* ───────────────── Tabs für CollectionType ───────────────── */
+
+.tabs {
+  display: flex;
+  margin-top: 2em;
+  /* zwei Zeilen Abstand */
+  gap: 0.5rem;
+  list-style: none;
+  margin-bottom: var(--gap);
+  padding: 0;
+}
+
+.tabs li a {
+  display: inline-block;
+  padding: 0.4rem 0.8rem;
+  border-radius: var(--radius);
+  background: var(--clr-card);
+  color: var(--clr-secondary);
+  text-decoration: none;
+  transition: background 0.2s, color 0.2s;
+}
+
+.tabs li a:hover {
+  background: var(--clr-primary);
+  color: #fff;
+}
+
+.tabs li.active a {
+  background: var(--clr-primary);
+  color: #fff;
+  cursor: default;
+}
+
+.tabs-wrapper {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.view-toggle button {
+  background: none;
+  border: none;
+  font-size: 1.4rem;
+  cursor: pointer;
+  color: #666;
+  padding: 0.2rem 0.5rem;
+}
+
+.view-toggle button:hover {
+  color: var(--clr-primary);
+}
+
+.view-toggle button:active {
+  color: var(--clr-primary);
+}
+
+/*-----------------------Header----------------*/
+
+.smart-header {
+  background: var(--clr-secondary);
+  color: white;
+  padding: 0.75rem 1rem;
+  position: relative;
+  border-bottom: 1px solid #444;
+}
+
+.header-inner {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  max-width: 1200px;
+  margin: 0 auto;
+  gap: 1rem;
+}
+
+.logo {
+  font-size: 1.2rem;
+  font-weight: bold;
+  color: white;
+  flex: 1;
+}
+
+.main-nav {
+  flex: 2;
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+}
+
+.main-nav a {
+  color: white;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.main-nav a:hover {
+  text-decoration: underline;
+}
+
+.search-form {
+  flex: 1;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.search-form input {
+  padding: 0.4rem 0.6rem;
+  border: none;
+  border-radius: 4px;
+  font-size: 0.9rem;
+}
+
+/* Burger für Mobilgeräte */
+.burger {
+  display: none;
+  background: none;
+  border: none;
+  color: white;
+  font-size: 1.5rem;
+  position: absolute;
+  right: 1rem;
+  top: 1rem;
+  cursor: pointer;
+}
+
+@media (max-width: 768px) {
+  .main-nav {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    background: var(--clr-secondary);
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    padding: 1rem 0;
+    z-index: 10;
+  }
+
+  .main-nav.show {
+    display: flex;
+  }
+
+  .burger {
+    display: block;
+  }
+
+  .search-form {
+    display: none;
+  }
+}
+
+/* Statistik CSS */
+.stat-cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.stat-card {
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 1rem 1.2rem;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+  flex: 1;
+  min-width: 140px;
+  max-width: 200px;
+  text-align: center;
+}
+
+.stat-card strong {
+  display: block;
+  font-size: 0.95rem;
+  margin-bottom: 0.3rem;
+  color: #555;
+}
+
+.stat-card span {
+  font-size: 1.4rem;
+  font-weight: bold;
+  color: #222;
+}
+
+/* Canvas */
+.stats-content canvas {
+  background: white;
+  border-radius: 6px;
+  padding: 1rem;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  margin-bottom: 2rem;
+}
+
+.stats-content canvas {
+  background: white;
+  border-radius: 6px;
+  padding: 1rem;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  margin-bottom: 2rem;
+}
+
+@media (max-width: 600px) {
+  .stat-cards {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+/* actor film list */
+
+.actor-film-list {
+  list-style: none;
+  padding-left: 0;
+  margin-top: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.actor-film-list li {
+  background: #f9f9f9;
+  padding: 0.5rem 0.75rem;
+  border-radius: 5px;
+  border: 1px solid #ddd;
+  transition: background 0.2s;
+}
+
+.actor-film-list li:hover {
+  background: #efefef;
+}
+
+.actor-film-list a {
+  text-decoration: none;
+  color: #333;
+  font-weight: 500;
+}
+
+.actor-film-list a:hover {
+  color: #007bff;
+}
+
+/* Hauptbereich */
+main {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 var(--gap);
+}
+
+/* Nur relevante BoxSet-Regeln angepasst */
+.boxset-toggle {
+  background: none;
+  border: none;
+  color: #007bff;
+  cursor: pointer;
+  font-size: 0.9rem;
+  margin-bottom: 0.5rem;
+  padding-left: 0;
+}
+
+/* BoxSet-Kindfilme in Grid-Modus */
+.film-list.grid-mode .boxset-children {
+  display: none;
+}
+
+.film-list.grid-mode .boxset-children.open {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  grid-column: span 4;
+  padding-left: 1rem;
+  margin-top: -0.5rem;
+  margin-bottom: 1.5rem;
+  gap: 1rem;
+  padding: 1rem;
+  background: #f9f9f9;
+}
+
+.film-list.list-mode .boxset-children.open {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 1rem;
+  padding: 0.5rem;
+  background: #f9f9f9;
+  margin-top: 0.5rem;
+}
+
+/* Wenn Box geschlossen ist: kein Platz, keine Border */
+.film-list.grid-mode .boxset-children:not(.open) {
+  display: none !important;
+  height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+}
+
+/* Für die Klappfunktion 
+.boxset-group {
+  margin-left: 1rem;
+  padding-left: 1rem; 
+  margin-bottom: 1.5rem;
+} */
+
+/* Boxset-Gruppe: nur wenn geöffnet */
+.boxset-group {
+  transition: all 0.2s ease;
+}
+
+.boxset-group:not(.expanded) {
+  margin: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  height: 0;
+  overflow: hidden;
+}
+
+.boxset-children {
+  display: none;
+  gap: 1rem;
+  margin: 0.5rem 0 1.5rem;
+  padding: 0.5rem;
+  background: #f9f9f9;
+}
+
+.boxset-children.open {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+}
+
+.child-dvd {
+  font-size: 0.85rem;
+  opacity: 0.95;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+
+
+/* Boxset-Kinder (Grid-Ansicht) */
+.film-list.grid-mode .boxset-group {
+  grid-column: span 4; /* ganze Zeile nutzen */
+  padding-left: 1rem;
+  margin-top: -0.5rem;
+  margin-bottom: 1.5rem;
+
+}
+
+/* BoxSet-Kindfilme in Listen-Modus */
+.film-list.list-mode .boxset-children {
+  display: none;
+}
+
+.film-list.list-mode .boxset-children.open {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1rem;
+  background: #f9f9f9;
+}
