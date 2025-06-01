@@ -5,7 +5,7 @@
   <p style="margin-bottom: 1.5em;">
     <br>
     Privatperson<br>
-    E-Mail: <a href="mailto:info@rene-neuhaus.eu"></a>
+    E-Mail: <a href="mailto:"></a>
   </p>
 
 <p style="margin-bottom: 1.5em;">
