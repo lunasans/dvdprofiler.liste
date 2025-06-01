@@ -9,12 +9,12 @@ echo "[STEP1] Lade XML...\n";
 
 $xmlFile = __DIR__ . "/xml/Collection.xml";
 if (!file_exists($xmlFile)) {
-    echo "❌ XML-Datei nicht gefunden\n";
+    echo "XML-Datei nicht gefunden\n";
     exit;
 }
 $xml = simplexml_load_file($xmlFile);
 if (!$xml) {
-    echo "❌ Fehler beim Laden der XML-Datei\n";
+    echo "Fehler beim Laden der XML-Datei\n";
     exit;
 }
 
@@ -72,10 +72,10 @@ foreach ($entries as $dvd) {
                 $boxParent,
                 $id
             ]);
-            echo "✏️ aktualisiert\n";
+            echo "aktualisiert\n";
             $aktualisiert++;
         } else {
-            echo "🔁 übersprungen\n";
+            echo "übersprungen\n";
         }
         continue;
     }
@@ -110,12 +110,12 @@ foreach ($entries as $dvd) {
         ]);
     }
 
-    echo "📥 importiert\n";
+    echo "importiert\n";
 
     $percent = (int)($index / $total * 100);
     echo "PROGRESS:$percent%\n";
 }
 
-echo "[STEP2DONE] ✏️ $aktualisiert aktualisiert, 📥 $importiert importiert\n";
+echo "[STEP2DONE]  $aktualisiert aktualisiert, 📥 $importiert importiert\n";
 echo "[STEP3] Speichere in Datenbank abgeschlossen\n";
-echo "[DONE] ✅ Import vollständig\n";
+echo "[DONE] Import vollständig\n";

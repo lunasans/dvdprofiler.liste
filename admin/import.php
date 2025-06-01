@@ -17,7 +17,7 @@
 
 <h1>DVD-Import</h1>
 <button onclick="startImport()">Import starten</button>
-<button onclick="confirmReset()">⚠️ Datenbank zurücksetzen & Import starten</button>
+<button onclick="confirmReset()">Datenbank zurücksetzen & Import starten</button>
 
 <div id="steps">
     <div id="s1" class="step wait">Lade XML</div>
