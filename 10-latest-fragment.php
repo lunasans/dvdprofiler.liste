@@ -1,5 +1,5 @@
 <?php
-require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/config/config.php';
 require_once __DIR__ . '/functions.php';
 
 $stmt = $pdo->query("SELECT * FROM dvds ORDER BY id DESC LIMIT 15");

@@ -24,7 +24,7 @@ function ensureChartJsLoaded(callback) {
   document.head.appendChild(script);
 }
 
-// 🔁 Routing bei Seitenwechsel
+// Routing bei Seitenwechsel
 function loadFromUrl() {
   const params = new URLSearchParams(window.location.search);
   const container = document.getElementById('detail-container');
@@ -35,6 +35,11 @@ function loadFromUrl() {
       .then(res => res.text())
       .then(html => {
         container.innerHTML = html;
+
+        // Fancybox neu binden
+        if (typeof Fancybox !== 'undefined') {
+          Fancybox.bind("[data-fancybox]", {});
+        }
       });
 
   } else if (params.has('page')) {
@@ -78,6 +83,7 @@ function loadFromUrl() {
       });
   }
 }
+
 
 // ⛓ Routing-Links abfangen
 function bindRoutingLinks() {
