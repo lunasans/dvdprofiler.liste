@@ -22,7 +22,6 @@ require_once __DIR__ . '/../config/config.php';
       <div class="logo">🎬 Adminbereich</div>
       <nav class="main-nav">
         <a href="index.php">Dashboard</a>
-        <a href="release-center.php">Release Center</a>
         <a href="backup.php">Backups</a>
         <a href="../index.php">Zurück zur Website</a>
       </nav>
