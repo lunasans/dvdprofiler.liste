@@ -17,3 +17,4 @@ Dieses Projekt ist ein webbasiertes Tool zur Verwaltung einer privaten Filmsamml
 
 <h2>Screenshots</h2>
 <img src="https://rnu.ovh/to"></img>
+<img src="https://rnu.ovh/ti"></img>
