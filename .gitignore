@@ -3,3 +3,4 @@ config.php
 /admin/xml/Collection.xml
 counter.txt
 /install/install.lock
+.vscode
