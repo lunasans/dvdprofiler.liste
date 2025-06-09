@@ -1,8 +1,5 @@
 <?php
 declare(strict_types=1);
-require_once __DIR__ . '/config/config.php';
-require_once __DIR__ . '/functions.php';
-
 // echo "<div style='padding:1rem; background:#eef;'>Filmfragment geladen mit ID: " . htmlspecialchars($_GET['id'] ?? '???') . "</div>";
 
 // Fehleranzeige aktivieren (nur für lokale Entwicklung)

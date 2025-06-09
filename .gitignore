@@ -4,3 +4,5 @@ config.php
 counter.txt
 /install/install.lock
 .vscode
+replace_requires.py
+delete_requires.py

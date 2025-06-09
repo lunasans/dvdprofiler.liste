@@ -1,6 +1,5 @@
 <?php
-require_once __DIR__ . '/../config/config.php';
-require_once __DIR__ . '/../functions.php';
+require_once __DIR__ . '/../includes/bootstrap.php';
 
 $search   = trim($_GET['q'] ?? '');
 $type     = trim($_GET['type'] ?? '');
