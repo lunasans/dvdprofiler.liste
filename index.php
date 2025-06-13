@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 // Zentrale Initialisierung
+require_once __DIR__ . '/includes/bootstrap.php';
 
 $search = trim($_GET['q'] ?? '');
 ?>
@@ -16,22 +17,7 @@ $search = trim($_GET['q'] ?? '');
 <body>
 
 <!-- ───────────── Header ───────────── -->
-<header class="smart-header">
-  <div class="header-inner">
-    <div class="logo">DVD-Sammlung</div>
-
-    <nav class="main-nav" id="mainNav">
-      <a href="index.php">Home</a>
-      <a href="?page=stats" class="route-link">Statistik</a>
-    </nav>
-
-    <form class="search-form" method="get">
-      <input type="text" name="q" placeholder="Film suchen…" value="<?= htmlspecialchars($search) ?>">
-    </form>
-
-    <button class="burger" onclick="toggleNav()">☰</button>
-  </div>
-</header>
+<?php include 'partials/header.php'; ?>
 
 <!-- ───────────── Hauptlayout ───────────── -->
 <div class="layout">

@@ -1,5 +1,5 @@
 <?php
-$counterFile = __DIR__ . '/counter.txt';
+$counterFile = __DIR__ . '/../counter.txt';
 
 // Datei anlegen, falls sie nicht existiert
 if (!file_exists($counterFile)) {

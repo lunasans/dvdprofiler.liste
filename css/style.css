@@ -959,3 +959,8 @@ main {
     object-fit: cover;
   }
 }
+
+.main-nav a.active {
+  font-weight: bold;
+  border-bottom: 2px solid var(--clr-primary);
+}

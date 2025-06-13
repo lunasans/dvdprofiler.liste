@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/includes/bootstrap.php';
 
 $stmt = $pdo->query("SELECT * FROM dvds ORDER BY id DESC LIMIT 15");
 $latest = $stmt->fetchAll();
