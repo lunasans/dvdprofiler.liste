@@ -1,22 +1,25 @@
 <?php
-session_start();
+declare(strict_types=1);
 
-$error = '';
+// Bootstrap lädt $pdo, BASE_URL usw.
+require_once __DIR__ . '/../includes/bootstrap.php';
+
+session_start();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email = trim($_POST['email'] ?? '');
     $password = $_POST['password'] ?? '';
 
-    $stmt = $pdo->prepare("SELECT id, password FROM users WHERE email = ?");
+    $stmt = $pdo->prepare("SELECT * FROM users WHERE email = ?");
     $stmt->execute([$email]);
     $user = $stmt->fetch();
 
     if ($user && password_verify($password, $user['password'])) {
         $_SESSION['user_id'] = $user['id'];
-        header('Location: index.php');
+        header("Location: " . BASE_URL . "/admin/index.php");
         exit;
     } else {
-        $error = 'Login fehlgeschlagen';
+        $error = "Login fehlgeschlagen.";
     }
 }
 ?>

@@ -1,25 +1,26 @@
 <?php
 declare(strict_types=1);
 
+// Lockfile prüfen
 $lockFile = __DIR__ . '/install.lock';
+if (file_exists($lockFile)) {
+    exit('<h2>🔒 Die Installation wurde bereits durchgeführt. Entferne <code>install/install.lock</code>, um sie erneut zu starten.</h2>');
+}
+
 $configDir = dirname(__DIR__) . '/config';
-$coverDir = dirname(__DIR__) . '/cover';
 $configFile = $configDir . '/config.php';
+$coverDir = dirname(__DIR__) . '/cover';
 
 $requirements = [
-    'PHP-Version ≥ 8.1'              => version_compare(PHP_VERSION, '8.1', '>='),
-    'PDO-Erweiterung (pdo)'          => extension_loaded('pdo'),
-    'PDO MySQL-Erweiterung'          => extension_loaded('pdo_mysql'),
+    'PHP-Version ≥ 8.1' => version_compare(PHP_VERSION, '8.1', '>='),
+    'PDO-Erweiterung (pdo)' => extension_loaded('pdo'),
+    'PDO MySQL-Erweiterung' => extension_loaded('pdo_mysql'),
     '/config-Verzeichnis beschreibbar' => is_dir($configDir) ? is_writable($configDir) : is_writable(dirname(__DIR__)),
 ];
 
 $allRequirementsMet = !in_array(false, $requirements, true);
 $errors = [];
 $success = '';
-
-if (file_exists($lockFile)) {
-    exit('<h2>🔒 Die Installation wurde bereits durchgeführt. Entferne <code>install/install.lock</code>, um sie erneut zu starten.</h2>');
-}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $allRequirementsMet) {
     $host     = trim($_POST['host']);
@@ -28,6 +29,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $allRequirementsMet) {
     $pass     = trim($_POST['pass']);
     $admin    = trim($_POST['admin_email']);
     $admin_pw = $_POST['admin_password'];
+    $baseUrl  = rtrim(trim($_POST['base_url']), '/');
 
     $charset = 'utf8mb4';
     $dsn = "mysql:host=$host;dbname=$dbname;charset=$charset";
@@ -44,58 +46,62 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $allRequirementsMet) {
         if ($stmt->rowCount() > 0) {
             $errors[] = 'Die Datenbank ist nicht leer. Bitte verwende eine leere Datenbank.';
         } else {
-            // Tabellen einzeln erstellen
+            // Tabellen erstellen
             try {
-                $pdo->exec("
-                    CREATE TABLE users (
-                        id INT AUTO_INCREMENT PRIMARY KEY,
-                        email VARCHAR(255) NOT NULL UNIQUE,
-                        password VARCHAR(255) NOT NULL,
-                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                    );
-                ");
+                $pdo->exec("CREATE TABLE users (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    email VARCHAR(255) NOT NULL UNIQUE,
+                    password VARCHAR(255) NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )");
             } catch (PDOException $e) {
-                $errors[] = "Tabelle <code>users</code>: " . $e->getMessage();
+                $errors[] = "❌ Tabelle <code>users</code>: " . $e->getMessage();
             }
 
             try {
-                $pdo->exec("
-                        CREATE TABLE dvds (
-                        id INT PRIMARY KEY,
-                        title VARCHAR(255) NOT NULL,
-                        year INT,
-                        genre VARCHAR(100),
-                        cover_id VARCHAR(50),
-                        collection_type VARCHAR(100),
-                        runtime INT,
-                        rating_age VARCHAR(10),
-                        overview TEXT,
-                        trailer_url VARCHAR(255),
-                        boxset_parent VARCHAR(50),
-                        user_id INT,
-                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-                        );
-                    ");
+                $pdo->exec("CREATE TABLE settings (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    name VARCHAR(100) UNIQUE,
+                    value TEXT NOT NULL,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                )");
+            } catch (PDOException $e) {
+                $errors[] = "❌ Tabelle <code>settings</code>: " . $e->getMessage();
+            }
 
+            try {
+                $pdo->exec("CREATE TABLE dvds (
+                    id INT PRIMARY KEY,
+                    title VARCHAR(255) NOT NULL,
+                    year INT,
+                    genre VARCHAR(100),
+                    cover_id VARCHAR(50),
+                    collection_type VARCHAR(100),
+                    runtime INT,
+                    rating_age VARCHAR(10),
+                    overview TEXT,
+                    trailer_url VARCHAR(255),
+                    boxset_parent VARCHAR(50),
+                    user_id INT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+                )");
             } catch (PDOException $e) {
                 $errors[] = "❌ Tabelle <code>dvds</code>: " . $e->getMessage();
             }
 
             try {
-                $pdo->exec("
-                    CREATE TABLE actors (
-                        id INT AUTO_INCREMENT PRIMARY KEY,
-                        dvd_id INT,
-                        firstname VARCHAR(100),
-                        lastname VARCHAR(100),
-                        role VARCHAR(255),
-                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                        FOREIGN KEY (dvd_id) REFERENCES dvds(id) ON DELETE CASCADE
-                    );
-                ");
+                $pdo->exec("CREATE TABLE actors (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    dvd_id INT,
+                    firstname VARCHAR(100),
+                    lastname VARCHAR(100),
+                    role VARCHAR(255),
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    FOREIGN KEY (dvd_id) REFERENCES dvds(id) ON DELETE CASCADE
+                )");
             } catch (PDOException $e) {
                 $errors[] = "❌ Tabelle <code>actors</code>: " . $e->getMessage();
             }
@@ -105,19 +111,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $allRequirementsMet) {
                     $hashedPw = password_hash($admin_pw, PASSWORD_DEFAULT);
                     $stmt = $pdo->prepare("INSERT INTO users (email, password) VALUES (?, ?)");
                     $stmt->execute([$admin, $hashedPw]);
-
-                    // Admin-ID speichern
-                    $adminId = (int)$pdo->lastInsertId();
-
-                    // Admin automatisch einloggen
-                    session_start();
-                    $_SESSION['user_id'] = $adminId;
-                    $_SESSION['email'] = $admin;
-
-                    $success .= "<br>🆔 Admin-ID wurde gespeichert und automatisch eingeloggt.";
-
                 } catch (PDOException $e) {
                     $errors[] = "❌ Admin-Benutzer: " . $e->getMessage();
+                }
+
+                // Base URL speichern
+                try {
+                    $stmt = $pdo->prepare("INSERT INTO settings (name, value) VALUES ('base_url', ?)");
+                    $stmt->execute([$baseUrl]);
+                } catch (PDOException $e) {
+                    $errors[] = "❌ BASE_URL speichern: " . $e->getMessage();
+                }
+
+                if (!is_dir($configDir)) {
+                    mkdir($configDir, 0755, true);
                 }
 
                 $config = <<<PHP
@@ -230,6 +237,14 @@ PHP;
             <input name="admin_password" type="password" required class="form-control">
         </div>
 
+        <hr class="my-4">
+
+        <h4 class="mb-3">Basis-URL</h4>
+        <div class="mb-2">
+            <label class="form-label">Base URL (z. B. https://example.com/dvd)</label>
+            <input name="base_url" required class="form-control" placeholder="https://...">
+        </div>
+
         <button class="btn btn-success mt-4">🚀 Installation starten</button>
     </form>
     <?php elseif (!$allRequirementsMet): ?>
@@ -240,3 +255,10 @@ PHP;
 </div>
 </body>
 </html>
+"""
+
+# Speichern
+installer_path = Path("/mnt/data/index.php")
+installer_path.write_text(installer_php.strip(), encoding="utf-8")
+
+installer_path.name
