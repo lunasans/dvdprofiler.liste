@@ -13,7 +13,7 @@ $boxsetFilms = $pdo->prepare("
      ORDER BY year, title
 ");
 $boxsetFilms->execute(['parent' => $parentId]);
-$boxChildren = $boxsetFilms->fetchAll()
+$boxChildren = $boxsetFilms->fetchAll();
 
 ?>
 
