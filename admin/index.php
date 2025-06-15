@@ -1,45 +1,36 @@
 <?php
-require_once __DIR__ . '/../includes/bootstrap.php';
+declare(strict_types=1);
+require_once dirname(__DIR__) . '/includes/bootstrap.php';
 
+// Login-Prüfung
 session_start();
 if (!isset($_SESSION['user_id'])) {
-    header('Location: ' . BASE_URL . '/admin/login.php');
+    header('Location: login.php');
     exit;
 }
-
 ?>
 <!DOCTYPE html>
 <html lang="de">
 <head>
   <meta charset="UTF-8">
-  <title>Adminbereich – DVD Projekt</title>
-  <link rel="stylesheet" href="css/admin-style.css">
+  <title>Admin Center</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="css/admin.css"> <!-- Optional -->
 </head>
-<body>
-  <header class="smart-header">
-    <div class="header-inner">
-      <div class="logo">Adminbereich</div>
-      <nav class="main-nav">
-        <a href="index.php">Dashboard</a>
-        <a href="backup.php">Backups</a>
-        <a href="../index.php">Zurück zur Website</a>
-      </nav>
-    </div>
-  </header>
+<body class="bg-light">
 
-  <main>
-    <h1>Willkommen im Adminbereich</h1>
-    <p>Wähle eine Funktion aus der Navigation.</p>
-  </main>
+  <div class="admin-wrapper d-flex">
+    
+    <?php include 'sidebar.php'; ?>
 
-  <footer class="site-footer">
-    <div class="footer-left">
-      <span class="version">Admin v1.0</span>
-      <p>&copy; <?= date('Y') ?> René Neuhaus</p>
+    <div id="admin-content" class="flex-grow-1 p-4">
+      <h2>Willkommen im Admin-Center</h2>
+      <p>Wähle eine Funktion aus der linken Navigation aus.</p>
     </div>
-    <div class="footer-right">
-      <a href="../?page=impressum" class="route-link">Impressum</a>
-    </div>
-  </footer>
+
+  </div>
+
+  <script src="js/admin.js"></script>
 </body>
 </html>

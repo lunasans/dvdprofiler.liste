@@ -1,20 +1,3 @@
-<!DOCTYPE html>
-<html lang="de">
-<head>
-    <meta charset="UTF-8">
-    <title>DVD-Import</title>
-    <style>
-        body { font-family: sans-serif; padding: 2rem; }
-        .step { margin-bottom: 0.5rem; }
-        .done::before { content: '✓ '; color: green; }
-        .pending::before { content: '… '; color: orange; }
-        .wait::before { content: '○ '; color: #999; }
-        #bar { width: 100%; background: #eee; margin-top: 1rem; border-radius: 4px; }
-        #progress { background: #007bff; height: 1.5rem; width: 0%; color: white; text-align: center; transition: width 0.3s; }
-    </style>
-</head>
-<body>
-
 <h1>DVD-Import</h1>
 <button onclick="startImport()">Import starten</button>
 <button onclick="confirmReset()">Datenbank zurücksetzen & Import starten</button>
