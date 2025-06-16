@@ -29,18 +29,24 @@ if (!in_array($page, $allowedPages)) {
     <link href="css/admin.css" rel="stylesheet">
 </head>
 <body>
-    <div class="d-flex">
-        <?php include 'sidebar.php'; ?>
-        <div class="flex-grow-1 p-4">
-            <?php
-                $pageFile = __DIR__ . '/pages/' . $page . '.php';
-                if (file_exists($pageFile)) {
-                    include $pageFile;
-                } else {
-                    echo '<div class="alert alert-danger">Seite nicht gefunden.</div>';
-                }
-            ?>
-        </div>
-    </div>
+  <div class="admin-layout">
+    
+    <!-- Sidebar -->
+    <aside class="sidebar bg-dark text-white p-3" style="width: 220px; min-height: 100vh;">
+      <?php include 'sidebar.php'; ?>
+    </aside>
+
+    <!-- Hauptinhalt -->
+    <main class="admin-content flex-grow-1 px-4 py-4">
+      <?php
+        if (in_array($page, $allowedPages) && file_exists(__DIR__ . "/pages/{$page}.php")) {
+            include __DIR__ . "/pages/{$page}.php";
+        } else {
+            echo "<p>❌ Seite nicht gefunden.</p>";
+        }
+      ?>
+    </main>
+
+  </div>
 </body>
 </html>
