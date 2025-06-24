@@ -3,9 +3,9 @@
 ?>
 <header class="smart-header">
   <div class="header-inner">
-    <div class="logo">🎬 DVD Liste</div>
+    <div class="logo"><?= htmlspecialchars($siteTitle) ?></div>
     <nav class="main-nav">
-      <a href="?page=home" class="route-link">Start</a>
+      <a href="index.php" class="route-link">Start</a>
       <a href="?page=films" class="route-link">Filme</a>
       <a href="?page=stats" class="route-link">Statistik</a>
       <a href="?page=impressum" class="route-link">Impressum</a>

@@ -1,4 +1,6 @@
 <?php
+require_once __DIR__ . '/../includes/bootstrap.php';
+
 $frontCover = findCoverImage($dvd['cover_id'], 'f');
 $backCover  = findCoverImage($dvd['cover_id'], 'b');
 $actors     = getActorsByDvdId($pdo, $dvd['id']);
@@ -53,7 +55,7 @@ $boxChildren = $boxsetFilms->fetchAll();
                 <p><strong>Schauspieler:</strong></p>
                     <ul>
                         <?php foreach ($actors as $a): ?>
-                            <li><?= htmlspecialchars("{$a['firstname']} {$a['lastname']} als {$a['role']}") ?></li>
+                            <li><?= htmlspecialchars("{$a['first_name']} {$a['last_name']} als {$a['role']}") ?></li>
                         <?php endforeach; ?>
                     </ul>
             </div>

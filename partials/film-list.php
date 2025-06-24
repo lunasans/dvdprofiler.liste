@@ -1,6 +1,9 @@
 <?php
 require_once __DIR__ . '/../includes/bootstrap.php';
 
+ini_set('display_errors', '1');
+error_reporting(E_ALL);
+
 $search   = trim($_GET['q'] ?? '');
 $type     = trim($_GET['type'] ?? '');
 $page     = max(1, (int)($_GET['seite'] ?? 1));
@@ -8,62 +11,51 @@ $perPage  = 10;
 $offset   = ($page - 1) * $perPage;
 
 // CollectionTypes laden
-$types = $pdo->query("
-  SELECT DISTINCT collection_type 
-    FROM dvds 
-   WHERE collection_type IS NOT NULL
-ORDER BY collection_type
-")->fetchAll(PDO::FETCH_COLUMN);
+$types = $pdo->query("SELECT DISTINCT collection_type FROM dvds WHERE collection_type IS NOT NULL ORDER BY collection_type")->fetchAll(PDO::FETCH_COLUMN);
 
-// WHERE-Filter aufbauen
-$where  = [];
+// WHERE-Filter
+$where = [];
 $params = [];
+
 if ($search !== '') {
-  $where[] = "title LIKE :search";
-  $params['search'] = "%{$search}%";
+    $where[] = "title LIKE :search";
+    $params['search'] = "%{$search}%";
 }
 if ($type !== '') {
-  $where[] = "collection_type = :type";
-  $params['type'] = $type;
+    $where[] = "collection_type = :type";
+    $params['type'] = $type;
 }
-$where[] = "boxset_parent IS NULL"; // nur Hauptfilme
-$whereSql = 'WHERE ' . implode(' AND ', $where);
+
+$whereSql = $where ? 'WHERE ' . implode(' AND ', $where) : '';
 
 // Gesamtanzahl
 $countStmt = $pdo->prepare("SELECT COUNT(*) FROM dvds $whereSql");
 foreach ($params as $k => $v) {
-  $countStmt->bindValue($k, $v);
+    $countStmt->bindValue($k, $v);
 }
 $countStmt->execute();
 $total = (int)$countStmt->fetchColumn();
 $totalPages = (int)ceil($total / $perPage);
 
-// Hauptfilme holen
+// Alle Hauptfilme holen (inkl. Boxsets)
 $sql = "SELECT * FROM dvds $whereSql ORDER BY title LIMIT :limit OFFSET :offset";
 $stmt = $pdo->prepare($sql);
 foreach ($params as $k => $v) {
-  $stmt->bindValue($k, $v);
+    $stmt->bindValue($k, $v);
 }
 $stmt->bindValue('limit', $perPage, PDO::PARAM_INT);
 $stmt->bindValue('offset', $offset, PDO::PARAM_INT);
 $stmt->execute();
 $mainFilms = $stmt->fetchAll();
 
-// BoxSets laden
-$boxParents = $pdo->query("
-  SELECT * FROM dvds 
-   WHERE id IN (SELECT DISTINCT boxset_parent FROM dvds WHERE boxset_parent IS NOT NULL)
-   ORDER BY title
-")->fetchAll();
-
-// Hilfsfunktion für Query-Bau
+// Helper
 function buildQuery(array $overrides): string {
-  $p = $_GET;
-  foreach ($overrides as $k => $v) {
-    if ($v === '' || $v === null) unset($p[$k]);
-    else $p[$k] = $v;
-  }
-  return http_build_query($p);
+    $p = $_GET;
+    foreach ($overrides as $k => $v) {
+        if ($v === '' || $v === null) unset($p[$k]);
+        else $p[$k] = $v;
+    }
+    return http_build_query($p);
 }
 ?>
 

@@ -2,10 +2,10 @@
 declare(strict_types=1);
 // Zentrale Initialisierung
 require_once __DIR__ . '/includes/bootstrap.php';
-require_once __DIR__ . '/includes/functions.php';
+require_once __DIR__ . '/includes/counter.php';
 
 $search = trim($_GET['q'] ?? '');
-$title = getSetting('site_title');
+$siteTitle = getSetting('site_title', 'Meine DVD-Verwaltung');
 ?>
 <!DOCTYPE html>
 <html lang="de">

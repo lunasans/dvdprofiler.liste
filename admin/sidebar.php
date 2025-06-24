@@ -4,7 +4,8 @@
     <li><a href="?page=dashboard">Dashboard</a></li>
     <li><a href="?page=users">Benutzer</a></li>
     <li><a href="?page=settings">Einstellungen</a></li>
-    <li><a href="?page=logs">Logs</a></li>
+    <li><a href="?page=import">Film Import</a></li>
+    <li><a href="?page=phpinfo">PHP Info</a></li>
     <li><a href="logout.php">Logout</a></li>
    </ul>
 </aside>

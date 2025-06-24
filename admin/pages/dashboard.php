@@ -4,7 +4,7 @@ require_once __DIR__ . '/../../includes/bootstrap.php';
 $stmtFilms = $pdo->query("SELECT COUNT(*) FROM dvds")->fetchColumn();
 $stmtActors = $pdo->query("SELECT COUNT(*) FROM actors");
 $stmtUsers = $pdo->query("SELECT COUNT(*) FROM users");
-$latestFilms = $pdo->query("SELECT title, year FROM dvds ORDER BY created_at DESC LIMIT 5")->fetchAll();
+$latestFilms = $pdo->query("SELECT title, year FROM dvds ORDER BY id DESC LIMIT 10")->fetchAll();
 ?>
 
 <h2 class="mb-4">Dashboard</h2>

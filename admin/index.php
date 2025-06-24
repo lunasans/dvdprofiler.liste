@@ -12,7 +12,7 @@ if (!isset($_SESSION['user_id'])) {
 }
 
 // Erlaubte Seiten
-$allowedPages = ['dashboard', 'users', 'settings', 'logs'];
+$allowedPages = ['dashboard', 'users', 'settings', 'import', 'phpinfo'];
 $page = $_GET['page'] ?? 'dashboard';
 
 if (!in_array($page, $allowedPages)) {
