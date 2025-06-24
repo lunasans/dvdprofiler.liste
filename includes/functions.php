@@ -56,3 +56,14 @@ function renderFilmCard(array $dvd, bool $isChild = false): string
       '</div>
     </div>';
 }
+
+function getSetting(string $key): string {
+    static $cache = [];
+    if (!isset($cache[$key])) {
+        global $pdo;
+        $stmt = $pdo->prepare("SELECT value FROM settings WHERE `key` = ?");
+        $stmt->execute([$key]);
+        $cache[$key] = $stmt->fetchColumn() ?? '';
+    }
+    return $cache[$key];
+}

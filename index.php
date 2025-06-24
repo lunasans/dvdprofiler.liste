@@ -2,14 +2,16 @@
 declare(strict_types=1);
 // Zentrale Initialisierung
 require_once __DIR__ . '/includes/bootstrap.php';
+require_once __DIR__ . '/includes/functions.php';
 
 $search = trim($_GET['q'] ?? '');
+$title = getSetting('site_title');
 ?>
 <!DOCTYPE html>
 <html lang="de">
 <head>
   <meta charset="UTF-8">
-  <title>DVD Sammlung</title>
+  <title><?= htmlspecialchars($siteTitle) ?></title>
   <link rel="stylesheet" href="css/style.css">
   <link href="libs/fancybox/dist/fancybox/fancybox.css" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css">

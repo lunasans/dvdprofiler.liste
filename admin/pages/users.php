@@ -32,11 +32,11 @@ $users = $stmt->fetchAll();
               data-email="<?= htmlspecialchars($user['email']) ?>">
               Bearbeiten
             </button>
-            <?php if (!$user['twofa_enabled']): ?>
-            <button class="btn btn-sm btn-primary" onclick="open2FAModal(<?= $user['id'] ?>)">2FA aktivieren</button>
-            <?php else: ?>
+            <!--- <?php if (!$user['twofa_enabled']): ?>
+            <!--- <button class="btn btn-sm btn-primary" onclick="open2FAModal(<?= $user['id'] ?>)">2FA aktivieren</button> --->
+            <?php else: ?> --->
             <span class="badge bg-success">2FA aktiv</span>
-            <?php endif; ?>
+            <?php endif; ?> --->
         </td>
         </tr>
       <?php endforeach; ?>

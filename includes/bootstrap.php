@@ -1,6 +1,26 @@
 <?php
 declare(strict_types=1);
 
+// Weiterleitung bei fehlender Installation
+$lockFile = dirname(__DIR__) . '/install/install.lock';
+$installScript = dirname($_SERVER['SCRIPT_NAME']) . '/install/index.php';
+
+if (!file_exists($lockFile)) {
+    header('Location: ' . $installScript);
+    exit;
+}
+
+// Optional: prüfen, ob Tabelle 'settings' existiert
+try {
+    $pdo->query("SELECT 1 FROM settings LIMIT 1");
+} catch (PDOException $e) {
+    if (str_contains($e->getMessage(), 'Base table or view not found')) {
+        header('Location: ' . $installScript);
+        exit;
+    }
+    throw $e;
+}
+
 // ZUERST definieren
 define('BASE_PATH', dirname(__DIR__));
 require_once BASE_PATH . '/config/config.php'; // stellt $pdo bereit

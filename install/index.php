@@ -255,10 +255,3 @@ PHP;
 </div>
 </body>
 </html>
-"""
-
-# Speichern
-installer_path = Path("/mnt/data/index.php")
-installer_path.write_text(installer_php.strip(), encoding="utf-8")
-
-installer_path.name

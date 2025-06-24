@@ -2,7 +2,7 @@
 declare(strict_types=1);
 header('Content-Type: application/json');
 
-require_once '/../../../vendor/autoload.php'; // ggf. anpassen
+require_once '/../../vendor/autoload.php'; // ggf. anpassen
 
 use RobThree\Auth\TwoFactorAuth;
 use RobThree\Auth\Providers\Qr\EndroidQrCodeProvider;
