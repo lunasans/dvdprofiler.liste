@@ -60,14 +60,13 @@ function findCoverImage(string $coverId, string $suffix = 'f', string $folder = 
 function getActorsByDvdId(PDO $pdo, int $dvdId): array
 {
     $stmt = $pdo->prepare("
-        SELECT a.first_name, a.last_name, fa.role
-        FROM film_actor fa
-        JOIN actors a ON fa.actor_id = a.id
-        WHERE fa.film_id = ?
-        ORDER BY a.last_name, a.first_name
+        SELECT a.first_name AS firstname, a.last_name AS lastname, fa.role
+          FROM actors a
+          JOIN film_actor fa ON a.id = fa.actor_id
+         WHERE fa.film_id = ?
     ");
     $stmt->execute([$dvdId]);
-    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    return $stmt->fetchAll();
 }
 
 function formatRuntime(?int $minutes): string

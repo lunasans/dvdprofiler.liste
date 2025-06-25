@@ -23,7 +23,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ready) {
     $dbUser     = $_POST['db_user'] ?? '';
     $dbPass     = $_POST['db_pass'] ?? '';
     $siteTitle  = trim($_POST['site_title'] ?? 'Meine DVD-Verwaltung');
-    $baseUrl = rtrim(trim($_POST['base_url'] ?? '', "/\\"), '/') . '/';
+    $baseUrl    = rtrim(trim($_POST['base_url'] ?? '', "/\\"), '/') . '/';
     $adminEmail = trim($_POST['admin_email'] ?? '');
     $adminPass  = $_POST['admin_password'] ?? '';
 
@@ -33,19 +33,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ready) {
             PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION
         ]);
 
-        $config = <<<PHP
-<?php
-return [
-    'db_host' => '$dbHost',
-    'db_name' => '$dbName',
-    'db_user' => '$dbUser',
-    'db_pass' => '$dbPass'
-];
-PHP;
-        file_put_contents($configFile, $config);
+        // config.php speichern
+        $configContent = "<?php\nreturn " . var_export([
+            'db_host' => $dbHost,
+            'db_name' => $dbName,
+            'db_user' => $dbUser,
+            'db_pass' => $dbPass,
+        ], true) . ";\n";
+        file_put_contents($configFile, $configContent);
 
+        // Tabellen anlegen
         $pdo->exec("CREATE TABLE IF NOT EXISTS users (
-            id INT AUTO_INCREMENT PRIMARY KEY,
+            id BIGINT AUTO_INCREMENT PRIMARY KEY,
             email VARCHAR(190) NOT NULL UNIQUE,
             password VARCHAR(255) NOT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -55,18 +54,18 @@ PHP;
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;");
 
         $pdo->exec("CREATE TABLE IF NOT EXISTS dvds (
-            id INT(11) NOT NULL PRIMARY KEY,
+            id BIGINT NOT NULL PRIMARY KEY,
             title VARCHAR(255) NOT NULL,
-            year INT(11),
+            year INT,
             genre VARCHAR(100),
             cover_id VARCHAR(50),
             collection_type VARCHAR(100),
-            runtime INT(11),
-            rating_age int(2),
+            runtime INT,
+            rating_age INT,
             overview TEXT,
             trailer_url VARCHAR(255),
-            boxset_parent BIGINT(20),
-            user_id INT(1),
+            boxset_parent BIGINT DEFAULT NULL,
+            user_id BIGINT DEFAULT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -80,8 +79,8 @@ PHP;
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;");
 
         $pdo->exec("CREATE TABLE IF NOT EXISTS film_actor (
-            film_id BIGINT,
-            actor_id BIGINT,
+            film_id BIGINT NOT NULL,
+            actor_id BIGINT NOT NULL,
             role VARCHAR(255),
             PRIMARY KEY (film_id, actor_id),
             FOREIGN KEY (film_id) REFERENCES dvds(id) ON DELETE CASCADE,
@@ -89,13 +88,14 @@ PHP;
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;");
 
         $pdo->exec("CREATE TABLE IF NOT EXISTS settings (
-            id INT(11) NOT NULL AUTO_INCREMENT PRIMARY KEY,
+            id INT AUTO_INCREMENT PRIMARY KEY,
             `key` VARCHAR(64) NOT NULL UNIQUE,
             `value` TEXT NOT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;");
 
+        // Standardwerte
         $defaultSettings = [
             'site_title'     => $siteTitle,
             'base_url'       => $baseUrl,
@@ -105,12 +105,12 @@ PHP;
             'smtp_host'      => '',
             'smtp_sender'    => ''
         ];
-
         $stmt = $pdo->prepare("INSERT IGNORE INTO settings (`key`, `value`) VALUES (:key, :value)");
         foreach ($defaultSettings as $key => $value) {
             $stmt->execute(['key' => $key, 'value' => $value]);
         }
 
+        // Admin-Benutzer anlegen
         $hashed = password_hash($adminPass, PASSWORD_DEFAULT);
         $stmt = $pdo->prepare("INSERT INTO users (email, password) VALUES (?, ?)");
         $stmt->execute([$adminEmail, $hashed]);
@@ -161,13 +161,12 @@ PHP;
             <h4 class="mb-3">Seiteneinstellung</h4>
             <div class="mb-2">
                 <label class="form-label">Seitentitel</label>
-                <input type="text" id="site_title" name="site_title" class="form-control" placeholder="z. B. Meine DVD-Verwaltung" required>
+                <input type="text" name="site_title" class="form-control" required>
             </div>
             <div class="mb-2">
                 <label class="form-label">Basis-URL</label>
-                <input type="url" name="base_url" class="form-control" required value="<?= htmlspecialchars(
-                    rtrim((isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . dirname(dirname($_SERVER['SCRIPT_NAME'])), '/') . '/'
-                ) ?>">
+                <input type="url" name="base_url" class="form-control" required
+                       value="<?= htmlspecialchars((isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . dirname(dirname($_SERVER['SCRIPT_NAME']))) . '/' ?>">
             </div>
 
             <h4 class="mb-3">Admin-Zugang</h4>
