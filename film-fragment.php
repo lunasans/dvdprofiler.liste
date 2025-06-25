@@ -1,13 +1,12 @@
 <?php
 declare(strict_types=1);
-require_once __DIR__ . '/config/config.php';
-require_once __DIR__ . '/functions.php';
-
+require_once __DIR__ . '/includes/bootstrap.php';
 // echo "<div style='padding:1rem; background:#eef;'>Filmfragment geladen mit ID: " . htmlspecialchars($_GET['id'] ?? '???') . "</div>";
 
+
 // Fehleranzeige aktivieren (nur für lokale Entwicklung)
-//ini_set('display_errors', '1');
-//error_reporting(E_ALL);
+ini_set('display_errors', '1');
+error_reporting(E_ALL);
 
 // ID aus der URL lesen
 $id = (int)($_GET['id'] ?? 0);

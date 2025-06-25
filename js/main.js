@@ -213,3 +213,14 @@ window.addEventListener('DOMContentLoaded', () => {
   const savedMode = localStorage.getItem('viewMode') || 'grid';
   setViewMode(savedMode);
 });
+
+document.addEventListener('DOMContentLoaded', () => {
+  const links = document.querySelectorAll('.main-nav a');
+  const current = window.location.search;
+
+  links.forEach(link => {
+    if (link.getAttribute('href') === current) {
+      link.classList.add('active');
+    }
+  });
+});

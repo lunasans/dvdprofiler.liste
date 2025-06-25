@@ -1,16 +1,18 @@
 <?php
 declare(strict_types=1);
-require_once __DIR__ . '/config/config.php';
-require_once __DIR__ . '/functions.php';
-require_once __DIR__ . '/counter.php';
+// Zentrale Initialisierung
+require_once __DIR__ . '/includes/bootstrap.php';
+require_once __DIR__ . '/includes/counter.php';
 
 $search = trim($_GET['q'] ?? '');
+$siteTitle = getSetting('site_title', 'Meine DVD-Verwaltung');
+$baseUrl = rtrim((isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . dirname($_SERVER['SCRIPT_NAME']), '/') . '/';
 ?>
 <!DOCTYPE html>
 <html lang="de">
 <head>
   <meta charset="UTF-8">
-  <title>DVD Sammlung</title>
+  <title><?= htmlspecialchars($siteTitle) ?></title>
   <link rel="stylesheet" href="css/style.css">
   <link href="libs/fancybox/dist/fancybox/fancybox.css" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css">
@@ -18,22 +20,7 @@ $search = trim($_GET['q'] ?? '');
 <body>
 
 <!-- ───────────── Header ───────────── -->
-<header class="smart-header">
-  <div class="header-inner">
-    <div class="logo">DVD-Sammlung</div>
-
-    <nav class="main-nav" id="mainNav">
-      <a href="index.php">Home</a>
-      <a href="?page=stats" class="route-link">Statistik</a>
-    </nav>
-
-    <form class="search-form" method="get">
-      <input type="text" name="q" placeholder="Film suchen…" value="<?= htmlspecialchars($search) ?>">
-    </form>
-
-    <button class="burger" onclick="toggleNav()">☰</button>
-  </div>
-</header>
+<?php include 'partials/header.php'; ?>
 
 <!-- ───────────── Hauptlayout ───────────── -->
 <div class="layout">
@@ -61,7 +48,11 @@ $search = trim($_GET['q'] ?? '');
   </div>
   
   <div class="footer-right">
-    <a href="?page=impressum" class="route-link">Impressum</a>
+    <p><a href="?page=impressum" class="route-link">Impressum</a></p>
+    <p><?php if (isset($_SESSION['user_id'])): ?>
+          <a class="nav-link" href="<?= $baseUrl ?>admin/">Admin-Panel</a>
+          <a class="nav-link" href="<?= $baseUrl ?>admin/logout.php">Logout</a></p>
+    <p><?php else: ?><a class="nav-link" href="<?= $baseUrl ?>admin/login.php">Login</a><?php endif; ?></p>
   </div>
 </footer>
 

@@ -1,242 +1,208 @@
 <?php
 declare(strict_types=1);
 
-$lockFile = __DIR__ . '/install.lock';
-$configDir = dirname(__DIR__) . '/config';
-$coverDir = dirname(__DIR__) . '/cover';
+$lockFile   = __DIR__ . '/install.lock';
+$configDir  = dirname(__DIR__) . '/config';
 $configFile = $configDir . '/config.php';
+$baseUrl = rtrim((isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . dirname(dirname($_SERVER['SCRIPT_NAME'])), '/') . '/';
 
 $requirements = [
-    'PHP-Version ≥ 8.1'              => version_compare(PHP_VERSION, '8.1', '>='),
-    'PDO-Erweiterung (pdo)'          => extension_loaded('pdo'),
-    'PDO MySQL-Erweiterung'          => extension_loaded('pdo_mysql'),
-    '/config-Verzeichnis beschreibbar' => is_dir($configDir) ? is_writable($configDir) : is_writable(dirname(__DIR__)),
+    'PHP-Version'      => version_compare(PHP_VERSION, '8.0.0', '>='),
+    'PDO (MySQL)'      => extension_loaded('pdo_mysql'),
+    'Schreibrechte /config' => is_writable($configDir),
 ];
 
-$allRequirementsMet = !in_array(false, $requirements, true);
-$errors = [];
-$success = '';
+$ready = !in_array(false, $requirements, true);
 
 if (file_exists($lockFile)) {
-    exit('<h2>🔒 Die Installation wurde bereits durchgeführt. Entferne <code>install/install.lock</code>, um sie erneut zu starten.</h2>');
+    exit('<h2>Installationssperre aktiv</h2><p>Die Anwendung wurde bereits installiert. Entferne <code>install/install.lock</code>, um erneut zu installieren.</p>');
 }
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && $allRequirementsMet) {
-    $host     = trim($_POST['host']);
-    $dbname   = trim($_POST['dbname']);
-    $user     = trim($_POST['user']);
-    $pass     = trim($_POST['pass']);
-    $admin    = trim($_POST['admin_email']);
-    $admin_pw = $_POST['admin_password'];
-
-    $charset = 'utf8mb4';
-    $dsn = "mysql:host=$host;dbname=$dbname;charset=$charset";
-
-    $options = [
-        PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
-        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-    ];
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ready) {
+    $dbHost     = $_POST['db_host'] ?? '';
+    $dbName     = $_POST['db_name'] ?? '';
+    $dbUser     = $_POST['db_user'] ?? '';
+    $dbPass     = $_POST['db_pass'] ?? '';
+    $siteTitle  = trim($_POST['site_title'] ?? 'Meine DVD-Verwaltung');
+    $baseUrl    = rtrim(trim($_POST['base_url'] ?? '', "/\\"), '/') . '/';
+    $adminEmail = trim($_POST['admin_email'] ?? '');
+    $adminPass  = $_POST['admin_password'] ?? '';
 
     try {
-        $pdo = new PDO($dsn, $user, $pass, $options);
+        $dsn = "mysql:host=$dbHost;dbname=$dbName;charset=utf8mb4";
+        $pdo = new PDO($dsn, $dbUser, $dbPass, [
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION
+        ]);
 
-        $stmt = $pdo->query("SHOW TABLES");
-        if ($stmt->rowCount() > 0) {
-            $errors[] = 'Die Datenbank ist nicht leer. Bitte verwende eine leere Datenbank.';
-        } else {
-            // Tabellen einzeln erstellen
-            try {
-                $pdo->exec("
-                    CREATE TABLE users (
-                        id INT AUTO_INCREMENT PRIMARY KEY,
-                        email VARCHAR(255) NOT NULL UNIQUE,
-                        password VARCHAR(255) NOT NULL,
-                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                    );
-                ");
-            } catch (PDOException $e) {
-                $errors[] = "Tabelle <code>users</code>: " . $e->getMessage();
-            }
+        // config.php speichern
+        $configContent = "<?php\nreturn " . var_export([
+            'db_host' => $dbHost,
+            'db_name' => $dbName,
+            'db_user' => $dbUser,
+            'db_pass' => $dbPass,
+        ], true) . ";\n";
+        file_put_contents($configFile, $configContent);
 
-            try {
-                $pdo->exec("
-                        CREATE TABLE dvds (
-                        id INT PRIMARY KEY,
-                        title VARCHAR(255) NOT NULL,
-                        year INT,
-                        genre VARCHAR(100),
-                        cover_id VARCHAR(50),
-                        collection_type VARCHAR(100),
-                        runtime INT,
-                        rating_age VARCHAR(10),
-                        overview TEXT,
-                        trailer_url VARCHAR(255),
-                        boxset_parent VARCHAR(50),
-                        user_id INT,
-                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-                        );
-                    ");
+        // Tabellen anlegen
+        $pdo->exec("CREATE TABLE IF NOT EXISTS users (
+            id BIGINT AUTO_INCREMENT PRIMARY KEY,
+            email VARCHAR(190) NOT NULL UNIQUE,
+            password VARCHAR(255) NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            twofa_secret VARCHAR(255) DEFAULT NULL,
+            twofa_enabled TINYINT(1) DEFAULT 0,
+            twofa_backup_codes TEXT DEFAULT NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;");
 
-            } catch (PDOException $e) {
-                $errors[] = "❌ Tabelle <code>dvds</code>: " . $e->getMessage();
-            }
+        $pdo->exec("CREATE TABLE IF NOT EXISTS dvds (
+            id BIGINT NOT NULL PRIMARY KEY,
+            title VARCHAR(255) NOT NULL,
+            year INT,
+            genre VARCHAR(100),
+            cover_id VARCHAR(50),
+            collection_type VARCHAR(100),
+            runtime INT,
+            rating_age INT,
+            overview TEXT,
+            trailer_url VARCHAR(255),
+            boxset_parent BIGINT DEFAULT NULL,
+            user_id BIGINT DEFAULT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;");
 
-            try {
-                $pdo->exec("
-                    CREATE TABLE actors (
-                        id INT AUTO_INCREMENT PRIMARY KEY,
-                        dvd_id INT,
-                        firstname VARCHAR(100),
-                        lastname VARCHAR(100),
-                        role VARCHAR(255),
-                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                        FOREIGN KEY (dvd_id) REFERENCES dvds(id) ON DELETE CASCADE
-                    );
-                ");
-            } catch (PDOException $e) {
-                $errors[] = "❌ Tabelle <code>actors</code>: " . $e->getMessage();
-            }
+        $pdo->exec("CREATE TABLE IF NOT EXISTS actors (
+            id BIGINT AUTO_INCREMENT PRIMARY KEY,
+            first_name VARCHAR(100),
+            last_name VARCHAR(100),
+            birth_year INT DEFAULT NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;");
 
-            if (empty($errors)) {
-                try {
-                    $hashedPw = password_hash($admin_pw, PASSWORD_DEFAULT);
-                    $stmt = $pdo->prepare("INSERT INTO users (email, password) VALUES (?, ?)");
-                    $stmt->execute([$admin, $hashedPw]);
+        $pdo->exec("CREATE TABLE IF NOT EXISTS film_actor (
+            film_id BIGINT NOT NULL,
+            actor_id BIGINT NOT NULL,
+            role VARCHAR(255),
+            PRIMARY KEY (film_id, actor_id),
+            FOREIGN KEY (film_id) REFERENCES dvds(id) ON DELETE CASCADE,
+            FOREIGN KEY (actor_id) REFERENCES actors(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;");
 
-                    // Admin-ID speichern
-                    $adminId = (int)$pdo->lastInsertId();
+        $pdo->exec("CREATE TABLE IF NOT EXISTS settings (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            `key` VARCHAR(64) NOT NULL UNIQUE,
+            `value` TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;");
 
-                    // Admin automatisch einloggen
-                    session_start();
-                    $_SESSION['user_id'] = $adminId;
-                    $_SESSION['email'] = $admin;
-
-                    $success .= "<br>🆔 Admin-ID wurde gespeichert und automatisch eingeloggt.";
-
-                } catch (PDOException $e) {
-                    $errors[] = "❌ Admin-Benutzer: " . $e->getMessage();
-                }
-
-                $config = <<<PHP
-<?php
-declare(strict_types=1);
-
-\$host = '$host';
-\$db   = '$dbname';
-\$user = '$user';
-\$pass = '$pass';
-\$charset = 'utf8mb4';
-
-\$dsn = "mysql:host=\$host;dbname=\$db;charset=\$charset";
-
-\$options = [
-    PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
-    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-];
-
-try {
-    \$pdo = new PDO(\$dsn, \$user, \$pass, \$options);
-} catch (PDOException \$e) {
-    die("❌ Datenbankverbindung fehlgeschlagen: " . \$e->getMessage());
-}
-PHP;
-
-                if (!file_put_contents($configFile, $config)) {
-                    $errors[] = '❌ config.php konnte nicht geschrieben werden.';
-                } else {
-                    // install.lock setzen
-                    file_put_contents($lockFile, "Installiert am " . date('Y-m-d H:i:s'));
-                    $success = '✅ Installation erfolgreich abgeschlossen! Du kannst das <code>install/</code>-Verzeichnis jetzt löschen.';
-
-                    // cover/ anlegen
-                    if (!is_dir($coverDir)) {
-                        if (mkdir($coverDir, 0755, true)) {
-                            $success .= '<br>📁 Verzeichnis <code>cover/</code> wurde erfolgreich erstellt.';
-                        } else {
-                            $errors[] = '❌ Verzeichnis <code>cover/</code> konnte nicht erstellt werden.';
-                        }
-                    }
-                }
-            }
+        // Standardwerte
+        $defaultSettings = [
+            'site_title'     => $siteTitle,
+            'base_url'       => $baseUrl,
+            'language'       => 'de',
+            'enable_2fa'     => '0',
+            'login_attempts' => '5',
+            'smtp_host'      => '',
+            'smtp_sender'    => ''
+        ];
+        $stmt = $pdo->prepare("INSERT IGNORE INTO settings (`key`, `value`) VALUES (:key, :value)");
+        foreach ($defaultSettings as $key => $value) {
+            $stmt->execute(['key' => $key, 'value' => $value]);
         }
+
+        // Admin-Benutzer anlegen
+        $hashed = password_hash($adminPass, PASSWORD_DEFAULT);
+        $stmt = $pdo->prepare("INSERT INTO users (email, password) VALUES (?, ?)");
+        $stmt->execute([$adminEmail, $hashed]);
+
+        file_put_contents($lockFile, 'locked');
+
+        echo '<h2>✅ Installation erfolgreich!</h2>';
+        echo '<p><a href="' . $baseUrl . 'admin/login.php">Zum Login</a></p>';
+        echo '<p style="color:darkred;">🔐 <strong>Wichtig:</strong> Bitte lösche oder verschiebe den Ordner <code>install/</code>.</p>';
+        exit;
+
     } catch (PDOException $e) {
-        $errors[] = "Verbindungsfehler: " . $e->getMessage();
+        $error = $e->getMessage();
     }
 }
 ?>
-<!doctype html>
+
+<!DOCTYPE html>
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <title>Installer</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <title>Installation</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
-<body class="bg-light">
-<div class="container py-5">
-    <h1 class="mb-4">📦 Projekt-Installer</h1>
+<body class="bg-light py-5">
 
-    <h4>Systemvoraussetzungen</h4>
+<div class="container">
+    <h2 class="mb-4">🎬 DVD-Verwaltung – Installation</h2>
+
     <ul class="list-group mb-4">
-        <?php foreach ($requirements as $check => $ok): ?>
-            <li class="list-group-item d-flex justify-content-between">
-                <?= $check ?>
-                <span class="badge <?= $ok ? 'bg-success' : 'bg-danger' ?>">
-                    <?= $ok ? '✔️ OK' : '❌ Fehler' ?>
-                </span>
+        <?php foreach ($requirements as $label => $status): ?>
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+                <?= $label ?>
+                <?= $status ? '<span class="text-success">✔</span>' : '<span class="text-danger">✘</span>' ?>
             </li>
         <?php endforeach; ?>
     </ul>
 
-    <?php if ($errors): ?>
-        <div class="alert alert-danger">
-            <ul><?php foreach ($errors as $e) echo "<li>$e</li>"; ?></ul>
-        </div>
-    <?php elseif ($success): ?>
-        <div class="alert alert-success"><?= $success ?></div>
-    <?php endif; ?>
+    <?php if (!$ready): ?>
+        <div class="alert alert-danger">Bitte erfülle alle Systemanforderungen.</div>
+    <?php else: ?>
 
-    <?php if (!$success && $allRequirementsMet): ?>
-    <form method="post" class="card p-4 bg-white shadow-sm">
-        <h4 class="mb-3">Datenbankverbindung</h4>
-        <div class="mb-2">
-            <label class="form-label">Datenbank-Host</label>
-            <input name="host" value="localhost" required class="form-control">
-        </div>
-        <div class="mb-2">
-            <label class="form-label">Datenbankname</label>
-            <input name="dbname" required class="form-control">
-        </div>
-        <div class="mb-2">
-            <label class="form-label">Datenbank-Benutzer</label>
-            <input name="user" required class="form-control">
-        </div>
-        <div class="mb-2">
-            <label class="form-label">Datenbank-Passwort</label>
-            <input name="pass" type="password" class="form-control">
-        </div>
+        <?php if (!empty($error)): ?>
+            <div class="alert alert-danger"><?= htmlspecialchars($error) ?></div>
+        <?php endif; ?>
 
-        <hr class="my-4">
+        <form method="post" class="bg-white border rounded p-4">
+            <h4 class="mb-3">Seiteneinstellung</h4>
+            <div class="mb-2">
+                <label class="form-label">Seitentitel</label>
+                <input type="text" name="site_title" class="form-control" required>
+            </div>
+            <div class="mb-2">
+                <label class="form-label">Basis-URL</label>
+                <input type="url" name="base_url" class="form-control" required
+                       value="<?= htmlspecialchars((isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . dirname(dirname($_SERVER['SCRIPT_NAME']))) . '/' ?>">
+            </div>
 
-        <h4 class="mb-3">Admin-Zugang</h4>
-        <div class="mb-2">
-            <label class="form-label">Admin-E-Mail</label>
-            <input name="admin_email" required class="form-control" type="email">
-        </div>
-        <div class="mb-2">
-            <label class="form-label">Admin-Passwort</label>
-            <input name="admin_password" type="password" required class="form-control">
-        </div>
+            <h4 class="mb-3">Admin-Zugang</h4>
+            <div class="mb-2">
+                <label class="form-label">Admin-E-Mail</label>
+                <input name="admin_email" type="email" required class="form-control">
+            </div>
+            <div class="mb-2">
+                <label class="form-label">Admin-Passwort</label>
+                <input name="admin_password" type="password" required class="form-control">
+            </div>
 
-        <button class="btn btn-success mt-4">🚀 Installation starten</button>
-    </form>
-    <?php elseif (!$allRequirementsMet): ?>
-        <div class="alert alert-warning mt-3">
-            ❗ Bitte erfülle zuerst alle Systemvoraussetzungen, bevor du mit der Installation fortfährst.
-        </div>
+            <h4 class="mb-3">Datenbank</h4>
+            <div class="mb-2">
+                <label class="form-label">Datenbank-Host</label>
+                <input type="text" name="db_host" class="form-control" placeholder="localhost" required>
+            </div>
+            <div class="mb-2">
+                <label class="form-label">Datenbankname</label>
+                <input type="text" name="db_name" class="form-control" required>
+            </div>
+            <div class="mb-2">
+                <label class="form-label">Datenbank-Benutzer</label>
+                <input type="text" name="db_user" class="form-control" required>
+            </div>
+            <div class="mb-2">
+                <label class="form-label">Datenbank-Passwort</label>
+                <input type="password" name="db_pass" class="form-control">
+            </div>
+
+            <button type="submit" class="btn btn-primary w-100 mt-3">🚀 Installation starten</button>
+        </form>
+
     <?php endif; ?>
 </div>
+
 </body>
 </html>

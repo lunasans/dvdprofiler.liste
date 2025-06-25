@@ -1,45 +1,55 @@
 <?php
-require_once __DIR__ . '/../config/config.php';
-
+declare(strict_types=1);
 session_start();
+
+// Bootstrap
+require_once __DIR__ . '/../includes/bootstrap.php';
+
+// Zugriffsschutz
 if (!isset($_SESSION['user_id'])) {
-    header('Location: /../admin/login.php');
+    header('Location: login.php');
     exit;
+}
+
+// Erlaubte Seiten
+$allowedPages = ['dashboard', 'users', 'settings', 'import', 'phpinfo'];
+$page = $_GET['page'] ?? 'dashboard';
+
+if (!in_array($page, $allowedPages)) {
+    $page = 'dashboard'; // Fallback
 }
 
 ?>
 <!DOCTYPE html>
 <html lang="de">
 <head>
-  <meta charset="UTF-8">
-  <title>Adminbereich – DVD Projekt</title>
-  <link rel="stylesheet" href="css/admin-style.css">
+    <meta charset="UTF-8">
+    <title>Admin Center</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="css/admin.css" rel="stylesheet">
 </head>
 <body>
-  <header class="smart-header">
-    <div class="header-inner">
-      <div class="logo">Adminbereich</div>
-      <nav class="main-nav">
-        <a href="index.php">Dashboard</a>
-        <a href="backup.php">Backups</a>
-        <a href="../index.php">Zurück zur Website</a>
-      </nav>
-    </div>
-  </header>
+  <div class="admin-layout">
+    
+    <!-- Sidebar -->
+    <aside class="sidebar bg-dark text-white p-3" style="width: 220px; min-height: 100vh;">
+      <?php include 'sidebar.php'; ?>
+    </aside>
 
-  <main>
-    <h1>Willkommen im Adminbereich</h1>
-    <p>Wähle eine Funktion aus der Navigation.</p>
-  </main>
+    <!-- Hauptinhalt -->
+    <main class="admin-content flex-grow-1 px-4 py-4">
+      <?php
+        if (in_array($page, $allowedPages) && file_exists(__DIR__ . "/pages/{$page}.php")) {
+            include __DIR__ . "/pages/{$page}.php";
+        } else {
+            echo "<p>❌ Seite nicht gefunden.</p>";
+        }
+      ?>
+    </main>
 
-  <footer class="site-footer">
-    <div class="footer-left">
-      <span class="version">Admin v1.0</span>
-      <p>&copy; <?= date('Y') ?> René Neuhaus</p>
-    </div>
-    <div class="footer-right">
-      <a href="../?page=impressum" class="route-link">Impressum</a>
-    </div>
-  </footer>
+  </div>
+<!-- Bootstrap JS -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="js/admin.js"></script>
 </body>
 </html>
