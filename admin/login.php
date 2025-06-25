@@ -51,7 +51,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <div class="login-container">
             <div class="circle circle-one"></div>
             <div class="form-container">
-                <!-- <img src="https://raw.githubusercontent.com/hicodersofficial/glassmorphism-login-form/master/assets/illustration.png" alt="illustration" class="illustration" /> -->
                 <h1 class="opacity">Login</h1>
                 <form method="post" action="">
                     <input type="email" name="email" placeholder="eMail" required />

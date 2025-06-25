@@ -6,6 +6,7 @@ require_once __DIR__ . '/includes/counter.php';
 
 $search = trim($_GET['q'] ?? '');
 $siteTitle = getSetting('site_title', 'Meine DVD-Verwaltung');
+$baseUrl = rtrim((isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . dirname($_SERVER['SCRIPT_NAME']), '/') . '/';
 ?>
 <!DOCTYPE html>
 <html lang="de">
@@ -47,7 +48,11 @@ $siteTitle = getSetting('site_title', 'Meine DVD-Verwaltung');
   </div>
   
   <div class="footer-right">
-    <a href="?page=impressum" class="route-link">Impressum</a>
+    <p><a href="?page=impressum" class="route-link">Impressum</a></p>
+    <p><?php if (isset($_SESSION['user_id'])): ?>
+          <a class="nav-link" href="<?= $baseUrl ?>admin/">Admin-Panel</a>
+          <a class="nav-link" href="<?= $baseUrl ?>admin/logout.php">Logout</a></p>
+    <p><?php else: ?><a class="nav-link" href="<?= $baseUrl ?>admin/login.php">Login</a><?php endif; ?></p>
   </div>
 </footer>
 

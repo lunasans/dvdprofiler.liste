@@ -4,6 +4,7 @@ declare(strict_types=1);
 $lockFile   = __DIR__ . '/install.lock';
 $configDir  = dirname(__DIR__) . '/config';
 $configFile = $configDir . '/config.php';
+$baseUrl = rtrim((isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . dirname(dirname($_SERVER['SCRIPT_NAME'])), '/') . '/';
 
 $requirements = [
     'PHP-Version'      => version_compare(PHP_VERSION, '8.0.0', '>='),
@@ -118,7 +119,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ready) {
         file_put_contents($lockFile, 'locked');
 
         echo '<h2>✅ Installation erfolgreich!</h2>';
-        echo '<p><a href="/admin/login.php">Zum Login</a></p>';
+        echo '<p><a href="' . $baseUrl . 'admin/login.php">Zum Login</a></p>';
         echo '<p style="color:darkred;">🔐 <strong>Wichtig:</strong> Bitte lösche oder verschiebe den Ordner <code>install/</code>.</p>';
         exit;
 
