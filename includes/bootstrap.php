@@ -24,6 +24,8 @@ try {
     die('<h2 style="color:red;">❌ Fehler bei der Datenbankverbindung:</h2><p>' . htmlspecialchars($e->getMessage()) . '</p>');
 }
 
+define('VERSION', getSetting('version') ?? '0.0.0');
+
 // Prüfen, ob Tabelle 'settings' existiert
 try {
     $pdo->query("SELECT 1 FROM settings LIMIT 1");
@@ -121,3 +123,10 @@ function getSetting(string $key, string $default = ''): string
         return $default;
     }
 }
+
+function updateSetting(string $key, string $value): void {
+    global $pdo;
+    $stmt = $pdo->prepare("UPDATE settings SET value = :value WHERE `key` = :key");
+    $stmt->execute(['key' => $key, 'value' => $value]);
+}
+

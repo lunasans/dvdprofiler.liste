@@ -1,6 +1,6 @@
 config.php
 /cover/
-/admin/xml/Collection.xml
+/admin/xml/*.xml
 counter.txt
 /install/install.lock
 .vscode

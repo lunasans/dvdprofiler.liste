@@ -38,22 +38,29 @@ $baseUrl = rtrim((isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVE
 <!-- ───────────── Footer ───────────── -->
 <footer class="site-footer">
   <div class="footer-left">
+    var_dump($pdo);
+   <?php var_dump(VERSION); ?>
   </div>
-  
+
   <div class="footer-center">
-    <span class="version">v1.3.0 
-    <p>Besucher: <?= $visits ?></p>
-    <p>&copy; <?= date('Y') ?> René Neuhaus</p>
-    </span>
+    <div class="version">
+      <div>Version <a href="https://github.com/lunasans/dvdprofiler.liste" target="_blank"><?= htmlspecialchars(VERSION) ?> <i class="bi bi-github"></i></a></div>
+      <div>Besucher: <?= $visits ?></div>
+      <div>&copy; <?= date('Y') ?> René Neuhaus</div>
+    </div>
   </div>
-  
-  <div class="footer-right">
-    <p><a href="?page=impressum" class="route-link">Impressum</a></p>
-    <p><?php if (isset($_SESSION['user_id'])): ?>
-          <a class="nav-link" href="<?= $baseUrl ?>admin/">Admin-Panel</a>
-          <a class="nav-link" href="<?= $baseUrl ?>admin/logout.php">Logout</a></p>
-    <p><?php else: ?><a class="nav-link" href="<?= $baseUrl ?>admin/login.php">Login</a><?php endif; ?></p>
-  </div>
+
+  <ul class="footer-right">
+  <li><a href="?page=impressum">Impressum</a></li>
+  <?php if (isset($_SESSION['user_id'])): ?>
+    <li><a href="<?= $baseUrl ?>admin/">Admin-Panel</a></li>
+    <li><a href="<?= $baseUrl ?>admin/logout.php">Logout</a></li>
+  <?php else: ?>
+    <li><a href="<?= $baseUrl ?>admin/login.php">Login</a></li>
+  <?php endif; ?>
+</ul>
+
+
 </footer>
 
 <script src="js/main.js"></script>
