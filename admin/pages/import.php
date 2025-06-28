@@ -24,7 +24,8 @@ $maxPost = ini_get('post_max_size');
 $files = glob($uploadDir . '*.xml');
 ?>
 
-<h3>Dateiimport</h3>
+<div class="container mt-4">
+  <h3>Datei Import</h3>
 
 <?php if (!empty($_SESSION['import_result'])): ?>
   <div class="alert alert-success" style="white-space: pre-line">
@@ -85,3 +86,4 @@ $files = glob($uploadDir . '*.xml');
     </tbody>
   </table>
 <?php endif; ?>
+</div>

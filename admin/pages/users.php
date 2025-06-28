@@ -1,9 +1,6 @@
 <?php
 require_once __DIR__ . '/../../includes/bootstrap.php';
 
-$columns = $pdo->query("SHOW COLUMNS FROM users")->fetchAll(PDO::FETCH_COLUMN);
-print_r($columns);
-
 $stmt = $pdo->query("SELECT id, email, created_at, twofa_enabled FROM users ORDER BY created_at DESC");
 $users = $stmt->fetchAll();
 ?>
@@ -34,9 +31,9 @@ $users = $stmt->fetchAll();
             </button>
             <!--- <?php if (!$user['twofa_enabled']): ?>
             <!--- <button class="btn btn-sm btn-primary" onclick="open2FAModal(<?= $user['id'] ?>)">2FA aktivieren</button> --->
-            <?php else: ?> --->
+            <?php else: ?> 
             <span class="badge bg-success">2FA aktiv</span>
-            <?php endif; ?> --->
+            <?php endif; ?> 
         </td>
         </tr>
       <?php endforeach; ?>

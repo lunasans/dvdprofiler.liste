@@ -12,8 +12,9 @@ if (!isset($_SESSION['user_id'])) {
 }
 
 // Erlaubte Seiten
-$allowedPages = ['dashboard', 'users', 'settings', 'import', 'phpinfo'];
+$allowedPages = ['dashboard', 'users', 'settings', 'import', 'update'];
 $page = $_GET['page'] ?? 'dashboard';
+$siteTitle = getSetting('site_title', 'Meine DVD-Verwaltung');
 
 if (!in_array($page, $allowedPages)) {
     $page = 'dashboard'; // Fallback
@@ -24,7 +25,7 @@ if (!in_array($page, $allowedPages)) {
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <title>Admin Center</title>
+    <title><?= htmlspecialchars($siteTitle) ?> - Admin Center</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="css/admin.css" rel="stylesheet">
 </head>
