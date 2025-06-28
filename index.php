@@ -12,6 +12,7 @@ $baseUrl = rtrim((isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVE
 <html lang="de">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title><?= htmlspecialchars($siteTitle) ?></title>
   <link rel="stylesheet" href="css/style.css">
   <link href="libs/fancybox/dist/fancybox/fancybox.css" rel="stylesheet" />
