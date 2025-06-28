@@ -24,6 +24,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-basic" type="button">🏠 Haupt</button></li>
   <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-security" type="button">🔒 Sicherheit</button></li>
   <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-mail" type="button">✉️ E-Mail</button></li>
+  <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-update" type="button">🔄 Update</button></li>
 </ul>
 
 <form method="post" class="tab-content border rounded-bottom p-4 bg-white">
@@ -72,6 +73,102 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       <input type="email" name="smtp_sender" class="form-control" value="<?= htmlspecialchars($settings['smtp_sender'] ?? '') ?>">
     </div>
   </div>
+
+  <!-- 🔄 System-Update -->
+<div class="tab-pane fade" id="tab-update">
+  <?php
+  // GitHub Repo Info
+  $githubRepo = 'lunasans/dvdprofiler.liste';
+  $localVersion = $settings['version'] ?? '0.0.0';
+  $latestVersion = 'unbekannt';
+  $error = '';
+  $success = '';
+
+  // Funktion GitHub Release holen
+  function getLatestRelease(string $repo): ?array {
+      $apiUrl = "https://api.github.com/repos/$repo/releases/latest";
+      $opts = ['http' => [
+          'method' => 'GET',
+          'header' => "User-Agent: dvd-updater"
+      ]];
+      $ctx = stream_context_create($opts);
+      $json = @file_get_contents($apiUrl, false, $ctx);
+      return $json ? json_decode($json, true) : null;
+  }
+
+  // Release holen
+  $latestData = getLatestRelease($githubRepo);
+  if ($latestData && !empty($latestData['tag_name'])) {
+      $latestVersion = $latestData['tag_name'];
+  }
+
+  $isUpdateAvailable = version_compare($latestVersion, $localVersion, '>');
+
+  // Update ausführen
+  if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['start_update'])) {
+      $zipUrl = $latestData['zipball_url'] ?? '';
+      $repoTag = basename(parse_url($zipUrl, PHP_URL_PATH), '.zip');
+      if ($zipUrl) {
+          $tmpZip = __DIR__ . '/../update_tmp.zip';
+          file_put_contents($tmpZip, file_get_contents($zipUrl));
+          $zip = new ZipArchive();
+          if ($zip->open($tmpZip) === true) {
+              $exclude = ['config/config.php','counter.txt','admin/xml/'];
+              for ($i = 0; $i < $zip->numFiles; $i++) {
+                  $entry = $zip->getNameIndex($i);
+                  $rel = preg_replace("#^{$repoTag}/#", '', $entry);
+                  $skip = false;
+                  foreach ($exclude as $ex) {
+                      if ($rel === $ex || str_starts_with($rel, rtrim($ex, '/').'/')) $skip = true;
+                  }
+                  if ($skip || $rel === '') continue;
+                  $path = dirname(__DIR__).'/'.$rel;
+                  if (str_ends_with($rel, '/')) @mkdir($path,0775,true);
+                  else {
+                      @mkdir(dirname($path),0775,true);
+                      file_put_contents($path,$zip->getFromIndex($i));
+                  }
+              }
+              $zip->close();
+              unlink($tmpZip);
+              if (file_exists(dirname(__DIR__).'/update.sql')) {
+                  $pdo->exec(file_get_contents(dirname(__DIR__).'/update.sql'));
+                  unlink(dirname(__DIR__).'/update.sql');
+              }
+              // Version aktualisieren
+              $stmt = $pdo->prepare("UPDATE settings SET value = :v WHERE `key` = 'version'");
+              $stmt->execute(['v'=>$latestVersion]);
+              $success = '✅ Update erfolgreich installiert.';
+              $settings['version'] = $latestVersion;
+          } else {
+              $error = '❌ ZIP konnte nicht geöffnet werden.';
+          }
+      } else {
+          $error = '❌ Keine gültige ZIP-URL gefunden.';
+      }
+  }
+  ?>
+
+  <div class="mt-3">
+    <p><strong>Aktuelle Version:</strong> <?= htmlspecialchars($localVersion) ?></p>
+    <p><strong>Neueste Version bei GitHub:</strong> <?= htmlspecialchars($latestVersion) ?></p>
+  </div>
+
+  <?php if ($error): ?>
+    <div class="alert alert-danger"><?= $error ?></div>
+  <?php endif; ?>
+  <?php if ($success): ?>
+    <div class="alert alert-success"><?= $success ?></div>
+  <?php endif; ?>
+
+  <?php if ($isUpdateAvailable): ?>
+    <form method="post" class="mt-3">
+      <button name="start_update" class="btn btn-primary">⬇️ Update herunterladen & installieren</button>
+    </form>
+  <?php else: ?>
+    <div class="alert alert-info mt-3">✅ Deine Installation ist aktuell.</div>
+  <?php endif; ?>
+</div>
 
   <button type="submit" class="btn btn-primary mt-3">💾 Einstellungen speichern</button>
 </form>

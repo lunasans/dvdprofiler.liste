@@ -12,7 +12,7 @@ if (!isset($_SESSION['user_id'])) {
 }
 
 // Erlaubte Seiten
-$allowedPages = ['dashboard', 'users', 'settings', 'import', 'phpinfo'];
+$allowedPages = ['dashboard', 'users', 'settings', 'import', 'update'];
 $page = $_GET['page'] ?? 'dashboard';
 $siteTitle = getSetting('site_title', 'Meine DVD-Verwaltung');
 
