@@ -7,6 +7,7 @@ require_once __DIR__ . '/includes/counter.php';
 $search = trim($_GET['q'] ?? '');
 $siteTitle = getSetting('site_title', 'Meine DVD-Verwaltung');
 $baseUrl = rtrim((isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . dirname($_SERVER['SCRIPT_NAME']), '/') . '/';
+$version = getSetting('version');
 ?>
 <!DOCTYPE html>
 <html lang="de">
@@ -43,7 +44,7 @@ $baseUrl = rtrim((isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVE
 
   <div class="footer-center">
     <div class="version">
-      <div>Version <a href="https://github.com/lunasans/dvdprofiler.liste" target="_blank"><?= htmlspecialchars($config['version']) ?> <i class="bi bi-github"></i></a></div>
+      <div>Version <a href="https://github.com/lunasans/dvdprofiler.liste" target="_blank"><?= htmlspecialchars($version) ?> <i class="bi bi-github"></i></a></div>
       <div>Besucher: <?= $visits ?></div>
       <div>&copy; <?= date('Y') ?> René Neuhaus</div>
     </div>
