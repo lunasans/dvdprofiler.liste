@@ -38,12 +38,6 @@ function safeFormatRuntime($minutes) {
         Neu hinzugefügt 
         <span class="item-count">(<?= number_format($totalRecords) ?> Filme)</span>
     </h2>
-    
-    <?php if ($totalPages > 1): ?>
-        <div class="page-info">
-            Seite <?= $page ?> von <?= $totalPages ?>
-        </div>
-    <?php endif; ?>
 </header>
 
 <section class="latest-grid">
@@ -199,58 +193,6 @@ function safeFormatRuntime($minutes) {
         </div>
     <?php endif; ?>
 </section>
-
-<!-- Pagination -->
-<?php if ($totalPages > 1): ?>
-    <nav class="pagination-wrapper">
-        <div class="pagination">
-            <!-- Previous -->
-            <?php if ($page > 1): ?>
-                <a href="?seite=<?= $page - 1 ?>" class="page-arrow">
-                    <i class="bi bi-chevron-left"></i>
-                </a>
-            <?php endif; ?>
-            
-            <!-- Page Numbers -->
-            <?php
-            $startPage = max(1, $page - 2);
-            $endPage = min($totalPages, $page + 2);
-            
-            if ($startPage > 1): ?>
-                <a href="?seite=1">1</a>
-                <?php if ($startPage > 2): ?>
-                    <span class="dots">...</span>
-                <?php endif; ?>
-            <?php endif;
-            
-            for ($i = $startPage; $i <= $endPage; $i++): ?>
-                <?php if ($i === $page): ?>
-                    <span class="current"><?= $i ?></span>
-                <?php else: ?>
-                    <a href="?seite=<?= $i ?>"><?= $i ?></a>
-                <?php endif; ?>
-            <?php endfor;
-            
-            if ($endPage < $totalPages): ?>
-                <?php if ($endPage < $totalPages - 1): ?>
-                    <span class="dots">...</span>
-                <?php endif; ?>
-                <a href="?seite=<?= $totalPages ?>"><?= $totalPages ?></a>
-            <?php endif; ?>
-            
-            <!-- Next -->
-            <?php if ($page < $totalPages): ?>
-                <a href="?seite=<?= $page + 1 ?>" class="page-arrow">
-                    <i class="bi bi-chevron-right"></i>
-                </a>
-            <?php endif; ?>
-        </div>
-        
-        <div class="pagination-info">
-            Zeige <?= ($offset + 1) ?> bis <?= min($offset + $perPage, $totalRecords) ?> von <?= number_format($totalRecords) ?> Filmen
-        </div>
-    </nav>
-<?php endif; ?>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
