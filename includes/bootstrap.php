@@ -44,11 +44,6 @@ try {
 // Projekt-Einstellungen aus der settings-Tabelle laden
 $settings = [];
 
-
-// Beispiel: Version ausgeben (optional)
-$currentVersion = $settings['version'] ?? 'unbekannt';
-
-
 // Prüfen, ob Tabelle 'settings' existiert
 try {
     $pdo->query("SELECT 1 FROM settings LIMIT 1");
@@ -68,6 +63,41 @@ try {
     define('BASE_URL', isset($result['value']) ? rtrim($result['value'], '/') : '');
 } catch (Exception $e) {
     define('BASE_URL', '');
+}
+
+// Funktion Definitionen
+function getSetting(string $key, string $default = ''): string
+{
+    global $pdo;
+    
+    // Key Validation: Nur erlaubte Zeichen
+    if (!preg_match('/^[a-zA-Z0-9_.-]+$/', $key) || strlen($key) > 100) {
+        error_log("Invalid setting key attempted: " . $key);
+        return $default;
+    }
+    
+    try {
+        $stmt = $pdo->prepare("SELECT value FROM settings WHERE `key` = :key LIMIT 1");
+        $stmt->execute(['key' => $key]);
+        $value = $stmt->fetchColumn();
+        
+        // Zusätzliche Validierung für kritische Settings
+        if (in_array($key, ['base_url', 'admin_email']) && !filter_var($value, FILTER_VALIDATE_URL) && !filter_var($value, FILTER_VALIDATE_EMAIL)) {
+            error_log("Invalid setting value for key: " . $key);
+            return $default;
+        }
+        
+        return is_string($value) ? $value : $default;
+    } catch (Throwable $e) {
+        error_log("Database error in getSetting: " . $e->getMessage());
+        return $default;
+    }
+}
+
+function updateSetting(string $key, string $value): void {
+    global $pdo;
+    $stmt = $pdo->prepare("UPDATE settings SET value = :value WHERE `key` = :key");
+    $stmt->execute(['key' => $key, 'value' => $value]);
 }
 
 function findCoverImage(string $coverId, string $suffix = 'f', string $folder = 'cover', string $fallback = 'cover/placeholder.png'): string
@@ -173,37 +203,8 @@ function renderFilmCard(array $dvd, bool $isChild = false): string
     );
 }
 
-function getSetting(string $key, string $default = ''): string
-{
-    global $pdo;
-    
-    // Key Validation: Nur erlaubte Zeichen
-    if (!preg_match('/^[a-zA-Z0-9_.-]+$/', $key) || strlen($key) > 100) {
-        error_log("Invalid setting key attempted: " . $key);
-        return $default;
-    }
-    
-    try {
-        $stmt = $pdo->prepare("SELECT value FROM settings WHERE `key` = :key LIMIT 1");
-        $stmt->execute(['key' => $key]);
-        $value = $stmt->fetchColumn();
-        
-        // Zusätzliche Validierung für kritische Settings
-        if (in_array($key, ['base_url', 'admin_email']) && !filter_var($value, FILTER_VALIDATE_URL) && !filter_var($value, FILTER_VALIDATE_EMAIL)) {
-            error_log("Invalid setting value for key: " . $key);
-            return $default;
-        }
-        
-        return is_string($value) ? $value : $default;
-    } catch (Throwable $e) {
-        error_log("Database error in getSetting: " . $e->getMessage());
-        return $default;
-    }
-}
+// VERSION-Konstante definieren (nach der getSetting-Funktion)
+define('VERSION', getSetting('version', '0.0.0'));
 
-function updateSetting(string $key, string $value): void {
-    global $pdo;
-    $stmt = $pdo->prepare("UPDATE settings SET value = :value WHERE `key` = :key");
-    $stmt->execute(['key' => $key, 'value' => $value]);
-}
-
+// Beispiel: Version ausgeben (optional)
+$currentVersion = $settings['version'] ?? 'unbekannt';
