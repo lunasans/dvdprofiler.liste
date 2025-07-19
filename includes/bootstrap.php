@@ -7,14 +7,17 @@ function setSecurityHeaders(): void {
     header('X-Frame-Options: DENY');
     header('X-XSS-Protection: 1; mode=block');
     
-    // Content Security Policy
-    header("Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' cdn.jsdelivr.net; img-src 'self' data:; font-src 'self' cdn.jsdelivr.net");
+    // Content Security Policy - erweitert für bessere Sicherheit
+    header("Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' cdn.jsdelivr.net cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' cdn.jsdelivr.net; img-src 'self' data: *; font-src 'self' cdn.jsdelivr.net; frame-src 'self' www.youtube.com");
     
     // Verhindert MIME-Type sniffing
     header('Referrer-Policy: strict-origin-when-cross-origin');
+    
+    // Zusätzliche Sicherheitsheader
+    header('Permissions-Policy: geolocation=(), microphone=(), camera=()');
 }
 
-// In bootstrap.php aufrufen:
+// Security Headers setzen
 setSecurityHeaders();
 
 // Weiterleitung bei fehlender Installation
@@ -30,45 +33,50 @@ if (!file_exists($lockFile)) {
 define('BASE_PATH', dirname(__DIR__));
 $config = require BASE_PATH . '/config/config.php';
 
+// Datenbankverbindung mit besserer Fehlerbehandlung
 try {
-    // DSN inkl. Datenbank
     $dsn = "mysql:host={$config['db_host']};dbname={$config['db_name']};charset={$config['db_charset']}";
     $pdo = new PDO($dsn, $config['db_user'], $config['db_pass'], [
         PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+        PDO::ATTR_EMULATE_PREPARES => false,
+        PDO::ATTR_STRINGIFY_FETCHES => false,
     ]);
 } catch (PDOException $e) {
-    die('<h2 style="color:red;">❌ Fehler bei der Datenbankverbindung:</h2><p>' . htmlspecialchars($e->getMessage()) . '</p>');
+    error_log('Database connection failed: ' . $e->getMessage());
+    die('<h2 style="color:red;">❌ Fehler bei der Datenbankverbindung</h2><p>Die Anwendung kann nicht gestartet werden. Bitte prüfen Sie die Konfiguration.</p>');
 }
 
-// Projekt-Einstellungen aus der settings-Tabelle laden
+// Settings-System initialisieren
 $settings = [];
-
-// Prüfen, ob Tabelle 'settings' existiert
 try {
+    // Prüfen, ob Settings-Tabelle existiert
     $pdo->query("SELECT 1 FROM settings LIMIT 1");
+    
+    // Alle Settings laden und cachen
+    $stmt = $pdo->query("SELECT `key`, `value` FROM settings");
+    $settings = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
+    
+    // BASE_URL definieren
+    define('BASE_URL', isset($settings['base_url']) ? rtrim($settings['base_url'], '/') : '');
+    
 } catch (PDOException $e) {
     if (str_contains($e->getMessage(), 'Base table or view not found')) {
         header('Location: ' . $installScript);
         exit;
     }
-    throw $e;
-}
-
-// BASE_URL aus DB lesen und definieren
-try {
-    $stmt = $pdo->prepare("SELECT value FROM settings WHERE `key` = 'base_url' LIMIT 1");
-    $stmt->execute();
-    $result = $stmt->fetch(PDO::FETCH_ASSOC);
-    define('BASE_URL', isset($result['value']) ? rtrim($result['value'], '/') : '');
-} catch (Exception $e) {
+    error_log('Settings loading failed: ' . $e->getMessage());
     define('BASE_URL', '');
 }
 
-// Funktion Definitionen
+// Utility Functions
+
+/**
+ * Settings-Wert abrufen mit Fallback
+ */
 function getSetting(string $key, string $default = ''): string
 {
-    global $pdo;
+    global $settings;
     
     // Key Validation: Nur erlaubte Zeichen
     if (!preg_match('/^[a-zA-Z0-9_.-]+$/', $key) || strlen($key) > 100) {
@@ -76,35 +84,68 @@ function getSetting(string $key, string $default = ''): string
         return $default;
     }
     
+    $value = $settings[$key] ?? $default;
+    
+    // Zusätzliche Validierung für kritische Settings
+    if (in_array($key, ['base_url']) && $value && !filter_var($value, FILTER_VALIDATE_URL)) {
+        error_log("Invalid URL setting value for key: " . $key);
+        return $default;
+    }
+    
+    if (in_array($key, ['admin_email', 'smtp_sender']) && $value && !filter_var($value, FILTER_VALIDATE_EMAIL)) {
+        error_log("Invalid email setting value for key: " . $key);
+        return $default;
+    }
+    
+    return $value;
+}
+
+/**
+ * Setting aktualisieren
+ */
+function updateSetting(string $key, string $value): bool {
+    global $pdo, $settings;
+    
+    // Validation
+    if (!preg_match('/^[a-zA-Z0-9_.-]+$/', $key) || strlen($key) > 100) {
+        return false;
+    }
+    
     try {
-        $stmt = $pdo->prepare("SELECT value FROM settings WHERE `key` = :key LIMIT 1");
-        $stmt->execute(['key' => $key]);
-        $value = $stmt->fetchColumn();
+        $stmt = $pdo->prepare("
+            INSERT INTO settings (`key`, `value`) 
+            VALUES (:key, :value) 
+            ON DUPLICATE KEY UPDATE value = :value
+        ");
+        $result = $stmt->execute(['key' => $key, 'value' => $value]);
         
-        // Zusätzliche Validierung für kritische Settings
-        if (in_array($key, ['base_url', 'admin_email']) && !filter_var($value, FILTER_VALIDATE_URL) && !filter_var($value, FILTER_VALIDATE_EMAIL)) {
-            error_log("Invalid setting value for key: " . $key);
-            return $default;
+        // Cache aktualisieren
+        if ($result) {
+            $settings[$key] = $value;
         }
         
-        return is_string($value) ? $value : $default;
-    } catch (Throwable $e) {
-        error_log("Database error in getSetting: " . $e->getMessage());
-        return $default;
+        return $result;
+    } catch (PDOException $e) {
+        error_log("Failed to update setting {$key}: " . $e->getMessage());
+        return false;
     }
 }
 
-function updateSetting(string $key, string $value): void {
-    global $pdo;
-    $stmt = $pdo->prepare("UPDATE settings SET value = :value WHERE `key` = :key");
-    $stmt->execute(['key' => $key, 'value' => $value]);
-}
-
+/**
+ * Sicherer Cover-Image-Finder mit Caching
+ */
 function findCoverImage(string $coverId, string $suffix = 'f', string $folder = 'cover', string $fallback = 'cover/placeholder.png'): string
 {
+    static $cache = [];
+    $cacheKey = "{$coverId}_{$suffix}_{$folder}";
+    
+    if (isset($cache[$cacheKey])) {
+        return $cache[$cacheKey];
+    }
+    
     // Input Validation: Nur alphanumerische Zeichen + Bindestriche erlauben
     if (!preg_match('/^[a-zA-Z0-9_.-]+$/', $coverId)) {
-        return $fallback;
+        return $cache[$cacheKey] = $fallback;
     }
     
     // Suffix validieren
@@ -113,12 +154,12 @@ function findCoverImage(string $coverId, string $suffix = 'f', string $folder = 
     }
     
     // Folder validieren (keine Pfad-Traversal)
-    $folder = basename($folder); // Entfernt ../ Angriffe
+    $folder = basename($folder);
     if (!is_dir($folder)) {
-        return $fallback;
+        return $cache[$cacheKey] = $fallback;
     }
     
-    $extensions = ['.jpg', '.jpeg', '.png'];
+    $extensions = ['.jpg', '.jpeg', '.png', '.webp'];
     foreach ($extensions as $ext) {
         $file = "{$folder}/{$coverId}{$suffix}{$ext}";
         
@@ -129,48 +170,101 @@ function findCoverImage(string $coverId, string $suffix = 'f', string $folder = 
         if ($realFile && $realFolder && 
             str_starts_with($realFile, $realFolder) && 
             file_exists($realFile)) {
-            return $file;
+            return $cache[$cacheKey] = $file;
         }
     }
-    return $fallback;
+    
+    return $cache[$cacheKey] = $fallback;
 }
 
+/**
+ * Schauspieler für DVD abrufen
+ */
 function getActorsByDvdId(PDO $pdo, int $dvdId): array
 {
-    $stmt = $pdo->prepare("
-        SELECT a.first_name AS firstname, a.last_name AS lastname, fa.role
-          FROM actors a
-          JOIN film_actor fa ON a.id = fa.actor_id
-         WHERE fa.film_id = ?
-    ");
-    $stmt->execute([$dvdId]);
-    return $stmt->fetchAll();
+    static $cache = [];
+    
+    if (isset($cache[$dvdId])) {
+        return $cache[$dvdId];
+    }
+    
+    try {
+        $stmt = $pdo->prepare("
+            SELECT a.first_name, a.last_name, fa.role
+            FROM actors a
+            JOIN film_actor fa ON a.id = fa.actor_id
+            WHERE fa.film_id = ?
+            ORDER BY fa.role
+        ");
+        $stmt->execute([$dvdId]);
+        return $cache[$dvdId] = $stmt->fetchAll();
+    } catch (PDOException $e) {
+        error_log("Failed to get actors for DVD {$dvdId}: " . $e->getMessage());
+        return [];
+    }
 }
 
+/**
+ * Laufzeit formatieren
+ */
 function formatRuntime(?int $minutes): string
 {
-    if (!$minutes) return '';
+    if (!$minutes || $minutes <= 0) return '';
+    
     $h = intdiv($minutes, 60);
     $m = $minutes % 60;
-    return $h > 0 ? "{$h}h {$m}min" : "{$m}min";
+    
+    if ($h > 0 && $m > 0) {
+        return "{$h}h {$m}min";
+    } elseif ($h > 0) {
+        return "{$h}h";
+    } else {
+        return "{$m}min";
+    }
 }
 
+/**
+ * Child-DVDs für BoxSets abrufen
+ */
 function getChildDvds(PDO $pdo, string $parentId): array
 {
-    $stmt = $pdo->prepare("SELECT * FROM dvds WHERE boxset_parent = ? ORDER BY title");
-    $stmt->execute([$parentId]);
-    return $stmt->fetchAll();
+    static $cache = [];
+    
+    if (isset($cache[$parentId])) {
+        return $cache[$parentId];
+    }
+    
+    try {
+        $stmt = $pdo->prepare("
+            SELECT * FROM dvds 
+            WHERE boxset_parent = ? 
+            ORDER BY year ASC, title ASC
+        ");
+        $stmt->execute([$parentId]);
+        return $cache[$parentId] = $stmt->fetchAll();
+    } catch (PDOException $e) {
+        error_log("Failed to get child DVDs for parent {$parentId}: " . $e->getMessage());
+        return [];
+    }
 }
 
+/**
+ * Film-Card rendern mit verbesserter Sicherheit
+ */
 function renderFilmCard(array $dvd, bool $isChild = false): string
 {
     // Alle Inputs validieren und escapen
     $coverId = preg_replace('/[^a-zA-Z0-9_.-]/', '', $dvd['cover_id'] ?? '');
     $cover = htmlspecialchars(findCoverImage($coverId, 'f'), ENT_QUOTES, 'UTF-8');
     $title = htmlspecialchars($dvd['title'] ?? '', ENT_QUOTES, 'UTF-8');
-    $year = filter_var($dvd['year'] ?? 0, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1800, 'max_range' => 2100]]) ?: 0;
+    $year = filter_var($dvd['year'] ?? 0, FILTER_VALIDATE_INT, [
+        'options' => ['min_range' => 1800, 'max_range' => 2100]
+    ]) ?: 0;
     $genre = htmlspecialchars($dvd['genre'] ?? '', ENT_QUOTES, 'UTF-8');
-    $id = filter_var($dvd['id'] ?? 0, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]) ?: 0;
+    $id = filter_var($dvd['id'] ?? 0, FILTER_VALIDATE_INT, [
+        'options' => ['min_range' => 1]
+    ]) ?: 0;
+    $runtime = formatRuntime($dvd['runtime'] ?? null);
 
     if ($id === 0) {
         return '<!-- Invalid DVD ID -->';
@@ -180,6 +274,9 @@ function renderFilmCard(array $dvd, bool $isChild = false): string
     
     // CSS-Klasse sicher zusammenbauen
     $cssClass = $isChild ? 'dvd child-dvd' : 'dvd';
+    
+    $runtimeHtml = $runtime ? "<p><strong>Laufzeit:</strong> {$runtime}</p>" : '';
+    $boxsetButton = $hasChildren ? '<button class="boxset-toggle" type="button">► Box-Inhalte anzeigen</button>' : '';
 
     return sprintf('
     <div class="%s" data-dvd-id="%d">
@@ -188,7 +285,7 @@ function renderFilmCard(array $dvd, bool $isChild = false): string
       </div>
       <div class="dvd-details">
         <h2><a href="#" class="toggle-detail" data-id="%d">%s (%d)</a></h2>
-        <p><strong>Genre:</strong> %s</p>%s
+        <p><strong>Genre:</strong> %s</p>%s%s
       </div>
     </div>',
         htmlspecialchars($cssClass, ENT_QUOTES, 'UTF-8'),
@@ -199,12 +296,54 @@ function renderFilmCard(array $dvd, bool $isChild = false): string
         $title,
         $year,
         $genre,
-        $hasChildren ? '<button class="boxset-toggle" type="button">► Box-Inhalte anzeigen</button>' : ''
+        $runtimeHtml,
+        $boxsetButton
     );
 }
 
-// VERSION-Konstante definieren (nach der getSetting-Funktion)
-define('VERSION', getSetting('version', '0.0.0'));
+/**
+ * Sichere Eingabe-Bereinigung
+ */
+function sanitizeInput(string $input, int $maxLength = 255): string
+{
+    $input = trim($input);
+    $input = strip_tags($input);
+    $input = htmlspecialchars($input, ENT_QUOTES, 'UTF-8');
+    
+    if (strlen($input) > $maxLength) {
+        $input = substr($input, 0, $maxLength);
+    }
+    
+    return $input;
+}
 
-// Beispiel: Version ausgeben (optional)
-$currentVersion = $settings['version'] ?? 'unbekannt';
+/**
+ * CSRF-Token generieren
+ */
+function generateCSRFToken(): string
+{
+    if (!isset($_SESSION)) {
+        session_start();
+    }
+    
+    $token = bin2hex(random_bytes(32));
+    $_SESSION['csrf_token'] = $token;
+    return $token;
+}
+
+/**
+ * CSRF-Token validieren
+ */
+function validateCSRFToken(string $token): bool
+{
+    if (!isset($_SESSION)) {
+        session_start();
+    }
+    
+    return isset($_SESSION['csrf_token']) && hash_equals($_SESSION['csrf_token'], $token);
+}
+
+// Session starten wenn noch nicht aktiv
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}

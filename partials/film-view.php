@@ -224,7 +224,7 @@ function generateStarRating(float $rating, int $maxStars = 5): string {
                     <?php foreach ($actors as $actor): ?>
                         <li class="actor-item">
                             <span class="actor-name" itemprop="name">
-                                <?= htmlspecialchars("{$actor['firstname']} {$actor['lastname']}") ?>
+                                <?= htmlspecialchars("{$actor['first_name']} {$actor['last_name']}") ?>
                             </span>
                             <?php if (!empty($actor['role'])): ?>
                                 <span class="actor-role">als <em><?= htmlspecialchars($actor['role']) ?></em></span>
