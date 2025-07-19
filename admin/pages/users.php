@@ -336,7 +336,7 @@ unset($_SESSION['success'], $_SESSION['error']);
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    let currentUserId = null;
+    let currentUserId = null; // Variable richtig initialisieren
     
     // Edit User Modal
     document.querySelectorAll('.edit-user-btn').forEach(btn => {
@@ -351,12 +351,17 @@ document.addEventListener('DOMContentLoaded', function() {
     // Setup 2FA
     document.querySelectorAll('.setup-2fa-btn').forEach(btn => {
         btn.addEventListener('click', function() {
-            currentUserId = this.dataset.id;
+            currentUserId = this.dataset.id; // Hier wird die Variable gesetzt
+            console.log('Setting currentUserId to:', currentUserId);
             
             // Reset modal
             document.getElementById('setup-step-1').style.display = 'block';
             document.getElementById('setup-step-2').style.display = 'none';
             document.getElementById('setup-step-3').style.display = 'none';
+            
+            // QR-Code Image zurücksetzen
+            document.getElementById('qrcode-image').src = '';
+            document.getElementById('manual-secret').textContent = '';
             
             new bootstrap.Modal(document.getElementById('setup2faModal')).show();
         });
@@ -364,41 +369,142 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Generate 2FA QR Code
     document.getElementById('generate2faBtn').addEventListener('click', function() {
+        console.log('Generate 2FA button clicked');
+        console.log('Current User ID:', currentUserId);
+        
+        // Prüfe ob currentUserId gesetzt ist
+        if (!currentUserId) {
+            alert('Fehler: Keine Benutzer-ID gefunden. Bitte schließe das Modal und versuche es erneut.');
+            return;
+        }
+        
         this.disabled = true;
         this.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Generierung...';
+        
+        const requestData = {
+            'user_id': currentUserId,
+            'action': 'generate'
+        };
+        
+        console.log('Request data:', requestData);
         
         fetch('actions/generate_2fa.php', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
             },
-            body: new URLSearchParams({
-                'user_id': currentUserId,
-                'action': 'generate'
-            })
+            body: new URLSearchParams(requestData)
         })
-        .then(response => response.json())
-        .then(data => {
+        .then(response => {
+            console.log('Response received');
+            console.log('Status:', response.status);
+            console.log('Status text:', response.statusText);
+            
+            // Erst den rohen Text holen
+            return response.text();
+        })
+        .then(text => {
+            console.log('Raw response text:');
+            console.log(text);
+            console.log('Text length:', text.length);
+            
+            // Prüfe ob es HTML ist (Fehlerseite)
+            if (text.trim().startsWith('<')) {
+                console.error('Server returned HTML instead of JSON');
+                
+                // Extrahiere Titel falls vorhanden
+                const titleMatch = text.match(/<title>(.*?)<\/title>/i);
+                const title = titleMatch ? titleMatch[1] : 'Unbekannter Fehler';
+                
+                alert(`Server-Fehler: ${title}\n\nDer Server hat eine HTML-Seite statt JSON zurückgegeben. Prüfe die PHP-Datei auf Syntax-Fehler.`);
+                return;
+            }
+            
+            // Versuche JSON zu parsen
+            let data;
+            try {
+                data = JSON.parse(text);
+                console.log('Parsed JSON:', data);
+            } catch (parseError) {
+                console.error('JSON Parse Error:', parseError);
+                console.error('Response was not valid JSON');
+                
+                // Zeige die ersten 500 Zeichen der Antwort
+                const preview = text.substring(0, 500);
+                alert(`JSON-Parse-Fehler:\n\n${preview}${text.length > 500 ? '\n\n... (gekürzt)' : ''}`);
+                return;
+            }
+            
             if (data.success) {
+                console.log('Generation successful');
+                
                 // QR-Code anzeigen
-                document.getElementById('qrcode-image').src = data.qrcode;
-                document.getElementById('manual-issuer').textContent = data.manual_entry.issuer;
-                document.getElementById('manual-account').textContent = data.manual_entry.account;
-                document.getElementById('manual-secret').textContent = data.secret;
+                if (data.qrcode) {
+                    console.log('Setting QR code image:', data.qrcode);
+                    document.getElementById('qrcode-image').src = data.qrcode;
+                    
+                    // Test ob QR-Code lädt
+                    document.getElementById('qrcode-image').onload = function() {
+                        console.log('QR code image loaded successfully');
+                    };
+                    document.getElementById('qrcode-image').onerror = function() {
+                        console.error('QR code image failed to load');
+                        // Versuche alternativen QR-Code Provider
+                        if (data.debug && data.debug.qr_providers) {
+                            console.log('Trying alternative QR providers...');
+                            const providers = Object.values(data.debug.qr_providers);
+                            let providerIndex = 1; // Starte mit dem zweiten Provider
+                            
+                            const tryNextProvider = () => {
+                                if (providerIndex < providers.length) {
+                                    console.log(`Trying provider ${providerIndex + 1}:`, providers[providerIndex]);
+                                    this.src = providers[providerIndex];
+                                    providerIndex++;
+                                } else {
+                                    alert('QR-Code konnte nicht geladen werden. Verwende die manuelle Eingabe.');
+                                }
+                            };
+                            
+                            this.onerror = tryNextProvider;
+                            tryNextProvider();
+                        }
+                    };
+                }
+                
+                // Manuelle Eingabe-Daten
+                if (data.manual_entry) {
+                    document.getElementById('manual-issuer').textContent = data.manual_entry.issuer;
+                    document.getElementById('manual-account').textContent = data.manual_entry.account;
+                    document.getElementById('manual-secret').textContent = data.secret;
+                }
+                
+                // Debug-Infos loggen
+                if (data.debug) {
+                    console.log('Debug info:', data.debug);
+                    console.log('Current test code:', data.debug.current_test_code);
+                }
                 
                 // Zu Schritt 2 wechseln
                 document.getElementById('setup-step-1').style.display = 'none';
                 document.getElementById('setup-step-2').style.display = 'block';
                 
                 // Focus auf Token-Input
-                document.getElementById('setup-token').focus();
+                setTimeout(() => {
+                    document.getElementById('setup-token').focus();
+                }, 100);
+                
             } else {
-                alert('Fehler: ' + data.message);
+                console.error('Generation failed:', data.message);
+                alert('Fehler bei der 2FA-Generierung: ' + (data.message || 'Unbekannter Fehler'));
+                
+                if (data.debug) {
+                    console.log('Error debug info:', data.debug);
+                }
             }
         })
         .catch(error => {
-            console.error('Error:', error);
-            alert('Ein Fehler ist aufgetreten.');
+            console.error('Fetch error:', error);
+            alert('Netzwerk-Fehler: ' + error.message);
         })
         .finally(() => {
             this.disabled = false;
@@ -412,6 +518,11 @@ document.addEventListener('DOMContentLoaded', function() {
         
         const token = document.getElementById('setup-token').value;
         const submitBtn = this.querySelector('button[type="submit"]');
+        
+        if (!currentUserId) {
+            alert('Fehler: Keine Benutzer-ID gefunden.');
+            return;
+        }
         
         submitBtn.disabled = true;
         submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Überprüfung...';
@@ -427,26 +538,39 @@ document.addEventListener('DOMContentLoaded', function() {
                 'action': 'verify'
             })
         })
-        .then(response => response.json())
-        .then(data => {
+        .then(response => response.text())
+        .then(text => {
+            console.log('Verify response:', text);
+            
+            let data;
+            try {
+                data = JSON.parse(text);
+            } catch (e) {
+                console.error('Verify JSON parse error:', e);
+                alert('Server-Fehler bei der Verifikation');
+                return;
+            }
+            
             if (data.success) {
                 // Backup-Codes anzeigen
                 const codesDisplay = document.getElementById('backup-codes-display');
                 codesDisplay.innerHTML = '';
                 
-                data.backup_codes.forEach(code => {
-                    const div = document.createElement('div');
-                    div.className = 'backup-code';
-                    div.textContent = code;
-                    codesDisplay.appendChild(div);
-                });
+                if (data.backup_codes && data.backup_codes.length > 0) {
+                    data.backup_codes.forEach(code => {
+                        const div = document.createElement('div');
+                        div.className = 'backup-code';
+                        div.textContent = code;
+                        codesDisplay.appendChild(div);
+                    });
+                    
+                    // Backup-Codes für Download speichern
+                    window.backupCodes = data.backup_codes;
+                }
                 
                 // Zu Schritt 3 wechseln
                 document.getElementById('setup-step-2').style.display = 'none';
                 document.getElementById('setup-step-3').style.display = 'block';
-                
-                // Backup-Codes für Download speichern
-                window.backupCodes = data.backup_codes;
                 
                 // Seite nach 3 Sekunden neu laden
                 setTimeout(() => {
@@ -454,11 +578,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 }, 3000);
             } else {
                 alert('Fehler: ' + data.message);
+                document.getElementById('setup-token').value = '';
+                document.getElementById('setup-token').focus();
             }
         })
         .catch(error => {
-            console.error('Error:', error);
-            alert('Ein Fehler ist aufgetreten.');
+            console.error('Verify error:', error);
+            alert('Netzwerk-Fehler bei der Verifikation: ' + error.message);
         })
         .finally(() => {
             submitBtn.disabled = false;
@@ -466,10 +592,15 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
     
+    // Auto-format 2FA token input
+    document.getElementById('setup-token').addEventListener('input', function() {
+        this.value = this.value.replace(/[^0-9]/g, '');
+    });
+    
     // Download Backup Codes
     document.getElementById('downloadBackupCodes').addEventListener('click', function() {
         if (window.backupCodes) {
-            const content = `2FA Backup-Codes für <?= htmlspecialchars(getSetting('site_title', 'DVD-Verwaltung')) ?>
+            const content = `2FA Backup-Codes für DVD-Verwaltung
 Generiert am: ${new Date().toLocaleString()}
 
 WICHTIG: Bewahren Sie diese Codes sicher auf!
@@ -491,39 +622,47 @@ Diese Codes können verwendet werden, wenn Sie keinen Zugang zu Ihrer Authentica
         }
     });
     
-    // Auto-format 2FA token input
-    document.getElementById('setup-token').addEventListener('input', function() {
-        this.value = this.value.replace(/[^0-9]/g, '');
+    // Test-Funktionen für Debugging (global verfügbar)
+    window.debug2FAStatus = function() {
+        console.log('Current 2FA Debug Status:');
+        console.log('- Current User ID:', currentUserId);
+        console.log('- Setup Step 1 visible:', document.getElementById('setup-step-1').style.display !== 'none');
+        console.log('- Setup Step 2 visible:', document.getElementById('setup-step-2').style.display !== 'none');
+        console.log('- QR Image src:', document.getElementById('qrcode-image').src);
+        console.log('- Manual secret:', document.getElementById('manual-secret').textContent);
+    };
+    
+    window.test2FAGeneration = function() {
+        console.log('Testing 2FA generation with current user ID:', currentUserId);
         
-        if (this.value.length === 6) {
-            // Auto-submit nach kurzer Verzögerung
-            setTimeout(() => {
-                if (this.value.length === 6) {
-                    document.getElementById('verify2faSetupForm').requestSubmit();
-                }
-            }, 500);
+        if (!currentUserId) {
+            console.log('No current user ID set, using test ID 1');
+            currentUserId = '1';
         }
-    });
-    
-    // Delete User (placeholder)
-    document.querySelectorAll('.delete-user-btn').forEach(btn => {
-        btn.addEventListener('click', function() {
-            const email = this.dataset.email;
-            if (confirm(`Benutzer "${email}" wirklich löschen?`)) {
-                // TODO: Implement user deletion
-                alert('User-Löschung noch nicht implementiert.');
+        
+        fetch('actions/generate_2fa.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: new URLSearchParams({
+                'user_id': currentUserId,
+                'action': 'generate'
+            })
+        })
+        .then(response => response.text())
+        .then(text => {
+            console.log('Test response:', text);
+            try {
+                const data = JSON.parse(text);
+                console.log('Test parsed:', data);
+            } catch (e) {
+                console.error('Test parse error:', e);
             }
+        })
+        .catch(error => {
+            console.error('Test error:', error);
         });
-    });
-    
-    // Disable 2FA (placeholder)
-    document.querySelectorAll('.disable-2fa-btn').forEach(btn => {
-        btn.addEventListener('click', function() {
-            if (confirm('2FA für diesen Benutzer wirklich deaktivieren?')) {
-                // TODO: Implement 2FA disable
-                alert('2FA-Deaktivierung noch nicht implementiert.');
-            }
-        });
-    });
+    };
 });
 </script>

@@ -4,17 +4,15 @@ declare(strict_types=1);
 header('Content-Type: application/json');
 require_once __DIR__ . '/../../includes/bootstrap.php';
 
+// Session starten falls nicht bereits gestartet
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
 // Session & Auth prüfen
 if (!isset($_SESSION['user_id'])) {
     http_response_code(403);
     echo json_encode(['success' => false, 'message' => 'Nicht angemeldet']);
-    exit;
-}
-
-// POST nicht zwingend erforderlich für die Generierung
-if ($_SERVER['REQUEST_METHOD'] !== 'POST' && $_SERVER['REQUEST_METHOD'] !== 'GET') {
-    http_response_code(405);
-    echo json_encode(['success' => false, 'message' => 'Nur POST oder GET erlaubt']);
     exit;
 }
 
@@ -87,21 +85,6 @@ class Simple2FA {
     public static function totp(string $secret, int $timeStep = 30): string {
         $timeCounter = (int)floor(time() / $timeStep);
         return self::hotp($secret, $timeCounter);
-    }
-    
-    /**
-     * TOTP mit Zeittoleranz verifizieren
-     */
-    public static function verifyTotp(string $secret, string $code, int $timeStep = 30, int $tolerance = 1): bool {
-        $timeCounter = (int)floor(time() / $timeStep);
-        
-        // Prüfe aktuellen Zeitschritt und ±1 für Zeitabweichung
-        for ($i = -$tolerance; $i <= $tolerance; $i++) {
-            if (self::hotp($secret, $timeCounter + $i) === $code) {
-                return true;
-            }
-        }
-        return false;
     }
     
     /**
