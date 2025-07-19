@@ -160,33 +160,9 @@ function generateStarRating(float $rating, int $maxStars = 5): string {
                 </a>
             <?php endif; ?>
         </div>
-        
-        <?php if ($sideCover || $discCover): ?>
-            <div class="additional-covers">
-                <?php if ($sideCover): ?>
-                    <a href="<?= htmlspecialchars($sideCover) ?>" 
-                       data-fancybox="gallery" 
-                       data-caption="<?= htmlspecialchars($dvd['title']) ?> - Seitencover">
-                        <img src="<?= htmlspecialchars($sideCover) ?>" 
-                             alt="Seitencover" 
-                             class="small-cover"
-                             loading="lazy">
-                    </a>
-                <?php endif; ?>
-                
-                <?php if ($discCover): ?>
-                    <a href="<?= htmlspecialchars($discCover) ?>" 
-                       data-fancybox="gallery" 
-                       data-caption="<?= htmlspecialchars($dvd['title']) ?> - Disc">
-                        <img src="<?= htmlspecialchars($discCover) ?>" 
-                             alt="Disc Cover" 
-                             class="small-cover"
-                             loading="lazy">
-                    </a>
-                <?php endif; ?>
-            </div>
-        <?php endif; ?>
-    </section>
+    </div>
+
+</section>
 
     <!-- Film-Informationen in Grid-Layout -->
     <section class="film-info-grid">
