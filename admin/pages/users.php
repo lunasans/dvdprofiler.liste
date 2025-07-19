@@ -372,7 +372,10 @@ document.addEventListener('DOMContentLoaded', function() {
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
             },
-            body: `user_id=${currentUserId}`
+            body: new URLSearchParams({
+                'user_id': currentUserId,
+                'action': 'generate'
+            })
         })
         .then(response => response.json())
         .then(data => {
@@ -418,7 +421,11 @@ document.addEventListener('DOMContentLoaded', function() {
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
             },
-            body: `token=${token}&user_id=${currentUserId}`
+            body: new URLSearchParams({
+                'token': token,
+                'user_id': currentUserId,
+                'action': 'verify'
+            })
         })
         .then(response => response.json())
         .then(data => {
