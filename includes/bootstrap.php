@@ -73,7 +73,7 @@ try {
 function findCoverImage(string $coverId, string $suffix = 'f', string $folder = 'cover', string $fallback = 'cover/placeholder.png'): string
 {
     // Input Validation: Nur alphanumerische Zeichen + Bindestriche erlauben
-    if (!preg_match('/^[a-zA-Z0-9_-]+$/', $coverId)) {
+    if (!preg_match('/^[a-zA-Z0-9_.-]+$/', $coverId)) {
         return $fallback;
     }
     
@@ -135,7 +135,7 @@ function getChildDvds(PDO $pdo, string $parentId): array
 function renderFilmCard(array $dvd, bool $isChild = false): string
 {
     // Alle Inputs validieren und escapen
-    $coverId = preg_replace('/[^a-zA-Z0-9_-]/', '', $dvd['cover_id'] ?? '');
+    $coverId = preg_replace('/[^a-zA-Z0-9_.-]/', '', $dvd['cover_id'] ?? '');
     $cover = htmlspecialchars(findCoverImage($coverId, 'f'), ENT_QUOTES, 'UTF-8');
     $title = htmlspecialchars($dvd['title'] ?? '', ENT_QUOTES, 'UTF-8');
     $year = filter_var($dvd['year'] ?? 0, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1800, 'max_range' => 2100]]) ?: 0;
