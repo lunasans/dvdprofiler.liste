@@ -8,6 +8,59 @@ $success = null;
 $require2FA = false;
 $userId = null;
 
+// Simple2FA Klasse für Login (ohne externe Dependencies)
+class Simple2FA {
+    public static function base32Decode(string $secret): string {
+        $secret = strtoupper($secret);
+        $chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+        $charMap = array_flip(str_split($chars));
+        
+        $bits = '';
+        for ($i = 0; $i < strlen($secret); $i++) {
+            if (isset($charMap[$secret[$i]])) {
+                $bits .= str_pad(decbin($charMap[$secret[$i]]), 5, '0', STR_PAD_LEFT);
+            }
+        }
+        
+        $result = '';
+        for ($i = 0; $i < strlen($bits); $i += 8) {
+            if (strlen($bits) - $i >= 8) {
+                $result .= chr(bindec(substr($bits, $i, 8)));
+            }
+        }
+        
+        return $result;
+    }
+    
+    public static function hotp(string $secret, int $counter): string {
+        $secretBinary = self::base32Decode($secret);
+        $counterBinary = pack('N*', 0) . pack('N*', $counter);
+        
+        $hash = hash_hmac('sha1', $counterBinary, $secretBinary, true);
+        $offset = ord($hash[19]) & 0xf;
+        
+        $code = (
+            ((ord($hash[$offset + 0]) & 0x7f) << 24) |
+            ((ord($hash[$offset + 1]) & 0xff) << 16) |
+            ((ord($hash[$offset + 2]) & 0xff) << 8) |
+            (ord($hash[$offset + 3]) & 0xff)
+        ) % 1000000;
+        
+        return str_pad((string)$code, 6, '0', STR_PAD_LEFT);
+    }
+    
+    public static function verifyTotp(string $secret, string $code, int $timeStep = 30, int $tolerance = 1): bool {
+        $timeCounter = (int)floor(time() / $timeStep);
+        
+        for ($i = -$tolerance; $i <= $tolerance; $i++) {
+            if (self::hotp($secret, $timeCounter + $i) === $code) {
+                return true;
+            }
+        }
+        return false;
+    }
+}
+
 // Redirect wenn bereits eingeloggt
 if (isset($_SESSION['user_id']) && !isset($_SESSION['require_2fa'])) {
     $redirect = (defined('BASE_URL') && BASE_URL !== '')
@@ -36,18 +89,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (!$user) {
                     $error = "Benutzer nicht gefunden.";
                 } else {
-                    // 2FA-Token prüfen
-                    $qrProvider = class_exists('\Endroid\QrCode\QrCode') 
-                        ? new \RobThree\Auth\Providers\Qr\EndroidQrCodeProvider()
-                        : new \RobThree\Auth\Providers\Qr\QRServerProvider();
-                        
-                    $tfa = new \RobThree\Auth\TwoFactorAuth(
-                        $qrProvider,
-                        getSetting('site_title', 'DVD-Verwaltung'),
-                        6, 30, \RobThree\Auth\Algorithm::SHA1
-                    );
-                    
-                    $isValidToken = $tfa->verifyCode($user['twofa_secret'], $token);
+                    // 2FA-Token mit eigener Simple2FA-Klasse prüfen
+                    $isValidToken = Simple2FA::verifyTotp($user['twofa_secret'], $token);
                     $isBackupCode = false;
                     
                     // Falls Token ungültig, prüfe Backup-Codes
