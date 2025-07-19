@@ -3,13 +3,13 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/bootstrap.php';
 
-// Session ist bereits in bootstrap.php gestartet - kein extra session_start() nötig!
-
 $error = null;
 $success = null;
+$require2FA = false;
+$userId = null;
 
 // Redirect wenn bereits eingeloggt
-if (isset($_SESSION['user_id'])) {
+if (isset($_SESSION['user_id']) && !isset($_SESSION['require_2fa'])) {
     $redirect = (defined('BASE_URL') && BASE_URL !== '')
         ? BASE_URL . '/admin/index.php?page=dashboard'
         : 'index.php?page=dashboard';
@@ -18,51 +18,165 @@ if (isset($_SESSION['user_id'])) {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $email = trim($_POST['email'] ?? '');
-    $password = $_POST['password'] ?? '';
     
-    // Basis-Validierung
-    if (empty($email) || empty($password)) {
-        $error = "Bitte füllen Sie alle Felder aus.";
-    } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        $error = "Ungültige E-Mail-Adresse.";
-    } else {
-        try {
-            $stmt = $pdo->prepare("SELECT * FROM users WHERE email = ?");
-            $stmt->execute([$email]);
-            $user = $stmt->fetch();
-
-            if ($user && password_verify($password, $user['password'])) {
-                // Login erfolgreich
-                $_SESSION['user_id'] = $user['id'];
-                $_SESSION['user_email'] = $user['email'];
-                $_SESSION['login_time'] = time();
+    // 2FA-Verifikation
+    if (isset($_POST['verify_2fa'])) {
+        $token = trim($_POST['token'] ?? '');
+        $userId = $_SESSION['temp_user_id'] ?? 0;
+        
+        if (empty($token) || !$userId) {
+            $error = "Ungültiger Zugriff.";
+        } else {
+            try {
+                // Benutzer und 2FA-Secret laden
+                $stmt = $pdo->prepare("SELECT id, email, twofa_secret FROM users WHERE id = ? AND twofa_enabled = 1");
+                $stmt->execute([$userId]);
+                $user = $stmt->fetch();
                 
-                // Letzten Login aktualisieren
-                $updateStmt = $pdo->prepare("UPDATE users SET last_login = NOW() WHERE id = ?");
-                $updateStmt->execute([$user['id']]);
-                
-                $success = "Login erfolgreich! Sie werden weitergeleitet...";
-                
-                // Redirect nach erfolgreicher Anmeldung
-                $redirect = (defined('BASE_URL') && BASE_URL !== '')
-                    ? BASE_URL . '/admin/index.php?page=dashboard'
-                    : 'index.php?page=dashboard';
-                
-                // JavaScript redirect für bessere UX
-                echo "<script>
-                    setTimeout(function() {
-                        window.location.href = '{$redirect}';
-                    }, 1500);
-                </script>";
-            } else {
-                $error = "E-Mail oder Passwort ist falsch.";
+                if (!$user) {
+                    $error = "Benutzer nicht gefunden.";
+                } else {
+                    // 2FA-Token prüfen
+                    $qrProvider = class_exists('\Endroid\QrCode\QrCode') 
+                        ? new \RobThree\Auth\Providers\Qr\EndroidQrCodeProvider()
+                        : new \RobThree\Auth\Providers\Qr\QRServerProvider();
+                        
+                    $tfa = new \RobThree\Auth\TwoFactorAuth(
+                        $qrProvider,
+                        getSetting('site_title', 'DVD-Verwaltung'),
+                        6, 30, \RobThree\Auth\Algorithm::SHA1
+                    );
+                    
+                    $isValidToken = $tfa->verifyCode($user['twofa_secret'], $token);
+                    $isBackupCode = false;
+                    
+                    // Falls Token ungültig, prüfe Backup-Codes
+                    if (!$isValidToken) {
+                        $stmt = $pdo->prepare("
+                            SELECT id, code FROM user_backup_codes 
+                            WHERE user_id = ? AND used_at IS NULL
+                        ");
+                        $stmt->execute([$userId]);
+                        $backupCodes = $stmt->fetchAll();
+                        
+                        foreach ($backupCodes as $backupCode) {
+                            if (password_verify($token, $backupCode['code'])) {
+                                $isBackupCode = true;
+                                // Backup-Code als verwendet markieren
+                                $updateStmt = $pdo->prepare("
+                                    UPDATE user_backup_codes 
+                                    SET used_at = NOW() 
+                                    WHERE id = ?
+                                ");
+                                $updateStmt->execute([$backupCode['id']]);
+                                break;
+                            }
+                        }
+                    }
+                    
+                    if ($isValidToken || $isBackupCode) {
+                        // 2FA erfolgreich - vollständig anmelden
+                        $_SESSION['user_id'] = $userId;
+                        $_SESSION['user_email'] = $user['email'];
+                        $_SESSION['login_time'] = time();
+                        $_SESSION['2fa_verified'] = true;
+                        
+                        // Temporäre Session-Daten löschen
+                        unset($_SESSION['temp_user_id']);
+                        unset($_SESSION['require_2fa']);
+                        
+                        // Letzten Login aktualisieren
+                        $updateStmt = $pdo->prepare("UPDATE users SET last_login = NOW() WHERE id = ?");
+                        $updateStmt->execute([$userId]);
+                        
+                        if ($isBackupCode) {
+                            $_SESSION['backup_code_used'] = true;
+                        }
+                        
+                        $success = "Anmeldung erfolgreich! Sie werden weitergeleitet...";
+                        
+                        $redirect = (defined('BASE_URL') && BASE_URL !== '')
+                            ? BASE_URL . '/admin/index.php?page=dashboard'
+                            : 'index.php?page=dashboard';
+                        
+                        echo "<script>
+                            setTimeout(function() {
+                                window.location.href = '{$redirect}';
+                            }, 1500);
+                        </script>";
+                    } else {
+                        $error = "Ungültiger 2FA-Code oder Backup-Code.";
+                        $require2FA = true;
+                        $userId = $_SESSION['temp_user_id'];
+                    }
+                }
+            } catch (Exception $e) {
+                error_log('2FA Login error: ' . $e->getMessage());
+                $error = "2FA-Verifikation fehlgeschlagen.";
+                $require2FA = true;
+                $userId = $_SESSION['temp_user_id'];
             }
-        } catch (Exception $e) {
-            error_log('Login error: ' . $e->getMessage());
-            $error = "Ein Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.";
         }
     }
+    // Normale Anmeldung (E-Mail/Passwort)
+    else {
+        $email = trim($_POST['email'] ?? '');
+        $password = $_POST['password'] ?? '';
+        
+        if (empty($email) || empty($password)) {
+            $error = "Bitte füllen Sie alle Felder aus.";
+        } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $error = "Ungültige E-Mail-Adresse.";
+        } else {
+            try {
+                $stmt = $pdo->prepare("SELECT * FROM users WHERE email = ?");
+                $stmt->execute([$email]);
+                $user = $stmt->fetch();
+
+                if ($user && password_verify($password, $user['password'])) {
+                    // Passwort korrekt - prüfe 2FA
+                    if ($user['twofa_enabled']) {
+                        // 2FA erforderlich
+                        $_SESSION['temp_user_id'] = $user['id'];
+                        $_SESSION['require_2fa'] = true;
+                        $require2FA = true;
+                        $userId = $user['id'];
+                    } else {
+                        // Kein 2FA - direkt anmelden
+                        $_SESSION['user_id'] = $user['id'];
+                        $_SESSION['user_email'] = $user['email'];
+                        $_SESSION['login_time'] = time();
+                        
+                        $updateStmt = $pdo->prepare("UPDATE users SET last_login = NOW() WHERE id = ?");
+                        $updateStmt->execute([$user['id']]);
+                        
+                        $success = "Login erfolgreich! Sie werden weitergeleitet...";
+                        
+                        $redirect = (defined('BASE_URL') && BASE_URL !== '')
+                            ? BASE_URL . '/admin/index.php?page=dashboard'
+                            : 'index.php?page=dashboard';
+                        
+                        echo "<script>
+                            setTimeout(function() {
+                                window.location.href = '{$redirect}';
+                            }, 1500);
+                        </script>";
+                    }
+                } else {
+                    $error = "E-Mail oder Passwort ist falsch.";
+                }
+            } catch (Exception $e) {
+                error_log('Login error: ' . $e->getMessage());
+                $error = "Ein Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.";
+            }
+        }
+    }
+}
+
+// 2FA-Status aus Session prüfen
+if (isset($_SESSION['require_2fa']) && isset($_SESSION['temp_user_id'])) {
+    $require2FA = true;
+    $userId = $_SESSION['temp_user_id'];
 }
 
 $siteTitle = getSetting('site_title', 'DVD-Verwaltung');
@@ -74,39 +188,40 @@ $siteTitle = getSetting('site_title', 'DVD-Verwaltung');
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - <?= htmlspecialchars($siteTitle) ?></title>
     
-    <!-- Preconnect für bessere Performance -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="preconnect" href="https://cdn.jsdelivr.net">
-    
-    <!-- Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Segoe+UI:wght@400;500;600;700&display=swap" rel="stylesheet">
-    
-    <!-- Bootstrap Icons -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css">
-    
-    <!-- Custom CSS -->
     <link href="css/login.css" rel="stylesheet">
     
-    <!-- Meta Tags -->
     <meta name="description" content="Anmeldung zum Admin-Bereich">
     <meta name="theme-color" content="#1a1a2e">
-    
-    <!-- Favicon -->
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%233498db'%3E%3Cpath d='M18 4v1h-2V4c0-1.1-.9-2-2-2H8c-1.1 0-2 .9-2 2v1H4v11c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4h-2zM8 4h6v1H8V4zm10 13H6V6h2v1h6V6h2v11z'/%3E%3C/svg%3E">
 </head>
 <body>
     <section class="container">
         <div class="login-container">
-            <!-- Decorative Circles -->
             <div class="circle circle-one"></div>
             <div class="circle circle-two"></div>
             
             <div class="form-container">
-                <h1>
-                    <i class="bi bi-film" style="margin-right: 0.5rem; font-size: 0.8em;"></i>
-                    Admin Login
-                </h1>
+                <?php if ($require2FA): ?>
+                    <!-- 2FA-Formular -->
+                    <h1>
+                        <i class="bi bi-shield-lock" style="margin-right: 0.5rem; font-size: 0.8em;"></i>
+                        Zwei-Faktor-Authentifizierung
+                    </h1>
+                    
+                    <p style="text-align: center; margin-bottom: 2rem; color: var(--clr-text-muted);">
+                        Geben Sie den 6-stelligen Code aus Ihrer Authenticator-App ein
+                    </p>
+                <?php else: ?>
+                    <!-- Normales Login-Formular -->
+                    <h1>
+                        <i class="bi bi-film" style="margin-right: 0.5rem; font-size: 0.8em;"></i>
+                        Admin Login
+                    </h1>
+                <?php endif; ?>
                 
                 <!-- Error/Success Messages -->
                 <?php if ($error): ?>
@@ -123,102 +238,133 @@ $siteTitle = getSetting('site_title', 'DVD-Verwaltung');
                     </div>
                 <?php endif; ?>
                 
-                <form method="post" action="" id="loginForm" novalidate>
-                    <div class="input-group email">
-                        <input 
-                            type="email" 
-                            name="email" 
-                            id="email"
-                            placeholder="E-Mail-Adresse" 
-                            value="<?= htmlspecialchars($_POST['email'] ?? '') ?>"
-                            required 
-                            autocomplete="email"
-                            aria-label="E-Mail-Adresse"
-                        />
-                    </div>
+                <?php if ($require2FA): ?>
+                    <!-- 2FA-Verifikation -->
+                    <form method="post" action="" id="twoFAForm" novalidate>
+                        <input type="hidden" name="verify_2fa" value="1">
+                        
+                        <div class="input-group password">
+                            <input 
+                                type="text" 
+                                name="token" 
+                                id="token"
+                                placeholder="2FA-Code (6 Stellen)" 
+                                required 
+                                autocomplete="one-time-code"
+                                pattern="[0-9]{6}"
+                                maxlength="6"
+                                aria-label="2FA-Code"
+                                style="text-align: center; letter-spacing: 0.5em; font-size: 1.2rem;"
+                            />
+                        </div>
+                        
+                        <button type="submit" class="login-btn" id="verify2FABtn">
+                            <span class="btn-text">Bestätigen</span>
+                        </button>
+                        
+                        <div style="text-align: center; margin-top: 1rem;">
+                            <p style="color: var(--clr-text-muted); font-size: 0.9rem;">
+                                Kein Zugriff auf Ihr Gerät?<br>
+                                <button type="button" id="showBackupForm" style="background: none; border: none; color: var(--clr-accent); text-decoration: underline; cursor: pointer;">
+                                    Backup-Code verwenden
+                                </button>
+                            </p>
+                        </div>
+                    </form>
                     
-                    <div class="input-group password">
-                        <input 
-                            type="password" 
-                            name="password" 
-                            id="password"
-                            placeholder="Passwort" 
-                            required 
-                            autocomplete="current-password"
-                            aria-label="Passwort"
-                        />
-                    </div>
+                    <!-- Backup-Code Formular (versteckt) -->
+                    <form method="post" action="" id="backupCodeForm" style="display: none;" novalidate>
+                        <input type="hidden" name="verify_2fa" value="1">
+                        
+                        <div class="input-group password">
+                            <input 
+                                type="text" 
+                                name="token" 
+                                placeholder="Backup-Code" 
+                                required 
+                                autocomplete="off"
+                                aria-label="Backup-Code"
+                                style="text-transform: uppercase;"
+                            />
+                        </div>
+                        
+                        <button type="submit" class="login-btn">
+                            <span class="btn-text">Mit Backup-Code anmelden</span>
+                        </button>
+                        
+                        <div style="text-align: center; margin-top: 1rem;">
+                            <button type="button" id="showNormalForm" style="background: none; border: none; color: var(--clr-accent); text-decoration: underline; cursor: pointer;">
+                                Zurück zu 2FA-Code
+                            </button>
+                        </div>
+                    </form>
                     
-                    <button 
-                        type="submit" 
-                        class="login-btn" 
-                        id="loginBtn"
-                        aria-label="Anmelden"
-                    >
-                        <span class="btn-text">Anmelden</span>
-                    </button>
-                </form>
+                <?php else: ?>
+                    <!-- Normale Anmeldung -->
+                    <form method="post" action="" id="loginForm" novalidate>
+                        <div class="input-group email">
+                            <input 
+                                type="email" 
+                                name="email" 
+                                id="email"
+                                placeholder="E-Mail-Adresse" 
+                                value="<?= htmlspecialchars($_POST['email'] ?? '') ?>"
+                                required 
+                                autocomplete="email"
+                                aria-label="E-Mail-Adresse"
+                            />
+                        </div>
+                        
+                        <div class="input-group password">
+                            <input 
+                                type="password" 
+                                name="password" 
+                                id="password"
+                                placeholder="Passwort" 
+                                required 
+                                autocomplete="current-password"
+                                aria-label="Passwort"
+                            />
+                        </div>
+                        
+                        <button type="submit" class="login-btn" id="loginBtn">
+                            <span class="btn-text">Anmelden</span>
+                        </button>
+                    </form>
+                <?php endif; ?>
                 
                 <div class="register-forget">
                     <a href="../" title="Zur Hauptseite">
                         <i class="bi bi-house"></i> Zur Website
                     </a>
-                    <!--
-                    <a href="forgot-password.php" title="Passwort vergessen">
-                        <i class="bi bi-key"></i> Passwort vergessen?
-                    </a>
-                    -->
+                    
+                    <?php if ($require2FA): ?>
+                        <a href="login.php" title="Neue Anmeldung">
+                            <i class="bi bi-arrow-left"></i> Neue Anmeldung
+                        </a>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>
         
-        <!-- Theme Switcher -->
         <div class="theme-btn-container" title="Theme wechseln"></div>
     </section>
 
     <script>
-        // Theme Switcher
+        // Theme Switcher (gleich wie vorher)
         const themes = [
-            {
-                background: "#1a1a2e",
-                color: "#ffffff",
-                primaryColor: "#0f3460",
-                accentColor: "#3498db"
-            },
-            {
-                background: "#461220",
-                color: "#ffffff", 
-                primaryColor: "#E94560",
-                accentColor: "#ff6b8a"
-            },
-            {
-                background: "#192A51",
-                color: "#ffffff",
-                primaryColor: "#967AA1",
-                accentColor: "#c39bd3"
-            },
-            {
-                background: "#2d1b69",
-                color: "#ffffff",
-                primaryColor: "#8e44ad",
-                accentColor: "#9b59b6"
-            },
-            {
-                background: "#0c5460",
-                color: "#ffffff",
-                primaryColor: "#16a085",
-                accentColor: "#1abc9c"
-            }
+            { background: "#1a1a2e", color: "#ffffff", primaryColor: "#0f3460", accentColor: "#3498db" },
+            { background: "#461220", color: "#ffffff", primaryColor: "#E94560", accentColor: "#ff6b8a" },
+            { background: "#192A51", color: "#ffffff", primaryColor: "#967AA1", accentColor: "#c39bd3" },
+            { background: "#2d1b69", color: "#ffffff", primaryColor: "#8e44ad", accentColor: "#9b59b6" },
+            { background: "#0c5460", color: "#ffffff", primaryColor: "#16a085", accentColor: "#1abc9c" }
         ];
 
         const setTheme = (theme) => {
             const root = document.documentElement;
-            root.style.setProperty("--background", theme.background);
-            root.style.setProperty("--color", theme.color);
-            root.style.setProperty("--primary-color", theme.primaryColor);
-            root.style.setProperty("--accent-color", theme.accentColor);
-            
-            // Save theme to localStorage
+            Object.entries(theme).forEach(([key, value]) => {
+                root.style.setProperty(`--${key.replace(/([A-Z])/g, '-$1').toLowerCase()}`, value);
+            });
             localStorage.setItem('adminTheme', JSON.stringify(theme));
         };
 
@@ -234,239 +380,79 @@ $siteTitle = getSetting('site_title', 'DVD-Verwaltung');
             });
         };
 
-        // Load saved theme
-        const loadSavedTheme = () => {
+        // 2FA-spezifische JavaScript-Funktionen
+        document.addEventListener('DOMContentLoaded', function() {
+            displayThemeButtons();
+            
+            // Gespeichertes Theme laden
             const savedTheme = localStorage.getItem('adminTheme');
             if (savedTheme) {
                 setTheme(JSON.parse(savedTheme));
             }
-        };
-
-        // Form Enhancement
-        document.addEventListener('DOMContentLoaded', function() {
-            displayThemeButtons();
-            loadSavedTheme();
             
-            const form = document.getElementById('loginForm');
-            const submitBtn = document.getElementById('loginBtn');
-            const btnText = submitBtn.querySelector('.btn-text');
-            const originalText = btnText.textContent;
+            // 2FA-Code Auto-Format
+            const tokenInput = document.getElementById('token');
+            if (tokenInput) {
+                tokenInput.addEventListener('input', function(e) {
+                    // Nur Zahlen erlauben
+                    this.value = this.value.replace(/[^0-9]/g, '');
+                    
+                    // Auto-submit wenn 6 Zeichen
+                    if (this.value.length === 6) {
+                        setTimeout(() => {
+                            this.form.submit();
+                        }, 500);
+                    }
+                });
+                
+                // Auto-focus
+                tokenInput.focus();
+            }
             
-            // Form validation
-            form.addEventListener('submit', function(e) {
-                const email = document.getElementById('email').value.trim();
-                const password = document.getElementById('password').value;
-                
-                if (!email || !password) {
-                    e.preventDefault();
-                    showError('Bitte füllen Sie alle Felder aus.');
-                    return;
-                }
-                
-                if (!isValidEmail(email)) {
-                    e.preventDefault();
-                    showError('Bitte geben Sie eine gültige E-Mail-Adresse ein.');
-                    return;
-                }
-                
-                // Show loading state
-                submitBtn.disabled = true;
-                submitBtn.classList.add('loading');
-                btnText.textContent = 'Anmeldung läuft...';
-                
-                // Re-enable after timeout (fallback)
-                setTimeout(() => {
-                    submitBtn.disabled = false;
-                    submitBtn.classList.remove('loading');
-                    btnText.textContent = originalText;
-                }, 10000);
-            });
+            // Backup-Code Formular Toggle
+            const showBackupBtn = document.getElementById('showBackupForm');
+            const showNormalBtn = document.getElementById('showNormalForm');
+            const twoFAForm = document.getElementById('twoFAForm');
+            const backupForm = document.getElementById('backupCodeForm');
             
-            // Real-time validation
-            const inputs = form.querySelectorAll('input');
-            inputs.forEach(input => {
-                input.addEventListener('blur', validateInput);
-                input.addEventListener('input', clearValidation);
+            if (showBackupBtn) {
+                showBackupBtn.addEventListener('click', function() {
+                    twoFAForm.style.display = 'none';
+                    backupForm.style.display = 'block';
+                    backupForm.querySelector('input').focus();
+                });
+            }
+            
+            if (showNormalBtn) {
+                showNormalBtn.addEventListener('click', function() {
+                    backupForm.style.display = 'none';
+                    twoFAForm.style.display = 'block';
+                    twoFAForm.querySelector('input').focus();
+                });
+            }
+            
+            // Form-Enhancement für alle Formulare
+            const forms = document.querySelectorAll('form');
+            forms.forEach(form => {
+                form.addEventListener('submit', function(e) {
+                    const submitBtn = form.querySelector('button[type="submit"]');
+                    if (submitBtn) {
+                        submitBtn.disabled = true;
+                        const btnText = submitBtn.querySelector('.btn-text');
+                        const originalText = btnText.textContent;
+                        btnText.textContent = 'Verarbeitung...';
+                        submitBtn.classList.add('loading');
+                        
+                        // Re-enable nach Timeout (fallback)
+                        setTimeout(() => {
+                            submitBtn.disabled = false;
+                            btnText.textContent = originalText;
+                            submitBtn.classList.remove('loading');
+                        }, 10000);
+                    }
+                });
             });
         });
-
-        function isValidEmail(email) {
-            return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-        }
-
-        function validateInput(e) {
-            const input = e.target;
-            const value = input.value.trim();
-            
-            if (input.type === 'email' && value && !isValidEmail(value)) {
-                input.style.borderColor = 'var(--error-color)';
-                input.style.boxShadow = '0 0 10px rgba(231, 76, 60, 0.3)';
-            } else if (input.required && !value) {
-                input.style.borderColor = 'var(--error-color)';
-                input.style.boxShadow = '0 0 10px rgba(231, 76, 60, 0.3)';
-            }
-        }
-
-        function clearValidation(e) {
-            const input = e.target;
-            input.style.borderColor = '';
-            input.style.boxShadow = '';
-        }
-
-        function showError(message) {
-            // Remove existing alerts
-            const existingAlert = document.querySelector('.alert');
-            if (existingAlert) {
-                existingAlert.remove();
-            }
-            
-            // Create new alert
-            const alert = document.createElement('div');
-            alert.className = 'alert alert-danger';
-            alert.innerHTML = `<i class="bi bi-exclamation-triangle" style="margin-right: 0.5rem;"></i>${message}`;
-            
-            // Insert alert before form
-            const form = document.getElementById('loginForm');
-            form.parentNode.insertBefore(alert, form);
-            
-            // Auto-remove after 5 seconds
-            setTimeout(() => {
-                if (alert.parentNode) {
-                    alert.remove();
-                }
-            }, 5000);
-        }
-
-        // Keyboard shortcuts
-        document.addEventListener('keydown', function(e) {
-            // Enter key in any input submits form
-            if (e.key === 'Enter' && e.target.tagName === 'INPUT') {
-                document.getElementById('loginForm').requestSubmit();
-            }
-            
-            // Escape key clears form
-            if (e.key === 'Escape') {
-                document.getElementById('loginForm').reset();
-                clearAllValidation();
-            }
-        });
-
-        function clearAllValidation() {
-            const inputs = document.querySelectorAll('input');
-            inputs.forEach(input => {
-                input.style.borderColor = '';
-                input.style.boxShadow = '';
-            });
-        }
-
-        // Auto-focus first empty input
-        document.addEventListener('DOMContentLoaded', function() {
-            const emailInput = document.getElementById('email');
-            const passwordInput = document.getElementById('password');
-            
-            if (!emailInput.value) {
-                emailInput.focus();
-            } else if (!passwordInput.value) {
-                passwordInput.focus();
-            }
-        });
-
-        // Show password toggle (optional enhancement)
-        function addPasswordToggle() {
-            const passwordInput = document.getElementById('password');
-            const passwordGroup = passwordInput.parentElement;
-            
-            const toggleBtn = document.createElement('button');
-            toggleBtn.type = 'button';
-            toggleBtn.className = 'password-toggle';
-            toggleBtn.innerHTML = '<i class="bi bi-eye"></i>';
-            toggleBtn.title = 'Passwort anzeigen/verstecken';
-            
-            toggleBtn.style.cssText = `
-                position: absolute;
-                right: 1rem;
-                top: 50%;
-                transform: translateY(-50%);
-                background: none;
-                border: none;
-                color: rgba(255, 255, 255, 0.7);
-                cursor: pointer;
-                z-index: 10;
-                padding: 0.5rem;
-                border-radius: 4px;
-                transition: all 0.3s ease;
-            `;
-            
-            passwordGroup.style.position = 'relative';
-            passwordGroup.appendChild(toggleBtn);
-            
-            toggleBtn.addEventListener('click', function() {
-                const isPassword = passwordInput.type === 'password';
-                passwordInput.type = isPassword ? 'text' : 'password';
-                this.innerHTML = isPassword ? '<i class="bi bi-eye-slash"></i>' : '<i class="bi bi-eye"></i>';
-                this.title = isPassword ? 'Passwort verstecken' : 'Passwort anzeigen';
-            });
-            
-            toggleBtn.addEventListener('mouseenter', function() {
-                this.style.color = 'var(--accent-color)';
-                this.style.background = 'rgba(255, 255, 255, 0.1)';
-            });
-            
-            toggleBtn.addEventListener('mouseleave', function() {
-                this.style.color = 'rgba(255, 255, 255, 0.7)';
-                this.style.background = 'none';
-            });
-        }
-
-        // Uncomment to enable password toggle
-        // document.addEventListener('DOMContentLoaded', addPasswordToggle);
-
-        // Connection status indicator
-        function checkConnection() {
-            const indicator = document.createElement('div');
-            indicator.id = 'connection-indicator';
-            indicator.style.cssText = `
-                position: fixed;
-                top: 1rem;
-                right: 1rem;
-                padding: 0.5rem 1rem;
-                border-radius: 20px;
-                font-size: 0.8rem;
-                font-weight: 500;
-                z-index: 1000;
-                transition: all 0.3s ease;
-                opacity: 0;
-                pointer-events: none;
-            `;
-            document.body.appendChild(indicator);
-            
-            function updateStatus(online) {
-                if (online) {
-                    indicator.style.background = 'rgba(46, 204, 113, 0.2)';
-                    indicator.style.color = 'var(--success-color)';
-                    indicator.innerHTML = '<i class="bi bi-wifi"></i> Online';
-                } else {
-                    indicator.style.background = 'rgba(231, 76, 60, 0.2)';
-                    indicator.style.color = 'var(--error-color)';
-                    indicator.innerHTML = '<i class="bi bi-wifi-off"></i> Offline';
-                }
-                
-                indicator.style.opacity = '1';
-                setTimeout(() => {
-                    indicator.style.opacity = '0';
-                }, 3000);
-            }
-            
-            window.addEventListener('online', () => updateStatus(true));
-            window.addEventListener('offline', () => updateStatus(false));
-        }
-
-        document.addEventListener('DOMContentLoaded', checkConnection);
-
-        // Prevent form resubmission on page reload
-        if (window.history.replaceState) {
-            window.history.replaceState(null, null, window.location.href);
-        }
     </script>
 </body>
 </html>

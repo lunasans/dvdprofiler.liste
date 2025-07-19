@@ -1,9 +1,9 @@
 <?php return array(
     'root' => array(
         'name' => '__root__',
-        'pretty_version' => '1.3.5.x-dev',
-        'version' => '1.3.5.9999999-dev',
-        'reference' => '91e427de3ceee7e0b6f7175ca0305efb1b58e91c',
+        'pretty_version' => '1.4.1.x-dev',
+        'version' => '1.4.1.9999999-dev',
+        'reference' => '10cd7be0651d667e4d170f2da926f93123d2f8aa',
         'type' => 'library',
         'install_path' => __DIR__ . '/../../',
         'aliases' => array(),
@@ -11,9 +11,9 @@
     ),
     'versions' => array(
         '__root__' => array(
-            'pretty_version' => '1.3.5.x-dev',
-            'version' => '1.3.5.9999999-dev',
-            'reference' => '91e427de3ceee7e0b6f7175ca0305efb1b58e91c',
+            'pretty_version' => '1.4.1.x-dev',
+            'version' => '1.4.1.9999999-dev',
+            'reference' => '10cd7be0651d667e4d170f2da926f93123d2f8aa',
             'type' => 'library',
             'install_path' => __DIR__ . '/../../',
             'aliases' => array(),
@@ -38,9 +38,9 @@
             'dev_requirement' => false,
         ),
         'endroid/qr-code' => array(
-            'pretty_version' => '6.0.8',
-            'version' => '6.0.8.0',
-            'reference' => '8102273afbcd5e3d95f1faaab2c5aa31e3637f61',
+            'pretty_version' => '6.0.9',
+            'version' => '6.0.9.0',
+            'reference' => '21e888e8597440b2205e2e5c484b6c8e556bcd1a',
             'type' => 'library',
             'install_path' => __DIR__ . '/../endroid/qr-code',
             'aliases' => array(),
