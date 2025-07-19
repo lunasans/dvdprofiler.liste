@@ -1,19 +1,24 @@
 <?php
 require_once __DIR__ . '/../../includes/bootstrap.php';
 
+// Session prüfen (nur wenn du magst)
+  if (!isset($_SESSION['user_id'])) {
+     header('Location: ../login.php');
+     exit;
+ }
+
 // Einstellungen laden
 $stmt = $pdo->query("SELECT `key`, `value` FROM settings");
 $settings = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
 
 // GitHub-Repo
 $githubRepo = 'lunasans/dvdprofiler.liste';
-$localVersion = $settings['version'] ?? '0.0.0';
+$localVersion = htmlspecialchars($config['version'] ?? '0.0.0');
 $latestVersion = 'unbekannt';
 $error = '';
 $success = '';
 $changelog = '';
 
-// Release-Infos holen
 function getLatestReleaseFull(string $repo): ?array {
     $apiUrl = "https://api.github.com/repos/$repo/releases/latest";
     $opts = ['http' => [
@@ -49,69 +54,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['start_update'])) {
     $zipUrl = $latestData['zipball_url'] ?? '';
     $repoTag = basename(parse_url($zipUrl, PHP_URL_PATH), '.zip');
     if ($zipUrl) {
-        // Backup-Verzeichnis
-        $backupDir = dirname(__DIR__) . '/backups/';
-        if (!is_dir($backupDir)) {
-            mkdir($backupDir, 0775, true);
-        }
-        $backupName = $backupDir . 'backup_' . date('Ymd_His') . '.zip';
-
+        $backupName = dirname(__DIR__) . '/backup_' . date('Ymd_His') . '.zip';
         $zipBackup = new ZipArchive();
         if ($zipBackup->open($backupName, ZipArchive::CREATE) === true) {
-            // Config laden
-            $config = require __DIR__ . '/../../config/config.php';
-            $dbHost = $config['db_host'];
-            $dbName = $config['db_name'];
-            $dbUser = $config['db_user'];
-            $dbPass = $config['db_pass'];
-
-            // DB-Dump
-            $dumpFile = sys_get_temp_dir() . '/db_backup_' . date('Ymd_His') . '.sql';
-            $command = sprintf(
-                'mysqldump -h%s -u%s -p%s %s > %s',
-                escapeshellarg($dbHost),
-                escapeshellarg($dbUser),
-                escapeshellarg($dbPass),
-                escapeshellarg($dbName),
-                escapeshellarg($dumpFile)
-            );
-            exec($command);
-
-            // Dateien ins ZIP
             $files = new RecursiveIteratorIterator(
                 new RecursiveDirectoryIterator(dirname(__DIR__), RecursiveDirectoryIterator::SKIP_DOTS),
                 RecursiveIteratorIterator::SELF_FIRST
             );
             foreach ($files as $file) {
                 $path = str_replace(dirname(__DIR__) . '/', '', $file->getPathname());
-                if (
-                    str_starts_with($path, 'admin/xml/') ||
-                    str_starts_with($path, 'cover/') ||
-                    $path === 'config/config.php' ||
-                    $path === 'counter.txt'
-                ) continue;
-                if ($file->isDir()) {
-                    $zipBackup->addEmptyDir($path);
-                } else {
-                    $zipBackup->addFile($file->getPathname(), $path);
-                }
+                if (str_starts_with($path, 'admin/xml/') || str_start_with($path, 'cover/') || $path === 'config/config.php' || $path === 'counter.txt') continue;
+                if ($file->isDir()) $zipBackup->addEmptyDir($path);
+                else $zipBackup->addFile($file->getPathname(), $path);
             }
-
-            // DB-Dump ins ZIP
-            if (file_exists($dumpFile)) {
-                $zipBackup->addFile($dumpFile, 'db_backup.sql');
-                unlink($dumpFile);
-            }
-
             $zipBackup->close();
         }
 
-        // Update herunterladen und entpacken
         $tmpZip = __DIR__ . '/../../update_tmp.zip';
         file_put_contents($tmpZip, file_get_contents($zipUrl));
         $zip = new ZipArchive();
         if ($zip->open($tmpZip) === true) {
-            $exclude = ['config/config.php','counter.txt','admin/xml/','cover/'];
+            $exclude = ['config/config.php','counter.txt','admin/xml/'];
             for ($i=0; $i<$zip->numFiles; $i++) {
                 $entry = $zip->getNameIndex($i);
                 $rel = preg_replace("#^{$repoTag}/#", '', $entry);
@@ -144,6 +107,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['start_update'])) {
         $error = '❌ Keine gültige ZIP-URL gefunden.';
     }
 }
+
+$backupDir = __DIR__ . '/../../admin/backups/';
+if (!is_dir($backupDir)) {
+    mkdir($backupDir, 0775, true);
+}
+
+// Vorhandene Backups auflisten
+$backups = glob($backupDir . 'backup_*.zip');
+
+// Backup löschen
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_backup'])) {
+    $fileToDelete = basename($_POST['delete_backup']);
+    $path = $backupDir . $fileToDelete;
+    if (is_file($path)) {
+        unlink($path);
+        $success = '✅ Backup gelöscht.';
+    }
+}
 ?>
 
 <div class="container mt-4">
@@ -161,6 +142,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['start_update'])) {
   </ul>
 
   <div class="tab-content">
+    <!-- Tab Allgemein -->
     <div class="tab-pane fade show active p-3" id="tab-main">
       <form method="post">
         <div class="mb-2">
@@ -179,6 +161,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['start_update'])) {
       </form>
     </div>
 
+    <!-- Tab Sicherheit -->
     <div class="tab-pane fade p-3" id="tab-security">
       <form method="post">
         <div class="mb-2">
@@ -196,6 +179,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['start_update'])) {
       </form>
     </div>
 
+    <!-- Tab Mail -->
     <div class="tab-pane fade p-3" id="tab-mail">
       <form method="post">
         <div class="mb-2">
@@ -210,9 +194,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['start_update'])) {
       </form>
     </div>
 
+    <!-- Tab Update -->
     <div class="tab-pane fade p-3" id="tab-update">
       <p><strong>Aktuelle Version:</strong> <?= htmlspecialchars($localVersion) ?></p>
       <p><strong>Neueste Version bei GitHub:</strong> <?= htmlspecialchars($latestVersion) ?></p>
+
       <?php if ($changelog): ?>
         <div class="card mb-3">
           <div class="card-header">📋 Changelog</div>
@@ -221,12 +207,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['start_update'])) {
           </div>
         </div>
       <?php endif; ?>
+
       <?php if ($error): ?>
         <div class="alert alert-danger"><?= $error ?></div>
       <?php endif; ?>
       <?php if ($success): ?>
         <div class="alert alert-success"><?= $success ?></div>
       <?php endif; ?>
+
       <?php if ($isUpdateAvailable): ?>
         <form method="post">
           <button name="start_update" class="btn btn-primary">⬇️ Update installieren</button>
@@ -234,6 +222,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['start_update'])) {
       <?php else: ?>
         <div class="alert alert-info mt-3">✅ Deine Installation ist aktuell.</div>
       <?php endif; ?>
+    <h5 class="mt-4">📁 Backups verwalten</h5>
+
+<?php if (empty($backups)): ?>
+  <p>Keine Backups vorhanden.</p>
+<?php else: ?>
+  <table class="table table-bordered table-sm">
+    <thead>
+      <tr>
+        <th>Datei</th>
+        <th>Größe</th>
+        <th>Aktionen</th>
+      </tr>
+    </thead>
+    <tbody>
+      <?php foreach ($backups as $file): ?>
+        <?php $basename = basename($file); ?>
+          <tr>
+            <td><?= htmlspecialchars($basename) ?></td>
+              <td><?= round(filesize($file) / 1024 / 1024, 2) ?> MB</td>
+                <td>
+                  <a href="/admin/backups/<?= rawurlencode($basename) ?>" class="btn btn-sm btn-success" download>⬇️ Download</a>
+                  <form method="post" style="display:inline;">
+                    <input type="hidden" name="delete_backup" value="<?= htmlspecialchars($basename) ?>">
+                    <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Backup wirklich löschen?')">🗑️ Löschen</button>
+                  </form>
+                </td>
+              </tr>
+            <?php endforeach; ?>
+          </tbody>
+        </table>
+      <?php endif; ?>
     </div>
   </div>
 </div>
+

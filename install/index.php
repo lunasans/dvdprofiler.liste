@@ -40,6 +40,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ready) {
             'db_name' => $dbName,
             'db_user' => $dbUser,
             'db_pass' => $dbPass,
+            'db_charset' => 'uft8mb4',
         ], true) . ";\n";
         file_put_contents($configFile, $configContent);
 
@@ -96,20 +97,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ready) {
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;");
 
-        // Standardwerte
-        $defaultSettings = [
-            'site_title'     => $siteTitle,
-            'base_url'       => $baseUrl,
-            'language'       => 'de',
-            'enable_2fa'     => '0',
-            'login_attempts' => '5',
-            'smtp_host'      => '',
-            'smtp_sender'    => ''
-        ];
-        $stmt = $pdo->prepare("INSERT IGNORE INTO settings (`key`, `value`) VALUES (:key, :value)");
-        foreach ($defaultSettings as $key => $value) {
-            $stmt->execute(['key' => $key, 'value' => $value]);
-        }
+// Standardwerte setzen
+$defaultSettings = [
+    'site_title'     => $siteTitle, // kommt aus deinem Install-Formular
+    'base_url'       => $baseUrl,   // kommt aus deinem Install-Formular
+    'language'       => 'de',
+    'enable_2fa'     => '0',
+    'login_attempts' => '5',
+    'smtp_host'      => '',
+    'smtp_sender'    => '',
+    'version'        => '1.4.1'
+];
+
+$stmt = $pdo->prepare("INSERT IGNORE INTO settings (`key`, `value`) VALUES (:key, :value)");
+foreach ($defaultSettings as $key => $value) {
+    $stmt->execute(['key' => $key, 'value' => $value]);
+}
 
         // Admin-Benutzer anlegen
         $hashed = password_hash($adminPass, PASSWORD_DEFAULT);

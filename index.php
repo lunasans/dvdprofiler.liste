@@ -39,13 +39,11 @@ $baseUrl = rtrim((isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVE
 <!-- ───────────── Footer ───────────── -->
 <footer class="site-footer">
   <div class="footer-left">
-    var_dump($pdo);
-   <?php var_dump(VERSION); ?>
   </div>
 
   <div class="footer-center">
     <div class="version">
-      <div>Version <a href="https://github.com/lunasans/dvdprofiler.liste" target="_blank"><?= htmlspecialchars(VERSION) ?> <i class="bi bi-github"></i></a></div>
+      <div>Version <a href="https://github.com/lunasans/dvdprofiler.liste" target="_blank"><?= htmlspecialchars($config['version']) ?> <i class="bi bi-github"></i></a></div>
       <div>Besucher: <?= $visits ?></div>
       <div>&copy; <?= date('Y') ?> René Neuhaus</div>
     </div>
