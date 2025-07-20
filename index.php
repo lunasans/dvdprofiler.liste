@@ -48,7 +48,7 @@ if (!in_array($page, $allowedPages) && $page !== 'home') {
 // Site-Konfiguration laden
 $siteTitle = getSetting('site_title', 'Meine DVD-Verwaltung');
 $siteDescription = getSetting('site_description', 'Professionelle DVD-Sammlung verwalten und durchsuchen');
-$version = getSetting('version', '1.4.1');
+$version = getSetting('version', '1.4.5');
 $theme = getSetting('theme', 'default');
 
 // Sichere Base URL Generierung
@@ -78,9 +78,9 @@ if (!empty($search)) {
 // CSP Header für zusätzliche Sicherheit
 $cspPolicy = "default-src 'self'; " .
              "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; " .
-             "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; " .
+             "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; " .
+             "font-src 'self' https://cdn.jsdelivr.net https://fonts.gstatic.com; " .
              "img-src 'self' data: https:; " .
-             "font-src 'self' https://cdn.jsdelivr.net; " .
              "connect-src 'self';";
              
 header("Content-Security-Policy: " . $cspPolicy);
@@ -109,9 +109,7 @@ header("Content-Security-Policy: " . $cspPolicy);
   
   <title><?= htmlspecialchars($pageTitle) ?></title>
   
-  <!-- Preload kritische Ressourcen -->
-  <link rel="preload" href="css/style.css" as="style">
-  <link rel="preload" href="js/main.js" as="script">
+  <!-- Preload kritische Ressourcen --> 
   <link rel="preconnect" href="https://cdn.jsdelivr.net">
   <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
   
@@ -250,7 +248,6 @@ try {
 <script src="js/main.js?v=<?= htmlspecialchars($version) ?>"></script>
 <script src="libs/fancybox/dist/fancybox/fancybox.umd.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.6/dist/js/bootstrap.bundle.min.js" 
-        integrity="sha384-j1CDi7MgGQ12Z7Qab0qlWCxQBxwHKO" 
         crossorigin="anonymous"></script>
 
 <!-- Lazy Loading und Performance Optimierungen -->
@@ -312,6 +309,6 @@ document.addEventListener('DOMContentLoaded', function() {
     window.hideLoading = hideLoading;
 });
 </script>
-
+<script src="js/main.js?v=<?= htmlspecialchars($version) ?>"></script>
 </body>
 </html>
