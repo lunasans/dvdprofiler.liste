@@ -7,3 +7,5 @@ counter.txt
 replace_requires.py
 delete_requires.py
 test.php
+update.sql
+*.backup.php

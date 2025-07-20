@@ -13,8 +13,8 @@ $offset   = ($page - 1) * $perPage;
 // CollectionTypes laden
 $types = $pdo->query("SELECT DISTINCT collection_type FROM dvds WHERE collection_type IS NOT NULL ORDER BY collection_type")->fetchAll(PDO::FETCH_COLUMN);
 
-// WHERE-Filter
-$where = [];
+// WHERE-Filter - ORIGINAL OHNE BOXSET FILTER (erstmal)
+$where = ['boxset_parent IS NULL']; // Nur Parent-Filme und Einzelfilme
 $params = [];
 
 if ($search !== '') {
@@ -37,7 +37,7 @@ $countStmt->execute();
 $total = (int)$countStmt->fetchColumn();
 $totalPages = (int)ceil($total / $perPage);
 
-// Alle Hauptfilme holen (inkl. Boxsets)
+// Alle Hauptfilme holen (inkl. Boxsets) - ORIGINAL
 $sql = "SELECT * FROM dvds $whereSql ORDER BY title LIMIT :limit OFFSET :offset";
 $stmt = $pdo->prepare($sql);
 foreach ($params as $k => $v) {
@@ -48,15 +48,7 @@ $stmt->bindValue('offset', $offset, PDO::PARAM_INT);
 $stmt->execute();
 $mainFilms = $stmt->fetchAll();
 
-// Helper
-function buildQuery(array $overrides): string {
-    $p = $_GET;
-    foreach ($overrides as $k => $v) {
-        if ($v === '' || $v === null) unset($p[$k]);
-        else $p[$k] = $v;
-    }
-    return http_build_query($p);
-}
+// KEINE buildQuery() Funktion hier - wird schon in bootstrap.php definiert
 ?>
 
 <!-- Tabs für CollectionType -->

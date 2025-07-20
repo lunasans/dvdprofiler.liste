@@ -1,4 +1,12 @@
 <?php
+/*
+ * DVD Profiler Liste - PHP basierte DVD Verwaltung
+ * 
+ * Diese Datei ist Teil des DVD Profiler Liste Projekts.
+ * 
+ * @package    dvdprofiler.liste
+ * @author     René Neuhaus
+ */
 declare(strict_types=1);
 
 // Zentrale Initialisierung ZUERST laden
