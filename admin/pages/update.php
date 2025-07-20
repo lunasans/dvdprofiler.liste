@@ -11,7 +11,7 @@ if (!isset($_SESSION['user_id'])) {
 
 // GitHub Repo-Info
 $githubRepo = 'lunasans/dvdprofiler.liste';
-$localVersion = getSetting('version') ?? '0.0.0';
+$localVersion = htmlspecialchars($config['version'] ?? '0.0.0');
 $latestVersion = null;
 $error = '';
 $success = '';

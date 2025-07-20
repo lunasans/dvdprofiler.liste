@@ -1,4 +1,4 @@
-config.php
+/config/
 /cover/
 /admin/xml/*.xml
 counter.txt
@@ -6,3 +6,6 @@ counter.txt
 .vscode
 replace_requires.py
 delete_requires.py
+test.php
+update.sql
+*.backup.php

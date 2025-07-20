@@ -1,6 +1,6 @@
 <?php
 // Aktuelle Version aus DB
-$currentVersion = getSetting('version') ?? '0.0.0';
+$currentVersion = htmlspecialchars($config['version'] ?? '0.0.0');
 
 // GitHub-Version abfragen
 function getLatestGitHubVersion(): string {
@@ -25,7 +25,7 @@ $isUpdateAvailable = version_compare($latestVersion, $currentVersion, '>');
   <ul class="nav flex-column">
     <li><a href="?page=dashboard">Dashboard</a></li>
     <li><a href="?page=users">Benutzer</a></li>
-    <li><a href="?page=settings">Einstellungen<?php if ($isUpdateAvailable): ?><span class="badge rounded-pill bg-secondary">Update!</span><?php endif; ?></a></li>
+    <li><a href="?page=settings">Einstellungen<?php if ($isUpdateAvailable): ?> <span class="badge rounded-pill bg-secondary">Update!</span><?php endif; ?></a></li>
     <li><a href="?page=import">Film Import</a></li>
     ____________________
     <li><a href="logout.php">Logout</a></li>
