@@ -164,12 +164,12 @@ function findCoverImage(string $coverId, string $suffix = 'f', string $folder = 
     }
     
     // Input Validation: Nur alphanumerische Zeichen + Bindestriche erlauben
-    if (!preg_match('/^[a-zA-Z0-9_.-]+$/', $coverId)) {
+    if (!preg_match('/^[0-9.]+$/', $coverId)) {
         return $cache[$cacheKey] = $fallback;
     }
     
     // Suffix validieren
-    if (!preg_match('/^[a-z]$/', $suffix)) {
+    if (!preg_match('/^[f]$/', $suffix)) {
         $suffix = 'f'; // Default
     }
     
@@ -396,8 +396,12 @@ function countMainOverviewDvds(PDO $pdo, string $searchQuery = '', string $genre
     }
 }
 
+
+
+// NUR DIESE FUNKTION in Ihrer bootstrap.php ERSETZEN:
+
 /**
- * ERWEITERTE renderFilmCard Funktion mit BoxSet-Modal Support
+ * KORRIGIERTE renderFilmCard Funktion - ohne onclick, mit data-Attributen
  */
 function renderFilmCard(array $dvd, bool $isChild = false): string
 {
@@ -448,10 +452,9 @@ function renderFilmCard(array $dvd, bool $isChild = false): string
         ($totalRuntime > 0 ? " • Gesamtlaufzeit: " . formatRuntime($totalRuntime) : "") . "</p>" : 
         $runtimeHtml;
     
+    // KORRIGIERT: Button mit data-Attributen (kein onclick)
     $boxsetButton = $isBoxsetParent ? 
-        "<button class=\"btn boxset-btn btn-sm\" 
-                 data-bs-toggle=\"modal\" 
-                 data-bs-target=\"#boxsetModal\"
+        "<button class=\"btn boxset-btn btn-sm boxset-modal-trigger\" 
                  data-boxset-id=\"{$id}\"
                  data-boxset-title=\"{$title}\">
             <i class=\"bi bi-collection\"></i> BoxSet öffnen
@@ -470,6 +473,9 @@ function renderFilmCard(array $dvd, bool $isChild = false): string
                 <p><strong>Genre:</strong> {$genre}</p>
                 {$boxsetInfo}
                 <div class=\"boxset-actions mt-2\">
+                    <button class=\"btn btn-primary btn-sm toggle-detail\" data-id=\"{$id}\">
+                        <i class=\"bi bi-info-circle\"></i> Details
+                    </button>
                     {$boxsetButton}
                 </div>
             </div>
@@ -491,6 +497,8 @@ function renderFilmCard(array $dvd, bool $isChild = false): string
       </div>
     </div>";
 }
+
+
 
 /**
  * Hilfsfunktion für Query-Parameter

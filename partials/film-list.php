@@ -234,3 +234,144 @@ function openFilmDetails(filmId) {
     }
 }
 </script>
+<!-- ERSETZEN Sie das JavaScript in film-list.php mit diesem: -->
+
+<script>
+// Modal-Funktionen SOFORT definieren
+window.openBoxsetModal = function(boxsetId, boxsetTitle) {
+    console.log('Opening modal for:', boxsetId, boxsetTitle);
+    
+    const modal = document.getElementById('boxsetModal');
+    const title = document.getElementById('boxsetTitle');
+    
+    if (modal && title) {
+        title.textContent = boxsetTitle;
+        modal.classList.add('show');
+        document.body.style.overflow = 'hidden';
+        
+        // Content laden
+        loadBoxsetContent(boxsetId);
+    } else {
+        console.error('Modal elements not found!');
+    }
+};
+
+window.closeModal = function() {
+    const modal = document.getElementById('boxsetModal');
+    if (modal) {
+        modal.classList.remove('show');
+        document.body.style.overflow = '';
+    }
+};
+
+window.loadBoxsetContent = function(boxsetId) {
+    const contentDiv = document.getElementById('boxsetContent');
+    const statsDiv = document.getElementById('boxsetStats');
+    
+    if (!contentDiv) {
+        console.error('Content div not found!');
+        return;
+    }
+    
+    contentDiv.innerHTML = '<div style="text-align: center; padding: 2rem; color: white;">Lade BoxSet-Inhalte...</div>';
+    
+    console.log('Loading content for BoxSet ID:', boxsetId);
+    
+    fetch(`api/boxset-content.php?id=${boxsetId}`)
+        .then(response => {
+            console.log('Response status:', response.status);
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('Data received:', data);
+            
+            if (data.success && data.films && data.films.length > 0) {
+                let html = '';
+                data.films.forEach(film => {
+                    html += `
+                        <div class="boxset-child-card" onclick="openFilmDetails(${film.id})">
+                            <img src="${film.cover_url}" alt="${film.title_safe}" class="child-cover" loading="lazy">
+                            <div class="p-3">
+                                <h6>${film.title_safe}</h6>
+                                <p>${film.year}${film.genre_safe ? ' • ' + film.genre_safe : ''}</p>
+                                ${film.formatted_runtime ? '<p>⏱️ ' + film.formatted_runtime + '</p>' : ''}
+                                ${film.rating_display ? '<p>🔞 ' + film.rating_display + '</p>' : ''}
+                            </div>
+                        </div>
+                    `;
+                });
+                contentDiv.innerHTML = `<div class="boxset-grid">${html}</div>`;
+                if (statsDiv) {
+                    statsDiv.textContent = `${data.count} Filme • ${data.formatted_total_runtime || 'Unbekannte Laufzeit'}`;
+                }
+            } else {
+                contentDiv.innerHTML = '<div style="text-align: center; padding: 2rem; color: #bdc3c7;">Keine Filme in diesem BoxSet gefunden.</div>';
+                if (statsDiv) {
+                    statsDiv.textContent = '';
+                }
+            }
+        })
+        .catch(error => {
+            console.error('Fetch error:', error);
+            contentDiv.innerHTML = `<div style="text-align: center; padding: 2rem; color: #e74c3c;">Fehler beim Laden: ${error.message}</div>`;
+            if (statsDiv) {
+                statsDiv.textContent = '';
+            }
+        });
+};
+
+window.openFilmDetails = function(filmId) {
+    console.log('Opening film details for:', filmId);
+    const detailButton = document.querySelector(`[data-id="${filmId}"] .toggle-detail`);
+    if (detailButton) {
+        detailButton.click();
+        closeModal();
+    } else {
+        console.log('Detail button not found for film:', filmId);
+        alert(`Film-Details für ID ${filmId} - Details-Button nicht gefunden`);
+    }
+};
+
+// Event Listener für BoxSet-Buttons
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM loaded, setting up BoxSet event listeners...');
+    
+    // Delegated Event Listener für dynamische Inhalte
+    document.addEventListener('click', function(e) {
+        const trigger = e.target.closest('.boxset-modal-trigger');
+        if (trigger) {
+            e.preventDefault();
+            console.log('BoxSet button clicked!');
+            
+            const boxsetId = trigger.getAttribute('data-boxset-id');
+            const boxsetTitle = trigger.getAttribute('data-boxset-title');
+            
+            console.log('BoxSet data:', { boxsetId, boxsetTitle });
+            
+            if (boxsetId && boxsetTitle) {
+                openBoxsetModal(boxsetId, boxsetTitle);
+            } else {
+                console.error('Missing BoxSet data on button:', trigger);
+            }
+        }
+    });
+    
+    // ESC zum Schließen
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            closeModal();
+        }
+    });
+    
+    // Test ob Modal da ist
+    const modal = document.getElementById('boxsetModal');
+    console.log('Modal element found:', !!modal);
+    
+    // Test ob BoxSet-Buttons da sind
+    const buttons = document.querySelectorAll('.boxset-modal-trigger');
+    console.log('BoxSet buttons found:', buttons.length);
+});
+</script>
