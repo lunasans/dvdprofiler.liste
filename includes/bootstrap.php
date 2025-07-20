@@ -1,21 +1,26 @@
 <?php
 declare(strict_types=1);
 
-// ERSTMAL: Nur das Nötigste - zurück zur ursprünglichen Funktionalität
-error_reporting(E_ALL);
-ini_set('display_errors', '1');
-
 function setSecurityHeaders(): void {
+    // Verhindert XSS Angriffe
     header('X-Content-Type-Options: nosniff');
     header('X-Frame-Options: DENY');
     header('X-XSS-Protection: 1; mode=block');
+    
+    // Content Security Policy - erweitert für bessere Sicherheit
     header("Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' cdn.jsdelivr.net cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' cdn.jsdelivr.net; img-src 'self' data: *; font-src 'self' cdn.jsdelivr.net; frame-src 'self' www.youtube.com");
+    
+    // Verhindert MIME-Type sniffing
     header('Referrer-Policy: strict-origin-when-cross-origin');
+    
+    // Zusätzliche Sicherheitsheader
     header('Permissions-Policy: geolocation=(), microphone=(), camera=()');
 }
 
+// Security Headers setzen
 setSecurityHeaders();
 
+// Weiterleitung bei fehlender Installation
 $lockFile = dirname(__DIR__) . '/install/install.lock';
 $installScript = dirname($_SERVER['SCRIPT_NAME']) . '/install/index.php';
 
@@ -24,9 +29,11 @@ if (!file_exists($lockFile)) {
     exit;
 }
 
+// Konfiguration einbinden
 define('BASE_PATH', dirname(__DIR__));
 $config = require BASE_PATH . '/config/config.php';
 
+// Datenbankverbindung mit besserer Fehlerbehandlung
 try {
     $dsn = "mysql:host={$config['db_host']};dbname={$config['db_name']};charset={$config['db_charset']}";
     $pdo = new PDO($dsn, $config['db_user'], $config['db_pass'], [
@@ -40,12 +47,19 @@ try {
     die('<h2 style="color:red;">❌ Fehler bei der Datenbankverbindung</h2><p>Die Anwendung kann nicht gestartet werden. Bitte prüfen Sie die Konfiguration.</p>');
 }
 
+// Settings-System initialisieren
 $settings = [];
 try {
+    // Prüfen, ob Settings-Tabelle existiert
     $pdo->query("SELECT 1 FROM settings LIMIT 1");
+    
+    // Alle Settings laden und cachen
     $stmt = $pdo->query("SELECT `key`, `value` FROM settings");
     $settings = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
+    
+    // BASE_URL definieren
     define('BASE_URL', isset($settings['base_url']) ? rtrim($settings['base_url'], '/') : '');
+    
 } catch (PDOException $e) {
     if (str_contains($e->getMessage(), 'Base table or view not found')) {
         header('Location: ' . $installScript);
@@ -53,6 +67,62 @@ try {
     }
     error_log('Settings loading failed: ' . $e->getMessage());
     define('BASE_URL', '');
+}
+
+// Utility Functions
+
+/**
+ * Settings-Wert abrufen mit Fallback
+ */
+function getSetting(string $key, string $default = ''): string
+{
+    global $settings;
+    
+    // Key Validation: Nur erlaubte Zeichen
+    if (!preg_match('/^[a-zA-Z0-9_.-]+$/', $key) || strlen($key) > 100) {
+        error_log("Invalid setting key attempted: " . $key);
+        return $default;
+    }
+    
+    return $settings[$key] ?? $default;
+}
+
+/**
+ * Prüft ob der aktuelle Benutzer eingeloggt ist
+ */
+function isLoggedIn(): bool
+{
+    return isset($_SESSION['user_id']) && !empty($_SESSION['user_id']);
+}
+
+/**
+ * Prüft Admin-Berechtigung
+ */
+function requireLogin(): void
+{
+    if (!isLoggedIn()) {
+        $loginUrl = (defined('BASE_URL') && BASE_URL !== '') 
+            ? BASE_URL . '/admin/login.php'
+            : 'login.php';
+        header("Location: {$loginUrl}");
+        exit;
+    }
+}
+
+/**
+ * Sichere Eingabe-Bereinigung
+ */
+function sanitizeInput(string $input, int $maxLength = 255): string
+{
+    $input = trim($input);
+    $input = strip_tags($input);
+    $input = htmlspecialchars($input, ENT_QUOTES, 'UTF-8');
+    
+    if (strlen($input) > $maxLength) {
+        $input = substr($input, 0, $maxLength);
+    }
+    
+    return $input;
 }
 
 /**
@@ -82,69 +152,73 @@ function validateCSRFToken(string $token): bool
 }
 
 /**
- * CSRF-Token für Formulare ausgeben
+ * Sicherer Cover-Image-Finder mit Caching
  */
-function csrfTokenField(): string
-{
-    $token = generateCSRFToken();
-    return '<input type="hidden" name="csrf_token" value="' . htmlspecialchars($token, ENT_QUOTES, 'UTF-8') . '">';
-}
-
-// MINIMALE FUNKTIONEN - NUR DAS NÖTIGSTE
-
-function getSetting(string $key, string $default = ''): string
-{
-    global $settings;
-    if (!preg_match('/^[a-zA-Z0-9_.-]+$/', $key) || strlen($key) > 100) {
-        return $default;
-    }
-    return $settings[$key] ?? $default;
-}
-
-function isLoggedIn(): bool
-{
-    return isset($_SESSION['user_id']) && !empty($_SESSION['user_id']);
-}
-
-function requireLogin(): void
-{
-    if (!isLoggedIn()) {
-        $loginUrl = (defined('BASE_URL') && BASE_URL !== '') 
-            ? BASE_URL . '/admin/login.php'
-            : 'login.php';
-        header("Location: {$loginUrl}");
-        exit;
-    }
-}
-
 function findCoverImage(string $coverId, string $suffix = 'f', string $folder = 'cover', string $fallback = 'cover/placeholder.png'): string
 {
+    static $cache = [];
+    $cacheKey = "{$coverId}_{$suffix}_{$folder}";
+    
+    if (isset($cache[$cacheKey])) {
+        return $cache[$cacheKey];
+    }
+    
+    // Input Validation: Nur alphanumerische Zeichen + Bindestriche erlauben
     if (!preg_match('/^[a-zA-Z0-9_.-]+$/', $coverId)) {
-        return $fallback;
+        return $cache[$cacheKey] = $fallback;
+    }
+    
+    // Suffix validieren
+    if (!preg_match('/^[a-z]$/', $suffix)) {
+        $suffix = 'f'; // Default
+    }
+    
+    // Folder validieren (keine Pfad-Traversal)
+    $folder = basename($folder);
+    if (!is_dir($folder)) {
+        return $cache[$cacheKey] = $fallback;
     }
     
     $extensions = ['.jpg', '.jpeg', '.png', '.webp'];
     foreach ($extensions as $ext) {
         $file = "{$folder}/{$coverId}{$suffix}{$ext}";
-        if (file_exists($file)) {
-            return $file;
+        
+        // Zusätzliche Sicherheit: realpath() prüfung
+        $realFile = realpath($file);
+        $realFolder = realpath($folder);
+        
+        if ($realFile && $realFolder && 
+            str_starts_with($realFile, $realFolder) && 
+            file_exists($realFile)) {
+            return $cache[$cacheKey] = $file;
         }
     }
-    return $fallback;
+    
+    return $cache[$cacheKey] = $fallback;
 }
 
+/**
+ * Schauspieler für DVD abrufen
+ */
 function getActorsByDvdId(PDO $pdo, int $dvdId): array
 {
+    static $cache = [];
+    
+    if (isset($cache[$dvdId])) {
+        return $cache[$dvdId];
+    }
+    
     try {
-        // FALLBACK: Prüfen welche Tabelle existiert
+        // Prüfen welche Tabelle existiert (neue oder alte Struktur)
         $checkOld = $pdo->query("SHOW TABLES LIKE 'actors'");
         if ($checkOld->rowCount() > 0) {
-            // Alte Struktur mit dvd_id
+            // Prüfen ob alte Struktur mit dvd_id
             $checkColumns = $pdo->query("SHOW COLUMNS FROM actors LIKE 'dvd_id'");
             if ($checkColumns->rowCount() > 0) {
+                // Alte Struktur
                 $stmt = $pdo->prepare("SELECT firstname as first_name, lastname as last_name, role FROM actors WHERE dvd_id = ?");
                 $stmt->execute([$dvdId]);
-                return $stmt->fetchAll();
+                return $cache[$dvdId] = $stmt->fetchAll();
             }
         }
         
@@ -159,7 +233,7 @@ function getActorsByDvdId(PDO $pdo, int $dvdId): array
                 ORDER BY fa.role
             ");
             $stmt->execute([$dvdId]);
-            return $stmt->fetchAll();
+            return $cache[$dvdId] = $stmt->fetchAll();
         }
         
         return [];
@@ -169,11 +243,16 @@ function getActorsByDvdId(PDO $pdo, int $dvdId): array
     }
 }
 
+/**
+ * Laufzeit formatieren
+ */
 function formatRuntime(?int $minutes): string
 {
     if (!$minutes || $minutes <= 0) return '';
+    
     $h = intdiv($minutes, 60);
     $m = $minutes % 60;
+    
     if ($h > 0 && $m > 0) {
         return "{$h}h {$m}min";
     } elseif ($h > 0) {
@@ -183,64 +262,245 @@ function formatRuntime(?int $minutes): string
     }
 }
 
+/**
+ * Child-DVDs für BoxSets abrufen
+ */
 function getChildDvds(PDO $pdo, $parentId): array
 {
+    static $cache = [];
+    
+    // Input validation und conversion
+    $parentId = (string)$parentId;
+    
+    if (isset($cache[$parentId])) {
+        return $cache[$parentId];
+    }
+    
     try {
-        $stmt = $pdo->prepare("SELECT * FROM dvds WHERE boxset_parent = ? ORDER BY year ASC, title ASC");
-        $stmt->execute([(string)$parentId]);
-        return $stmt->fetchAll();
+        $stmt = $pdo->prepare("
+            SELECT * FROM dvds 
+            WHERE boxset_parent = ? 
+            ORDER BY year ASC, title ASC
+        ");
+        $stmt->execute([$parentId]);
+        return $cache[$parentId] = $stmt->fetchAll();
     } catch (PDOException $e) {
         error_log("Failed to get child DVDs for parent {$parentId}: " . $e->getMessage());
         return [];
     }
 }
 
-// EINFACHE renderFilmCard - EXAKT WIE ORIGINAL
+/**
+ * Prüft ob ein Film ein BoxSet-Parent ist
+ */
+function isBoxsetParent(PDO $pdo, $filmId): bool
+{
+    static $cache = [];
+    
+    $filmId = (string)$filmId;
+    
+    if (isset($cache[$filmId])) {
+        return $cache[$filmId];
+    }
+    
+    try {
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM dvds WHERE boxset_parent = ?");
+        $stmt->execute([$filmId]);
+        return $cache[$filmId] = $stmt->fetchColumn() > 0;
+    } catch (PDOException $e) {
+        error_log("Failed to check if film is boxset parent: " . $e->getMessage());
+        return false;
+    }
+}
+
+/**
+ * Lädt DVDs für die Hauptübersicht (nur Parents und Einzelfilme, keine Kinder)
+ */
+function getMainOverviewDvds(PDO $pdo, string $searchQuery = '', string $genre = '', string $year = '', int $limit = 50, int $offset = 0): array
+{
+    try {
+        $whereConditions = ["boxset_parent IS NULL"]; // Nur Parent-Filme oder Einzelfilme
+        $params = [];
+        
+        if (!empty($searchQuery)) {
+            $whereConditions[] = "(title LIKE ? OR overview LIKE ?)";
+            $searchTerm = "%{$searchQuery}%";
+            $params[] = $searchTerm;
+            $params[] = $searchTerm;
+        }
+        
+        if (!empty($genre)) {
+            $whereConditions[] = "genre LIKE ?";
+            $params[] = "%{$genre}%";
+        }
+        
+        if (!empty($year)) {
+            $whereConditions[] = "year = ?";
+            $params[] = $year;
+        }
+        
+        $whereClause = implode(' AND ', $whereConditions);
+        
+        $sql = "SELECT * FROM dvds WHERE {$whereClause} ORDER BY title ASC LIMIT ? OFFSET ?";
+        $params[] = $limit;
+        $params[] = $offset;
+        
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($params);
+        
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+    } catch (PDOException $e) {
+        error_log("Failed to get main overview DVDs: " . $e->getMessage());
+        return [];
+    }
+}
+
+/**
+ * Zählt DVDs für die Hauptübersicht (für Pagination)
+ */
+function countMainOverviewDvds(PDO $pdo, string $searchQuery = '', string $genre = '', string $year = ''): int
+{
+    try {
+        $whereConditions = ["boxset_parent IS NULL"];
+        $params = [];
+        
+        if (!empty($searchQuery)) {
+            $whereConditions[] = "(title LIKE ? OR overview LIKE ?)";
+            $searchTerm = "%{$searchQuery}%";
+            $params[] = $searchTerm;
+            $params[] = $searchTerm;
+        }
+        
+        if (!empty($genre)) {
+            $whereConditions[] = "genre LIKE ?";
+            $params[] = "%{$genre}%";
+        }
+        
+        if (!empty($year)) {
+            $whereConditions[] = "year = ?";
+            $params[] = $year;
+        }
+        
+        $whereClause = implode(' AND ', $whereConditions);
+        $sql = "SELECT COUNT(*) FROM dvds WHERE {$whereClause}";
+        
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($params);
+        
+        return (int)$stmt->fetchColumn();
+        
+    } catch (PDOException $e) {
+        error_log("Failed to count main overview DVDs: " . $e->getMessage());
+        return 0;
+    }
+}
+
+/**
+ * ERWEITERTE renderFilmCard Funktion mit BoxSet-Modal Support
+ */
 function renderFilmCard(array $dvd, bool $isChild = false): string
 {
-    $cover = htmlspecialchars(findCoverImage($dvd['cover_id'] ?? '', 'f'));
-    $title = htmlspecialchars($dvd['title'] ?? '');
-    $year = (int)($dvd['year'] ?? 0);
-    $genre = htmlspecialchars($dvd['genre'] ?? '');
-    $id = (int)($dvd['id'] ?? 0);
+    global $pdo;
+    
+    // Alle Inputs validieren und escapen
+    $coverId = preg_replace('/[^a-zA-Z0-9_.-]/', '', $dvd['cover_id'] ?? '');
+    $cover = htmlspecialchars(findCoverImage($coverId, 'f'), ENT_QUOTES, 'UTF-8');
+    $title = htmlspecialchars($dvd['title'] ?? '', ENT_QUOTES, 'UTF-8');
+    $year = filter_var($dvd['year'] ?? 0, FILTER_VALIDATE_INT, [
+        'options' => ['min_range' => 1800, 'max_range' => 2100]
+    ]) ?: 0;
+    $genre = htmlspecialchars($dvd['genre'] ?? '', ENT_QUOTES, 'UTF-8');
+    $id = filter_var($dvd['id'] ?? 0, FILTER_VALIDATE_INT, [
+        'options' => ['min_range' => 1]
+    ]) ?: 0;
+    $runtime = formatRuntime($dvd['runtime'] ?? null);
 
     if ($id === 0) {
         return '<!-- Invalid DVD ID -->';
     }
 
-    $hasChildren = false;
-    if (!$isChild && isset($GLOBALS['pdo'])) {
-        try {
-            $stmt = $GLOBALS['pdo']->prepare("SELECT COUNT(*) FROM dvds WHERE boxset_parent = ?");
-            $stmt->execute([$id]);
-            $hasChildren = $stmt->fetchColumn() > 0;
-        } catch (Exception $e) {
-            $hasChildren = false;
-        }
+    // Prüfen ob es ein BoxSet-Parent ist
+    $isBoxsetParent = !$isChild && isBoxsetParent($pdo, $id);
+    $childCount = 0;
+    $totalRuntime = 0;
+    
+    if ($isBoxsetParent) {
+        $children = getChildDvds($pdo, $id);
+        $childCount = count($children);
+        $totalRuntime = array_sum(array_column($children, 'runtime'));
     }
-
+    
+    // CSS-Klasse bestimmen
     $cssClass = $isChild ? 'dvd child-dvd' : 'dvd';
-    $boxsetButton = $hasChildren ? '<button class="boxset-toggle" type="button">► Box-Inhalte anzeigen</button>' : '';
+    if ($isBoxsetParent) {
+        $cssClass .= ' film-card boxset-parent';
+    }
+    
+    $runtimeHtml = $runtime ? "<p><strong>Laufzeit:</strong> {$runtime}</p>" : '';
+    
+    // BoxSet-spezifische HTML-Elemente
+    $boxsetIndicator = $isBoxsetParent ? 
+        '<span class="boxset-indicator"><i class="bi bi-collection"></i> BoxSet</span>' : '';
+    
+    $boxsetInfo = $isBoxsetParent ? 
+        "<p class=\"boxset-stats\"><strong>{$childCount} Filme</strong>" . 
+        ($totalRuntime > 0 ? " • Gesamtlaufzeit: " . formatRuntime($totalRuntime) : "") . "</p>" : 
+        $runtimeHtml;
+    
+    $boxsetButton = $isBoxsetParent ? 
+        "<button class=\"btn boxset-btn btn-sm\" 
+                 data-bs-toggle=\"modal\" 
+                 data-bs-target=\"#boxsetModal\"
+                 data-boxset-id=\"{$id}\"
+                 data-boxset-title=\"{$title}\">
+            <i class=\"bi bi-collection\"></i> BoxSet öffnen
+         </button>" : '';
 
-    return '
-    <div class="' . $cssClass . '" data-dvd-id="' . $id . '">
-      <div class="cover-area">
-        <img src="' . $cover . '" alt="Cover">
+    // Für BoxSet-Parents: Moderne Card-Layout
+    if ($isBoxsetParent) {
+        return "
+        <div class=\"{$cssClass}\" data-id=\"{$id}\">
+            <div class=\"cover-area position-relative\">
+                <img src=\"{$cover}\" alt=\"{$title}\" class=\"cover-image\" loading=\"lazy\">
+                {$boxsetIndicator}
+            </div>
+            <div class=\"dvd-details\">
+                <h2><a href=\"#\" class=\"toggle-detail\" data-id=\"{$id}\">{$title} ({$year})</a></h2>
+                <p><strong>Genre:</strong> {$genre}</p>
+                {$boxsetInfo}
+                <div class=\"boxset-actions mt-2\">
+                    {$boxsetButton}
+                </div>
+            </div>
+        </div>";
+    }
+    
+    // Für normale Filme und Kinder: Bestehende Layout
+    $oldBoxsetButton = !$isChild && !empty(getChildDvds($pdo, (string)$id)) ? 
+        '<button class="boxset-toggle" type="button">► Box-Inhalte anzeigen</button>' : '';
+
+    return "
+    <div class=\"{$cssClass}\" data-dvd-id=\"{$id}\">
+      <div class=\"cover-area\">
+        <img src=\"{$cover}\" alt=\"Cover von {$title}\" loading=\"lazy\">
       </div>
-      <div class="dvd-details">
-        <h2><a href="#" class="toggle-detail" data-id="' . $id . '">' . $title . ' (' . $year . ')</a></h2>
-        <p><strong>Genre:</strong> ' . $genre . '</p>' . $boxsetButton . '
+      <div class=\"dvd-details\">
+        <h2><a href=\"#\" class=\"toggle-detail\" data-id=\"{$id}\">{$title} ({$year})</a></h2>
+        <p><strong>Genre:</strong> {$genre}</p>{$runtimeHtml}{$oldBoxsetButton}
       </div>
-    </div>';
+    </div>";
 }
 
+/**
+ * Hilfsfunktion für Query-Parameter
+ */
 function buildQuery(array $params): string
 {
     return http_build_query(array_merge($_GET, $params));
 }
 
+// Session starten wenn noch nicht aktiv
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
-
-echo "<!-- DEBUG: Minimale Bootstrap geladen -->\n";
