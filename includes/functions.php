@@ -56,3 +56,18 @@ function renderFilmCard(array $dvd, bool $isChild = false): string
       '</div>
     </div>';
 }
+
+function getSetting(string $key, string $default = ''): string
+{
+    global $pdo;
+
+    try {
+        $stmt = $pdo->prepare("SELECT value FROM settings WHERE `key` = :key LIMIT 1");
+        $stmt->execute(['key' => $key]);
+        $value = $stmt->fetchColumn();
+
+        return is_string($value) ? $value : $default;
+    } catch (Throwable $e) {
+        return $default;
+    }
+}

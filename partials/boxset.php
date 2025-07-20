@@ -1,6 +1,4 @@
 <?php
-require_once __DIR__ . '/../config/config.php';
-require_once __DIR__ . '/../functions.php';
 
 // Alle Hauptfilme, die BoxSet-Parent anderer Filme sind
 $boxParents = $pdo->query("

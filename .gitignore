@@ -1,9 +1,14 @@
-config.php
+/config/
 /cover/
-/admin/xml/Collection.xml
+/admin/xml/*.xml
 counter.txt
 /install/install.lock
 .vscode
+replace_requires.py
+delete_requires.py
+test.php
+update.sql
+*.backup.php
 admin/xml/import_20250627_084632.xml
 admin/xml/debug_20250720_082206.xml
 admin/xml/debug_import_20250720_084848.xml
