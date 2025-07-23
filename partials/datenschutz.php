@@ -7,8 +7,28 @@
  * @version    1.4.5
  */
 
+// Bootstrap laden für getSetting() Funktion
+if (!function_exists('getSetting')) {
+    require_once __DIR__ . '/../includes/bootstrap.php';
+}
+
 // Versionsinformationen laden
 require_once __DIR__ . '/../includes/version.php';
+
+// Fallback-Funktion falls getSetting immer noch nicht verfügbar
+if (!function_exists('getSetting')) {
+    function getSetting(string $key, string $default = ''): string {
+        // Fallback-Werte für die Datenschutzerklärung
+        $settings = [
+            'backup_retention_days' => '30',
+            'session_timeout' => '3600',
+            'site_title' => 'DVD Profiler Liste',
+            'admin_email' => 'admin@example.com'
+        ];
+        
+        return $settings[$key] ?? $default;
+    }
+}
 ?>
 
 <div class="static-page">
