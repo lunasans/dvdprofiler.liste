@@ -327,7 +327,7 @@ if (getSetting('environment', 'production') === 'development') {
 /**
  * Helper-Funktion für Byte-Formatierung
  */
-function formatBytes(int $bytes, int $precision = 2): string
+function formatBytes(int|float $bytes, int $precision = 2): string
 {
     $units = ['B', 'KB', 'MB', 'GB'];
     
