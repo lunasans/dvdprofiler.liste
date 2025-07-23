@@ -6,6 +6,7 @@
  * 
  * @package    dvdprofiler.liste
  * @author     René Neuhaus
+ * @version    1.4.5
  */
 declare(strict_types=1);
 
@@ -13,6 +14,7 @@ declare(strict_types=1);
 try {
     require_once __DIR__ . '/includes/bootstrap.php';
     require_once __DIR__ . '/includes/counter.php';
+    require_once __DIR__ . '/includes/version.php'; // Neue Versionsverwaltung laden
 } catch (Exception $e) {
     error_log('Bootstrap error: ' . $e->getMessage());
     http_response_code(500);
@@ -45,10 +47,10 @@ if (!in_array($page, $allowedPages) && $page !== 'home') {
     $page = 'home';
 }
 
-// Site-Konfiguration laden
-$siteTitle = getSetting('site_title', 'Meine DVD-Verwaltung');
+// Site-Konfiguration laden (jetzt von der neuen Versionsverwaltung überschrieben)
+$siteTitle = getSetting('site_title', 'DVD Profiler Liste');
 $siteDescription = getSetting('site_description', 'Professionelle DVD-Sammlung verwalten und durchsuchen');
-$version = getSetting('version', '1.4.5');
+// $version wird jetzt von version.php bereitgestellt
 $theme = getSetting('theme', 'default');
 
 // Sichere Base URL Generierung
@@ -78,237 +80,229 @@ if (!empty($search)) {
 // CSP Header für zusätzliche Sicherheit
 $cspPolicy = "default-src 'self'; " .
              "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; " .
-             "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; " .
-             "font-src 'self' https://cdn.jsdelivr.net https://fonts.gstatic.com; " .
+             "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; " .
              "img-src 'self' data: https:; " .
+             "font-src 'self' https://cdn.jsdelivr.net; " .
              "connect-src 'self';";
              
 header("Content-Security-Policy: " . $cspPolicy);
+
+// JSON-LD Schema für SEO
+$schema = [
+    '@context' => 'https://schema.org',
+    '@type' => 'WebApplication',
+    'name' => $siteTitle,
+    'description' => $siteDescription,
+    'url' => $baseUrl,
+    'applicationCategory' => 'MultimediaApplication',
+    'operatingSystem' => 'Web Browser',
+    'author' => [
+        '@type' => 'Person',
+        'name' => DVDPROFILER_AUTHOR
+    ],
+    'version' => DVDPROFILER_VERSION
+];
 ?>
 <!DOCTYPE html>
-<html lang="de">
+<html lang="de" data-theme="<?= htmlspecialchars($theme) ?>">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="<?= htmlspecialchars($metaDescription) ?>">
-  <meta name="keywords" content="DVD, Sammlung, Filme, Verwaltung, Katalog">
-  <meta name="author" content="René Neuhaus">
-  <meta name="robots" content="index, follow">
-  
-  <!-- Open Graph Meta Tags für Social Media -->
-  <meta property="og:title" content="<?= htmlspecialchars($pageTitle) ?>">
-  <meta property="og:description" content="<?= htmlspecialchars($metaDescription) ?>">
-  <meta property="og:type" content="website">
-  <meta property="og:url" content="<?= htmlspecialchars($baseUrl) ?>">
-
-  
-  <!-- Twitter Card -->
-  <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="<?= htmlspecialchars($pageTitle) ?>">
-  <meta name="twitter:description" content="<?= htmlspecialchars($metaDescription) ?>">
-  
-  <title><?= htmlspecialchars($pageTitle) ?></title>
-  
-  <!-- Preload kritische Ressourcen --> 
-  <link rel="preconnect" href="https://cdn.jsdelivr.net">
-  <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
-  
-  <!-- Stylesheets -->
-  <link rel="stylesheet" href="css/style.css?v=<?= htmlspecialchars($version) ?>">
-  <link href="libs/fancybox/dist/fancybox/fancybox.css" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css">
-  
-  <!-- Conditional Theme Loading -->
-  <?php if ($theme !== 'default'): ?>
-    <link rel="stylesheet" href="css/themes/<?= htmlspecialchars($theme) ?>.css?v=<?= htmlspecialchars($version) ?>">
-  <?php endif; ?>
-  
-  <!-- Favicon -->
-  <link rel="icon" type="image/x-icon" href="<?= $baseUrl ?>favicon.ico">
-  
-  <!-- Structured Data für Suchmaschinen -->
-  <script type="application/ld+json">
-  {
-    "@context": "https://schema.org",
-    "@type": "WebApplication",
-    "name": "<?= htmlspecialchars($siteTitle) ?>",
-    "description": "<?= htmlspecialchars($siteDescription) ?>",
-    "url": "<?= htmlspecialchars($baseUrl) ?>",
-    "applicationCategory": "MultimediaApplication",
-    "operatingSystem": "Web"
-  }
-  </script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="<?= htmlspecialchars($metaDescription) ?>">
+    <meta name="keywords" content="DVD Verwaltung, Filmsammlung, DVD Profiler, Medienverwaltung">
+    <meta name="robots" content="index, follow">
+    <meta name="author" content="<?= DVDPROFILER_AUTHOR ?>">
+    
+    <!-- Open Graph / Social Media -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="<?= htmlspecialchars($pageTitle) ?>">
+    <meta property="og:description" content="<?= htmlspecialchars($metaDescription) ?>">
+    <meta property="og:url" content="<?= htmlspecialchars($baseUrl) ?>">
+    <meta property="og:site_name" content="<?= htmlspecialchars($siteTitle) ?>">
+    
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="<?= htmlspecialchars($pageTitle) ?>">
+    <meta name="twitter:description" content="<?= htmlspecialchars($metaDescription) ?>">
+    
+    <title><?= htmlspecialchars($pageTitle) ?></title>
+    
+    <!-- Preload critical resources -->
+    <link rel="preload" href="css/style.css" as="style">
+    <link rel="preload" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css" as="style">
+    
+    <!-- CSS -->
+    <link href="css/style.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css">
+    <link href="libs/fancybox/dist/fancybox/fancybox.css" rel="stylesheet">
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎬</text></svg>">
+    
+    <!-- JSON-LD Schema -->
+    <script type="application/ld+json">
+    <?= json_encode($schema, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>
+    </script>
 </head>
-<body class="theme-<?= htmlspecialchars($theme) ?>" data-base-url="<?= htmlspecialchars($baseUrl) ?>">
+<body>
+    <!-- Skip Link für Accessibility -->
+    <a href="#main-content" class="skip-link">Zum Hauptinhalt springen</a>
 
-<!-- Loading Indicator -->
-<div id="loading-indicator" class="loading-indicator" style="display: none;">
-  <div class="spinner"></div>
-  <span>Lädt...</span>
-</div>
-
-<!-- ───────────── Header ───────────── -->
-<?php 
-try {
-    include __DIR__ . '/partials/header.php'; 
-} catch (Exception $e) {
-    error_log('Header include error: ' . $e->getMessage());
-    echo '<header><h1>' . htmlspecialchars($siteTitle) . '</h1></header>';
-}
-?>
-
-<!-- ───────────── Hauptlayout ───────────── -->
-<main class="layout" id="main-content" role="main">
-  <!-- Linke Film-Liste + Tabs + Pagination -->
-  <section class="film-list-area" aria-label="Film-Liste">
-    <?php 
+    <?php
+    // Header laden
     try {
-        include __DIR__ . '/partials/film-list.php'; 
+        include __DIR__ . '/partials/header.php'; 
     } catch (Exception $e) {
-        error_log('Film-list include error: ' . $e->getMessage());
-        echo '<div class="error-message">Filme konnten nicht geladen werden.</div>';
+        error_log('Header include error: ' . $e->getMessage());
+        echo '<header><h1>' . htmlspecialchars($siteTitle) . '</h1></header>';
     }
     ?>
-  </section>
 
-  <!-- Rechte Detailansicht -->
-  <aside class="detail-panel" id="detail-container" role="complementary" aria-label="Film-Details">
-    <div class="detail-placeholder">
-      <i class="bi bi-film"></i>
-      <p>Wählen Sie einen Film aus der Liste, um Details anzuzeigen.</p>
-    </div>
-  </aside>
-</main>
+    <!-- ───────────── Hauptlayout ───────────── -->
+    <main class="layout" id="main-content" role="main">
+        <!-- Linke Film-Liste + Tabs + Pagination -->
+        <section class="film-list-area" aria-label="Film-Liste">
+            <?php 
+            try {
+                include __DIR__ . '/partials/film-list.php'; 
+            } catch (Exception $e) {
+                error_log('Film-list include error: ' . $e->getMessage());
+                echo '<div class="error-message">Filme konnten nicht geladen werden.</div>';
+            }
+            ?>
+        </section>
 
-<!-- ───────────── Footer ───────────── -->
-<footer class="site-footer" role="contentinfo">
-  <div class="footer-content">
-    <div class="footer-left">
-      <!-- Optional: Logo oder zusätzliche Informationen -->
-    </div>
+        <!-- Rechte Detailansicht -->
+        <aside class="detail-panel" id="detail-container" role="complementary" aria-label="Film-Details">
+            <div class="detail-placeholder">
+                <i class="bi bi-film"></i>
+                <p>Wählen Sie einen Film aus der Liste, um Details anzuzeigen.</p>
+            </div>
+        </aside>
+    </main>
 
-    <div class="footer-center">
-      <div class="version-info">
-        <div class="version-link">
-          Version <a href="https://github.com/lunasans/dvdprofiler.liste" 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    aria-label="GitHub Repository öffnen">
-            <?= htmlspecialchars($version) ?> 
-            <i class="bi bi-github" aria-hidden="true"></i>
-          </a>
-        </div>
-        <div class="visitor-counter">
-          Besucher: <span id="visitor-count"><?= (int)($visits ?? 0) ?></span>
-        </div>
-        <div class="copyright">
-          &copy; <?= date('Y') ?> René Neuhaus
-        </div>
-      </div>
-    </div>
-
-    <nav class="footer-right" role="navigation" aria-label="Footer Navigation">
-      <ul class="footer-nav">
-        <li><a href="?page=impressum">Impressum</a></li>
-        <li><a href="?page=datenschutz">Datenschutz</a></li>
-        <?php if (isset($_SESSION['user_id'])): ?>
-          <li><a href="<?= $baseUrl ?>admin/" rel="nofollow">Admin-Panel</a></li>
-          <li><a href="<?= $baseUrl ?>admin/logout.php" rel="nofollow">Logout</a></li>
-        <?php else: ?>
-          <li><a href="<?= $baseUrl ?>admin/login.php" rel="nofollow">Login</a></li>
-        <?php endif; ?>
-      </ul>
-    </nav>
-  </div>
-</footer>
-
-<!-- Cookie Consent Banner (DSGVO-konform) -->
-<div id="cookie-banner" class="cookie-banner" style="display: none;">
-  <div class="cookie-content">
-    <p>Diese Website verwendet Cookies für eine bessere Benutzererfahrung. 
-       <a href="?page=datenschutz">Mehr erfahren</a></p>
-    <div class="cookie-buttons">
-      <button id="accept-cookies" class="btn btn-primary">Akzeptieren</button>
-      <button id="decline-cookies" class="btn btn-secondary">Ablehnen</button>
-    </div>
-  </div>
-</div>
-
-<!-- JavaScript -->
-<script>
-  // Globale Konfiguration
-  window.AppConfig = {
-    baseUrl: <?= json_encode($baseUrl) ?>,
-    version: <?= json_encode($version) ?>,
-    theme: <?= json_encode($theme) ?>,
-    isLoggedIn: <?= json_encode(isset($_SESSION['user_id'])) ?>
-  };
-</script>
-
-<script src="js/main.js?v=<?= htmlspecialchars($version) ?>"></script>
-<script src="libs/fancybox/dist/fancybox/fancybox.umd.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.6/dist/js/bootstrap.bundle.min.js" 
-        crossorigin="anonymous"></script>
-
-<!-- Lazy Loading und Performance Optimierungen -->
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Loading Indicator Management
-    const loadingIndicator = document.getElementById('loading-indicator');
-    
-    function showLoading() {
-        if (loadingIndicator) loadingIndicator.style.display = 'flex';
+    <!-- ───────────── Footer ───────────── -->
+    <?php
+    // Neuen erweiterten Footer laden
+    try {
+        include __DIR__ . '/includes/footer.php';
+    } catch (Exception $e) {
+        error_log('Footer include error: ' . $e->getMessage());
+        // Fallback Footer
+        echo '<footer class="site-footer" role="contentinfo">
+                <div class="footer-content">
+                    <div class="footer-center">
+                        <div class="version-info">
+                            <div class="version-link">
+                                Version <a href="' . DVDPROFILER_GITHUB_URL . '" target="_blank" rel="noopener noreferrer">
+                                    ' . htmlspecialchars($version) . ' 
+                                    <i class="bi bi-github"></i>
+                                </a>
+                            </div>
+                            <div class="copyright">
+                                &copy; ' . date('Y') . ' ' . DVDPROFILER_AUTHOR . '
+                            </div>
+                        </div>
+                    </div>
+                </div>
+              </footer>';
     }
+    ?>
+
+    <!-- Cookie Consent Banner (DSGVO-konform) -->
+    <div id="cookie-banner" class="cookie-banner" style="display: none;">
+        <div class="cookie-content">
+            <p>Diese Website verwendet Cookies für eine bessere Benutzererfahrung. 
+               Durch die weitere Nutzung stimmen Sie dem zu.</p>
+            <div class="cookie-buttons">
+                <button onclick="acceptCookies()" class="btn btn-primary">
+                    <i class="bi bi-check-lg"></i> Akzeptieren
+                </button>
+                <button onclick="declineCookies()" class="btn btn-secondary">
+                    <i class="bi bi-x-lg"></i> Ablehnen
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript -->
+    <script src="libs/fancybox/dist/index.umd.js"></script>
+    <script src="js/main.js"></script>
     
-    function hideLoading() {
-        if (loadingIndicator) loadingIndicator.style.display = 'none';
-    }
-    
-    // Cookie Banner Management
-    const cookieBanner = document.getElementById('cookie-banner');
-    const acceptBtn = document.getElementById('accept-cookies');
-    const declineBtn = document.getElementById('decline-cookies');
-    
-    // Zeige Cookie Banner wenn noch keine Entscheidung getroffen wurde
-    if (!localStorage.getItem('cookieConsent') && cookieBanner) {
-        cookieBanner.style.display = 'block';
-    }
-    
-    if (acceptBtn) {
-        acceptBtn.addEventListener('click', function() {
+    <!-- Cookie Consent Script -->
+    <script>
+        // Cookie Consent Management
+        function showCookieBanner() {
+            const banner = document.getElementById('cookie-banner');
+            const consent = localStorage.getItem('cookieConsent');
+            
+            if (!consent) {
+                banner.style.display = 'block';
+                setTimeout(() => banner.classList.add('show'), 100);
+            }
+        }
+
+        function acceptCookies() {
             localStorage.setItem('cookieConsent', 'accepted');
-            cookieBanner.style.display = 'none';
-        });
-    }
-    
-    if (declineBtn) {
-        declineBtn.addEventListener('click', function() {
+            hideCookieBanner();
+            
+            // Analytics oder andere Cookies hier aktivieren
+            if (typeof gtag !== 'undefined') {
+                gtag('consent', 'update', {
+                    'analytics_storage': 'granted'
+                });
+            }
+        }
+
+        function declineCookies() {
             localStorage.setItem('cookieConsent', 'declined');
-            cookieBanner.style.display = 'none';
+            hideCookieBanner();
+        }
+
+        function hideCookieBanner() {
+            const banner = document.getElementById('cookie-banner');
+            banner.classList.remove('show');
+            setTimeout(() => banner.style.display = 'none', 300);
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            // Cookie-Banner nach kurzer Verzögerung anzeigen
+            setTimeout(showCookieBanner, 2000);
+            
+            // Performance Monitoring
+            if ('serviceWorker' in navigator && location.protocol === 'https:') {
+                navigator.serviceWorker.register('/sw.js').catch(() => {
+                    // Service Worker registration failed, but don't break the app
+                });
+            }
+            
+            // System Info für Debug (nur im Development)
+            <?php if (getSetting('environment', 'production') === 'development'): ?>
+            console.log('DVD Profiler Liste <?= getDVDProfilerVersionFull() ?>');
+            console.log('Build: <?= DVDPROFILER_BUILD_DATE ?> | PHP: <?= PHP_VERSION ?>');
+            console.log('Features: <?= count(array_filter(DVDPROFILER_FEATURES)) ?> aktiv');
+            <?php endif; ?>
         });
+    </script>
+    
+    <!-- Schema.org Rich Snippets für bessere SEO -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "<?= htmlspecialchars($siteTitle) ?>",
+        "applicationCategory": "MultimediaApplication",
+        "operatingSystem": "Web Browser",
+        "url": "<?= htmlspecialchars($baseUrl) ?>",
+        "author": {
+            "@type": "Person",
+            "name": "<?= DVDPROFILER_AUTHOR ?>"
+        },
+        "version": "<?= DVDPROFILER_VERSION ?>",
+        "dateModified": "<?= DVDPROFILER_BUILD_DATE ?>",
+        "description": "<?= htmlspecialchars($siteDescription) ?>"
     }
-    
-    // Error Handling für AJAX-Requests
-    window.addEventListener('unhandledrejection', function(event) {
-        console.error('Unhandled promise rejection:', event.reason);
-        hideLoading();
-    });
-    
-    // Performance Monitoring
-    if ('performance' in window && 'measure' in window.performance) {
-        window.addEventListener('load', function() {
-            setTimeout(function() {
-                const loadTime = performance.timing.loadEventEnd - performance.timing.navigationStart;
-                console.log('Page load time:', loadTime + 'ms');
-            }, 0);
-        });
-    }
-    
-    // Expose global functions
-    window.showLoading = showLoading;
-    window.hideLoading = hideLoading;
-});
-</script>
-<script src="js/main.js?v=<?= htmlspecialchars($version) ?>"></script>
+    </script>
 </body>
 </html>

@@ -1,52 +1,696 @@
-<h1>Datenschutzerklärung</h1>
-<h2 id="m4158">Präambel</h2>
-<p>Mit der folgenden Datenschutzerklärung möchten wir Sie darüber aufklären, welche Arten Ihrer personenbezogenen Daten (nachfolgend auch kurz als "Daten" bezeichnet) wir zu welchen Zwecken und in welchem Umfang im Rahmen der Bereitstellung unserer Applikation verarbeiten.</p>
-<p>Die verwendeten Begriffe sind nicht geschlechtsspezifisch.</p>
+<?php
+/**
+ * DVD Profiler Liste - Datenschutzerklärung
+ * 
+ * @package    dvdprofiler.liste
+ * @author     René Neuhaus
+ * @version    1.4.5
+ */
 
-<p>Stand: 19. Juli 2025</p><h2>Inhaltsübersicht</h2> <ul class="index"><li><a class="index-link" href="#m4158">Präambel</a></li><li><a class="index-link" href="#m3">Verantwortlicher</a></li><li><a class="index-link" href="#mOverview">Übersicht der Verarbeitungen</a></li><li><a class="index-link" href="#m2427">Maßgebliche Rechtsgrundlagen</a></li><li><a class="index-link" href="#m27">Sicherheitsmaßnahmen</a></li><li><a class="index-link" href="#m25">Übermittlung von personenbezogenen Daten</a></li><li><a class="index-link" href="#m24">Internationale Datentransfers</a></li><li><a class="index-link" href="#m12">Allgemeine Informationen zur Datenspeicherung und Löschung</a></li><li><a class="index-link" href="#m225">Bereitstellung des Onlineangebots und Webhosting</a></li><li><a class="index-link" href="#m134">Einsatz von Cookies</a></li><li><a class="index-link" href="#m136">Präsenzen in sozialen Netzwerken (Social Media)</a></li><li><a class="index-link" href="#m328">Plug-ins und eingebettete Funktionen sowie Inhalte</a></li><li><a class="index-link" href="#m15">Änderung und Aktualisierung</a></li><li><a class="index-link" href="#m42">Begriffsdefinitionen</a></li></ul><h2 id="m3">Verantwortlicher</h2><p>Vorname, Name / Firma<br>Straße, Hausnr.<br>PLZ, Ort, Land</p>
-<p>E-Mail-Adresse: <a href="mailto:vorname.name@beispielsdomain.eu">vorname.name@beispielsdomain.eu</a></p>
+// Versionsinformationen laden
+require_once __DIR__ . '/../includes/version.php';
+?>
 
-<h2 id="mOverview">Übersicht der Verarbeitungen</h2><p>Die nachfolgende Übersicht fasst die Arten der verarbeiteten Daten und die Zwecke ihrer Verarbeitung zusammen und verweist auf die betroffenen Personen.</p><h3>Arten der verarbeiteten Daten</h3>
-<ul><li>Kontaktdaten.</li><li>Inhaltsdaten.</li><li>Nutzungsdaten.</li><li>Meta-, Kommunikations- und Verfahrensdaten.</li><li>Protokolldaten.</li></ul><h3>Kategorien betroffener Personen</h3><ul><li>Nutzer.</li></ul><h3>Zwecke der Verarbeitung</h3><ul><li>Kommunikation.</li><li>Sicherheitsmaßnahmen.</li><li>Reichweitenmessung.</li><li>Tracking.</li><li>Zielgruppenbildung.</li><li>Feedback.</li><li>Marketing.</li><li>Bereitstellung unseres Onlineangebotes und Nutzerfreundlichkeit.</li><li>Informationstechnische Infrastruktur.</li><li>Öffentlichkeitsarbeit.</li></ul><h2 id="m2427">Maßgebliche Rechtsgrundlagen</h2><p><strong>Maßgebliche Rechtsgrundlagen nach der DSGVO: </strong>Im Folgenden erhalten Sie eine Übersicht der Rechtsgrundlagen der DSGVO, auf deren Basis wir personenbezogene Daten verarbeiten. Bitte nehmen Sie zur Kenntnis, dass neben den Regelungen der DSGVO nationale Datenschutzvorgaben in Ihrem bzw. unserem Wohn- oder Sitzland gelten können. Sollten ferner im Einzelfall speziellere Rechtsgrundlagen maßgeblich sein, teilen wir Ihnen diese in der Datenschutzerklärung mit.</p>
- <ul><li><strong>Einwilligung (Art. 6 Abs. 1 S. 1 lit. a) DSGVO)</strong> - Die betroffene Person hat ihre Einwilligung in die Verarbeitung der sie betreffenden personenbezogenen Daten für einen spezifischen Zweck oder mehrere bestimmte Zwecke gegeben.</li><li><strong>Berechtigte Interessen (Art. 6 Abs. 1 S. 1 lit. f) DSGVO)</strong> - die Verarbeitung ist zur Wahrung der berechtigten Interessen des Verantwortlichen oder eines Dritten notwendig, vorausgesetzt, dass die Interessen, Grundrechte und Grundfreiheiten der betroffenen Person, die den Schutz personenbezogener Daten verlangen, nicht überwiegen.</li></ul><p><strong>Nationale Datenschutzregelungen in Deutschland: </strong>Zusätzlich zu den Datenschutzregelungen der DSGVO gelten nationale Regelungen zum Datenschutz in Deutschland. Hierzu gehört insbesondere das Gesetz zum Schutz vor Missbrauch personenbezogener Daten bei der Datenverarbeitung (Bundesdatenschutzgesetz – BDSG). Das BDSG enthält insbesondere Spezialregelungen zum Recht auf Auskunft, zum Recht auf Löschung, zum Widerspruchsrecht, zur Verarbeitung besonderer Kategorien personenbezogener Daten, zur Verarbeitung für andere Zwecke und zur Übermittlung sowie automatisierten Entscheidungsfindung im Einzelfall einschließlich Profiling. Ferner können Landesdatenschutzgesetze der einzelnen Bundesländer zur Anwendung gelangen.</p>
+<div class="static-page">
+    <header class="page-header">
+        <h1>
+            <i class="bi bi-shield-check"></i>
+            Datenschutzerklärung
+        </h1>
+        <p class="page-subtitle">Informationen zum Datenschutz und zur DSGVO-Konformität</p>
+        <div class="last-updated">
+            Letzte Aktualisierung: 23. Juli 2025 | Version <?= DVDPROFILER_VERSION ?>
+        </div>
+    </header>
 
-<h2 id="m27">Sicherheitsmaßnahmen</h2><p>Wir treffen nach Maßgabe der gesetzlichen Vorgaben unter Berücksichtigung des Stands der Technik, der Implementierungskosten und der Art, des Umfangs, der Umstände und der Zwecke der Verarbeitung sowie der unterschiedlichen Eintrittswahrscheinlichkeiten und des Ausmaßes der Bedrohung der Rechte und Freiheiten natürlicher Personen geeignete technische und organisatorische Maßnahmen, um ein dem Risiko angemessenes Schutzniveau zu gewährleisten.</p>
-<p>Zu den Maßnahmen gehören insbesondere die Sicherung der Vertraulichkeit, Integrität und Verfügbarkeit von Daten durch Kontrolle des physischen und elektronischen Zugangs zu den Daten als auch des sie betreffenden Zugriffs, der Eingabe, der Weitergabe, der Sicherung der Verfügbarkeit und ihrer Trennung. Des Weiteren haben wir Verfahren eingerichtet, die eine Wahrnehmung von Betroffenenrechten, die Löschung von Daten und Reaktionen auf die Gefährdung der Daten gewährleisten. Ferner berücksichtigen wir den Schutz personenbezogener Daten bereits bei der Entwicklung bzw. Auswahl von Hardware, Software sowie Verfahren entsprechend dem Prinzip des Datenschutzes, durch Technikgestaltung und durch datenschutzfreundliche Voreinstellungen.</p>
-<p>Sicherung von Online-Verbindungen durch TLS-/SSL-Verschlüsselungstechnologie (HTTPS): Um die Daten der Nutzer, die über unsere Online-Dienste übertragen werden, vor unerlaubten Zugriffen zu schützen, setzen wir auf die TLS-/SSL-Verschlüsselungstechnologie. Secure Sockets Layer (SSL) und Transport Layer Security (TLS) sind die Eckpfeiler der sicheren Datenübertragung im Internet. Diese Technologien verschlüsseln die Informationen, die zwischen der Website oder App und dem Browser des Nutzers (oder zwischen zwei Servern) übertragen werden, wodurch die Daten vor unbefugtem Zugriff geschützt sind. TLS, als die weiterentwickelte und sicherere Version von SSL, gewährleistet, dass alle Datenübertragungen den höchsten Sicherheitsstandards entsprechen. Wenn eine Website durch ein SSL-/TLS-Zertifikat gesichert ist, wird dies durch die Anzeige von HTTPS in der URL signalisiert. Dies dient als ein Indikator für die Nutzer, dass ihre Daten sicher und verschlüsselt übertragen werden.</p>
+    <section class="content-section">
+        <h2 id="m4158">Präambel</h2>
+        <p>
+            Mit der folgenden Datenschutzerklärung möchten wir Sie darüber aufklären, welche Arten Ihrer 
+            personenbezogenen Daten (nachfolgend auch kurz als "Daten" bezeichnet) wir zu welchen Zwecken 
+            und in welchem Umfang im Rahmen der Bereitstellung unserer Applikation verarbeiten.
+        </p>
+        <p>
+            Die verwendeten Begriffe sind nicht geschlechtsspezifisch.
+        </p>
+        
+        <div class="privacy-summary">
+            <h3>Zusammenfassung</h3>
+            <div class="summary-grid">
+                <div class="summary-item">
+                    <i class="bi bi-house-check"></i>
+                    <strong>Lokale Datenverarbeitung</strong>
+                    <p>Alle Daten verbleiben auf Ihrem Server</p>
+                </div>
+                <div class="summary-item">
+                    <i class="bi bi-shield-slash"></i>
+                    <strong>Keine Tracking-Tools</strong>
+                    <p>Keine externen Analytics oder Cookies</p>
+                </div>
+                <div class="summary-item">
+                    <i class="bi bi-lock"></i>
+                    <strong>Private Nutzung</strong>
+                    <p>Ausschließlich für persönliche Filmsammlung</p>
+                </div>
+                <div class="summary-item">
+                    <i class="bi bi-check-circle"></i>
+                    <strong>DSGVO-konform</strong>
+                    <p>Vollständige Einhaltung der Datenschutzrichtlinien</p>
+                </div>
+            </div>
+        </div>
+    </section>
 
-<h2 id="m25">Übermittlung von personenbezogenen Daten</h2><p>Im Rahmen unserer Verarbeitung von personenbezogenen Daten kommt es vor, dass diese an andere Stellen, Unternehmen, rechtlich selbstständige Organisationseinheiten oder Personen übermittelt beziehungsweise ihnen gegenüber offengelegt werden. Zu den Empfängern dieser Daten können z. B. mit IT-Aufgaben beauftragte Dienstleister gehören oder Anbieter von Diensten und Inhalten, die in eine Website eingebunden sind. In solchen Fällen beachten wir die gesetzlichen Vorgaben und schließen insbesondere entsprechende Verträge bzw. Vereinbarungen, die dem Schutz Ihrer Daten dienen, mit den Empfängern Ihrer Daten ab.</p>
+    <nav class="content-section">
+        <h2>Inhaltsübersicht</h2>
+        <ul class="index">
+            <li><a class="index-link" href="#m4158">Präambel</a></li>
+            <li><a class="index-link" href="#m3">Verantwortlicher</a></li>
+            <li><a class="index-link" href="#mOverview">Übersicht der Verarbeitungen</a></li>
+            <li><a class="index-link" href="#m2427">Maßgebliche Rechtsgrundlagen</a></li>
+            <li><a class="index-link" href="#m27">Sicherheitsmaßnahmen</a></li>
+            <li><a class="index-link" href="#m225">Bereitstellung des Onlineangebots</a></li>
+            <li><a class="index-link" href="#m134">Einsatz von Cookies</a></li>
+            <li><a class="index-link" href="#m328">Externe Inhalte und Dienste</a></li>
+            <li><a class="index-link" href="#m12">Datenspeicherung und Löschung</a></li>
+            <li><a class="index-link" href="#m15">Änderungen dieser Datenschutzerklärung</a></li>
+            <li><a class="index-link" href="#m42">Begriffsdefinitionen</a></li>
+        </ul>
+    </nav>
 
-<h2 id="m24">Internationale Datentransfers</h2><p>Datenverarbeitung in Drittländern: Sofern wir Daten in ein Drittland (d. h. außerhalb der Europäischen Union (EU) oder des Europäischen Wirtschaftsraums (EWR)) übermitteln oder dies im Rahmen der Nutzung von Diensten Dritter oder der Offenlegung bzw. Übermittlung von Daten an andere Personen, Stellen oder Unternehmen geschieht (was erkennbar wird anhand der Postadresse des jeweiligen Anbieters oder wenn in der Datenschutzerklärung ausdrücklich auf den Datentransfer in Drittländer hingewiesen wird), erfolgt dies stets im Einklang mit den gesetzlichen Vorgaben.</p>
-<p>Für Datenübermittlungen in die USA stützen wir uns vorrangig auf das Data Privacy Framework (DPF), welches durch einen Angemessenheitsbeschluss der EU-Kommission vom 10.07.2023 als sicherer Rechtsrahmen anerkannt wurde. Zusätzlich haben wir mit den jeweiligen Anbietern Standardvertragsklauseln abgeschlossen, die den Vorgaben der EU-Kommission entsprechen und vertragliche Verpflichtungen zum Schutz Ihrer Daten festlegen.</p>
-<p>Diese zweifache Absicherung gewährleistet einen umfassenden Schutz Ihrer Daten: Das DPF bildet die primäre Schutzebene, während die Standardvertragsklauseln als zusätzliche Sicherheit dienen. Sollten sich Änderungen im Rahmen des DPF ergeben, greifen die Standardvertragsklauseln als zuverlässige Rückfalloption ein. So stellen wir sicher, dass Ihre Daten auch bei etwaigen politischen oder rechtlichen Veränderungen stets angemessen geschützt bleiben.</p>
-<p>Bei den einzelnen Diensteanbietern informieren wir Sie darüber, ob sie nach dem DPF zertifiziert sind und ob Standardvertragsklauseln vorliegen. Weitere Informationen zum DPF und eine Liste der zertifizierten Unternehmen finden Sie auf der Website des US-Handelsministeriums unter <a href="https://www.dataprivacyframework.gov/" target="_blank">https://www.dataprivacyframework.gov/</a> (in englischer Sprache).</p>
-<p>Für Datenübermittlungen in andere Drittländer gelten entsprechende Sicherheitsmaßnahmen, insbesondere Standardvertragsklauseln, ausdrückliche Einwilligungen oder gesetzlich erforderliche Übermittlungen. Informationen zu Drittlandtransfers und geltenden Angemessenheitsbeschlüssen können Sie dem Informationsangebot der EU-Kommission entnehmen: <a href="https://commission.europa.eu/law/law-topic/data-protection/international-dimension-data-protection_en?prefLang=de" target="_blank">https://commission.europa.eu/law/law-topic/data-protection/international-dimension-data-protection_en?prefLang=de.</a></p>
+    <section class="content-section">
+        <h2 id="m3">Verantwortlicher</h2>
+        <div class="contact-info">
+            <p>
+                <strong><?= DVDPROFILER_AUTHOR ?></strong><br>
+                Privatperson<br><br>
+                
+                E-Mail-Adresse: <a href="mailto:kontakt@example.com">kontakt@example.com</a><br>
+                GitHub: <a href="<?= DVDPROFILER_GITHUB_URL ?>" target="_blank" rel="noopener noreferrer">
+                    <?= DVDPROFILER_REPOSITORY ?>
+                </a>
+            </p>
+        </div>
+    </section>
 
-<h2 id="m12">Allgemeine Informationen zur Datenspeicherung und Löschung</h2><p>Wir löschen personenbezogene Daten, die wir verarbeiten, gemäß den gesetzlichen Bestimmungen, sobald die zugrundeliegenden Einwilligungen widerrufen werden oder keine weiteren rechtlichen Grundlagen für die Verarbeitung bestehen. Dies betrifft Fälle, in denen der ursprüngliche Verarbeitungszweck entfällt oder die Daten nicht mehr benötigt werden. Ausnahmen von dieser Regelung bestehen, wenn gesetzliche Pflichten oder besondere Interessen eine längere Aufbewahrung oder Archivierung der Daten erfordern.</p>
-<p>Insbesondere müssen Daten, die aus handels- oder steuerrechtlichen Gründen aufbewahrt werden müssen oder deren Speicherung notwendig ist zur Rechtsverfolgung oder zum Schutz der Rechte anderer natürlicher oder juristischer Personen, entsprechend archiviert werden.</p>
-<p>Unsere Datenschutzhinweise enthalten zusätzliche Informationen zur Aufbewahrung und Löschung von Daten, die speziell für bestimmte Verarbeitungsprozesse gelten.</p>
-<p>Bei mehreren Angaben zur Aufbewahrungsdauer oder Löschungsfristen eines Datums, ist stets die längste Frist maßgeblich. Daten, die nicht mehr für den ursprünglich vorgesehenen Zweck, sondern aufgrund gesetzlicher Vorgaben oder anderer Gründe aufbewahrt werden, verarbeiten wir ausschließlich zu den Gründen, die ihre Aufbewahrung rechtfertigen.</p>
-<p>Aufbewahrung und Löschung von Daten: Die folgenden allgemeinen Fristen gelten für die Aufbewahrung und Archivierung nach deutschem Recht:</p><ul> <li>10 Jahre - Aufbewahrungsfrist für Bücher und Aufzeichnungen, Jahresabschlüsse, Inventare, Lageberichte, Eröffnungsbilanz sowie die zu ihrem Verständnis erforderlichen Arbeitsanweisungen und sonstigen Organisationsunterlagen (§ 147 Abs. 1 Nr. 1 i.V.m. Abs. 3 AO, § 14b Abs. 1 UStG, § 257 Abs. 1 Nr. 1 i.V.m. Abs. 4 HGB).</li><li>8 Jahre - Buchungsbelege, wie z. B. Rechnungen und Kostenbelege (§ 147 Abs. 1 Nr. 4 und 4a i.V.m. Abs. 3 Satz 1 AO sowie § 257 Abs. 1 Nr. 4 i.V.m. Abs. 4 HGB).</li><li>6 Jahre - Übrige Geschäftsunterlagen: empfangene Handels- oder Geschäftsbriefe, Wiedergaben der abgesandten Handels- oder Geschäftsbriefe, sonstige Unterlagen, soweit sie für die Besteuerung von Bedeutung sind, z. B. Stundenlohnzettel, Betriebsabrechnungsbögen, Kalkulationsunterlagen, Preisauszeichnungen, aber auch Lohnabrechnungsunterlagen, soweit sie nicht bereits Buchungsbelege sind und Kassenstreifen (§ 147 Abs. 1 Nr. 2, 3, 5 i.V.m. Abs. 3 AO, § 257 Abs. 1 Nr. 2 u. 3 i.V.m. Abs. 4 HGB).</li><li>3 Jahre - Daten, die erforderlich sind, um potenzielle Gewährleistungs- und Schadensersatzansprüche oder ähnliche vertragliche Ansprüche und Rechte zu berücksichtigen sowie damit verbundene Anfragen zu bearbeiten, basierend auf früheren Geschäftserfahrungen und üblichen Branchenpraktiken, werden für die Dauer der regulären gesetzlichen Verjährungsfrist von drei Jahren gespeichert (§§ 195, 199 BGB).</li> </ul>
-<p>Fristbeginn mit Ablauf des Jahres: Beginnt eine Frist nicht ausdrücklich zu einem bestimmten Datum und beträgt sie mindestens ein Jahr, so startet sie automatisch am Ende des Kalenderjahres, in dem das fristauslösende Ereignis eingetreten ist. Im Fall laufender Vertragsverhältnisse, in deren Rahmen Daten gespeichert werden, ist das fristauslösende Ereignis der Zeitpunkt des Wirksamwerdens der Kündigung oder sonstige Beendigung des Rechtsverhältnisses.</p>
+    <section class="content-section">
+        <h2 id="mOverview">Übersicht der Verarbeitungen</h2>
+        <p>
+            Die nachfolgende Übersicht fasst die Arten der verarbeiteten Daten und die Zwecke ihrer 
+            Verarbeitung zusammen und verweist auf die betroffenen Personen.
+        </p>
+        
+        <div class="data-overview-grid">
+            <div class="data-category">
+                <h3>Arten der verarbeiteten Daten</h3>
+                <ul>
+                    <li>Zugriffsdaten (IP-Adresse, Browserinformationen)</li>
+                    <li>Session-Daten (temporäre Anmeldeinformationen)</li>
+                    <li>Film-Sammlung-Daten (persönliche DVD-Liste)</li>
+                    <li>Nutzungsstatistiken (Besucherzähler)</li>
+                </ul>
+            </div>
+            
+            <div class="data-category">
+                <h3>Kategorien betroffener Personen</h3>
+                <ul>
+                    <li>Website-Besucher</li>
+                    <li>Admin-Benutzer</li>
+                    <li>Nutzer der privaten Filmsammlung</li>
+                </ul>
+            </div>
+            
+            <div class="data-category">
+                <h3>Zwecke der Verarbeitung</h3>
+                <ul>
+                    <li>Bereitstellung der Webanwendung</li>
+                    <li>Verwaltung der persönlichen Filmsammlung</li>
+                    <li>Sicherheitsmaßnahmen</li>
+                    <li>Technische Administration</li>
+                </ul>
+            </div>
+        </div>
+    </section>
 
-<h2 id="m225">Bereitstellung des Onlineangebots und Webhosting</h2><p>Wir verarbeiten die Daten der Nutzer, um ihnen unsere Online-Dienste zur Verfügung stellen zu können. Zu diesem Zweck verarbeiten wir die IP-Adresse des Nutzers, die notwendig ist, um die Inhalte und Funktionen unserer Online-Dienste an den Browser oder das Endgerät der Nutzer zu übermitteln.</p>
-<ul class="m-elements"><li><strong>Verarbeitete Datenarten:</strong> Nutzungsdaten (z. B. Seitenaufrufe und Verweildauer, Klickpfade, Nutzungsintensität und -frequenz, verwendete Gerätetypen und Betriebssysteme, Interaktionen mit Inhalten und Funktionen); Meta-, Kommunikations- und Verfahrensdaten (z. B. IP-Adressen, Zeitangaben, Identifikationsnummern, beteiligte Personen). Protokolldaten (z. B. Logfiles betreffend Logins oder den Abruf von Daten oder Zugriffszeiten.).</li><li><strong>Betroffene Personen:</strong> Nutzer (z. B. Webseitenbesucher, Nutzer von Onlinediensten).</li><li><strong>Zwecke der Verarbeitung:</strong> Bereitstellung unseres Onlineangebotes und Nutzerfreundlichkeit; Informationstechnische Infrastruktur (Betrieb und Bereitstellung von Informationssystemen und technischen Geräten (Computer, Server etc.)). Sicherheitsmaßnahmen.</li><li><strong>Aufbewahrung und Löschung:</strong> Löschung entsprechend Angaben im Abschnitt "Allgemeine Informationen zur Datenspeicherung und Löschung".</li><li class=""><strong>Rechtsgrundlagen:</strong> Berechtigte Interessen (Art. 6 Abs. 1 S. 1 lit. f) DSGVO).</li></ul><p><strong>Weitere Hinweise zu Verarbeitungsprozessen, Verfahren und Diensten:</strong></p><ul class="m-elements"><li><strong>Bereitstellung Onlineangebot auf gemietetem Speicherplatz: </strong>Für die Bereitstellung unseres Onlineangebotes nutzen wir Speicherplatz, Rechenkapazität und Software, die wir von einem entsprechenden Serveranbieter (auch "Webhoster" genannt) mieten oder anderweitig beziehen; <span class=""><strong>Rechtsgrundlagen:</strong> Berechtigte Interessen (Art. 6 Abs. 1 S. 1 lit. f) DSGVO).</span></li><li><strong>Erhebung von Zugriffsdaten und Logfiles: </strong>Der Zugriff auf unser Onlineangebot wird in Form von sogenannten "Server-Logfiles" protokolliert. Zu den Serverlogfiles können die Adresse und der Name der abgerufenen Webseiten und Dateien, Datum und Uhrzeit des Abrufs, übertragene Datenmengen, Meldung über erfolgreichen Abruf, Browsertyp nebst Version, das Betriebssystem des Nutzers, Referrer URL (die zuvor besuchte Seite) und im Regelfall IP-Adressen und der anfragende Provider gehören. Die Serverlogfiles können zum einen zu Sicherheitszwecken eingesetzt werden, z. B. um eine Überlastung der Server zu vermeiden (insbesondere im Fall von missbräuchlichen Angriffen, sogenannten DDoS-Attacken), und zum anderen, um die Auslastung der Server und ihre Stabilität sicherzustellen; <span class=""><strong>Rechtsgrundlagen:</strong> Berechtigte Interessen (Art. 6 Abs. 1 S. 1 lit. f) DSGVO). </span><strong>Löschung von Daten:</strong> Logfile-Informationen werden für die Dauer von maximal 30 Tagen gespeichert und danach gelöscht oder anonymisiert. Daten, deren weitere Aufbewahrung zu Beweiszwecken erforderlich ist, sind bis zur endgültigen Klärung des jeweiligen Vorfalls von der Löschung ausgenommen.</li></ul>
-<h2 id="m134">Einsatz von Cookies</h2><p>Unter dem Begriff „Cookies" werden Funktionen, die Informationen auf Endgeräten der Nutzer speichern und aus ihnen auslesen, verstanden. Cookies können ferner in Bezug auf unterschiedliche Anliegen Einsatz finden, etwa zu Zwecken der Funktionsfähigkeit, der Sicherheit und des Komforts von Onlineangeboten sowie der Erstellung von Analysen der Besucherströme. Wir verwenden Cookies gemäß den gesetzlichen Vorschriften. Dazu holen wir, wenn erforderlich, vorab die Zustimmung der Nutzer ein. Ist eine Zustimmung nicht notwendig, setzen wir auf unsere berechtigten Interessen. Dies gilt, wenn das Speichern und Auslesen von Informationen unerlässlich ist, um ausdrücklich angeforderte Inhalte und Funktionen bereitstellen zu können. Dazu zählen etwa die Speicherung von Einstellungen sowie die Sicherstellung der Funktionalität und Sicherheit unseres Onlineangebots. Die Einwilligung kann jederzeit widerrufen werden. Wir informieren klar über deren Umfang und welche Cookies genutzt werden.</p>
-<p><strong>Hinweise zu datenschutzrechtlichen Rechtsgrundlagen: </strong>Ob wir personenbezogene Daten mithilfe von Cookies verarbeiten, hängt von einer Einwilligung ab. Liegt eine Einwilligung vor, dient sie als Rechtsgrundlage. Ohne Einwilligung stützen wir uns auf unsere berechtigten Interessen, die vorstehend in diesem Abschnitt und im Kontext der jeweiligen Dienste und Verfahren erläutert sind.</p>
-<p><strong>Speicherdauer: </strong>Im Hinblick auf die Speicherdauer werden die folgenden Arten von Cookies unterschieden:</p><ul><li><strong>Temporäre Cookies (auch: Session- oder Sitzungscookies):</strong> Temporäre Cookies werden spätestens gelöscht, nachdem ein Nutzer ein Onlineangebot verlassen und sein Endgerät (z. B. Browser oder mobile Applikation) geschlossen hat.</li><li><strong>Permanente Cookies:</strong> Permanente Cookies bleiben auch nach dem Schließen des Endgeräts gespeichert. So können beispielsweise der Log-in-Status gespeichert und bevorzugte Inhalte direkt angezeigt werden, wenn der Nutzer eine Website erneut besucht. Ebenso können die mithilfe von Cookies erhobenen Nutzerdaten zur Reichweitenmessung Verwendung finden. Sofern wir Nutzern keine expliziten Angaben zur Art und Speicherdauer von Cookies mitteilen (z. B. im Rahmen der Einholung der Einwilligung), sollten sie davon ausgehen, dass diese permanent sind und die Speicherdauer bis zu zwei Jahre betragen kann.</li></ul><p><strong>Allgemeine Hinweise zum Widerruf und Widerspruch (Opt-out): </strong>Nutzer können die von ihnen abgegebenen Einwilligungen jederzeit widerrufen und zudem einen Widerspruch gegen die Verarbeitung entsprechend den gesetzlichen Vorgaben, auch mittels der Privatsphäre-Einstellungen ihres Browsers, erklären.</p>
-<ul class="m-elements"><li><strong>Verarbeitete Datenarten:</strong> Meta-, Kommunikations- und Verfahrensdaten (z. B. IP-Adressen, Zeitangaben, Identifikationsnummern, beteiligte Personen).</li><li><strong>Betroffene Personen:</strong> Nutzer (z. B. Webseitenbesucher, Nutzer von Onlinediensten).</li><li class=""><strong>Rechtsgrundlagen:</strong> Berechtigte Interessen (Art. 6 Abs. 1 S. 1 lit. f) DSGVO). Einwilligung (Art. 6 Abs. 1 S. 1 lit. a) DSGVO).</li></ul><p><strong>Weitere Hinweise zu Verarbeitungsprozessen, Verfahren und Diensten:</strong></p><ul class="m-elements"><li><strong>Verarbeitung von Cookie-Daten auf Grundlage einer Einwilligung: </strong>Wir setzen eine Einwilligungs-Management-Lösung ein, bei der die Einwilligung der Nutzer zur Verwendung von Cookies oder zu den im Rahmen der Einwilligungs-Management-Lösung genannten Verfahren und Anbietern eingeholt wird. Dieses Verfahren dient der Einholung, Protokollierung, Verwaltung und dem Widerruf von Einwilligungen, insbesondere bezogen auf den Einsatz von Cookies und vergleichbaren Technologien, die zur Speicherung, zum Auslesen und zur Verarbeitung von Informationen auf den Endgeräten der Nutzer eingesetzt werden. Im Rahmen dieses Verfahrens werden die Einwilligungen der Nutzer für die Nutzung von Cookies und die damit verbundenen Verarbeitungen von Informationen, einschließlich der im Einwilligungs-Management-Verfahren genannten spezifischen Verarbeitungen und Anbieter, eingeholt. Die Nutzer haben zudem die Möglichkeit, ihre Einwilligungen zu verwalten und zu widerrufen. Die Einwilligungserklärungen werden gespeichert, um eine erneute Abfrage zu vermeiden und den Nachweis der Einwilligung gemäß der gesetzlichen Anforderungen führen zu können. Die Speicherung erfolgt serverseitig und/oder in einem Cookie (sogenanntes Opt-In-Cookie) oder mittels vergleichbarer Technologien, um die Einwilligung einem spezifischen Nutzer oder dessen Gerät zuordnen zu können. Sofern keine spezifischen Angaben zu den Anbietern von Einwilligungs-Management-Diensten vorliegen, gelten folgende allgemeine Hinweise: Die Dauer der Speicherung der Einwilligung beträgt bis zu zwei Jahre. Dabei wird ein pseudonymer Nutzer-Identifikator erstellt, der zusammen mit dem Zeitpunkt der Einwilligung, den Angaben zum Umfang der Einwilligung (z. B. betreffende Kategorien von Cookies und/oder Diensteanbieter) sowie Informationen über den Browser, das System und das verwendete Endgerät gespeichert wird; <span class=""><strong>Rechtsgrundlagen:</strong> Einwilligung (Art. 6 Abs. 1 S. 1 lit. a) DSGVO).</span></li></ul>
-<h2 id="m136">Präsenzen in sozialen Netzwerken (Social Media)</h2><p>Wir unterhalten Onlinepräsenzen innerhalb sozialer Netzwerke und verarbeiten in diesem Rahmen Nutzerdaten, um mit den dort aktiven Nutzern zu kommunizieren oder Informationen über uns anzubieten.</p>
-<p>Wir weisen darauf hin, dass dabei Nutzerdaten außerhalb des Raumes der Europäischen Union verarbeitet werden können. Hierdurch können sich für die Nutzer Risiken ergeben, weil so zum Beispiel die Durchsetzung der Nutzerrechte erschwert werden könnte.</p>
-<p>Ferner werden die Daten der Nutzer innerhalb sozialer Netzwerke im Regelfall für Marktforschungs- und Werbezwecke verarbeitet. So können beispielsweise anhand des Nutzungsverhaltens und sich daraus ergebender Interessen der Nutzer Nutzungsprofile erstellt werden. Letztere finden möglicherweise wiederum Verwendung, um etwa Werbeanzeigen innerhalb und außerhalb der Netzwerke zu schalten, die mutmaßlich den Interessen der Nutzer entsprechen. Daher werden im Regelfall Cookies auf den Rechnern der Nutzer gespeichert, in denen das Nutzungsverhalten und die Interessen der Nutzer gespeichert werden. Zudem können in den Nutzungsprofilen auch Daten unabhängig der von den Nutzern verwendeten Geräten gespeichert werden (insbesondere, wenn sie Mitglieder der jeweiligen Plattformen und dort eingeloggt sind).</p>
-<p>Für eine detaillierte Darstellung der jeweiligen Verarbeitungsformen und der Widerspruchsmöglichkeiten (Opt-out) verweisen wir auf die Datenschutzerklärungen und Angaben der Betreiber der jeweiligen Netzwerke.</p>
-<p>Auch im Fall von Auskunftsanfragen und der Geltendmachung von Betroffenenrechten weisen wir darauf hin, dass diese am effektivsten bei den Anbietern geltend gemacht werden können. Nur Letztere haben jeweils Zugriff auf die Nutzerdaten und können direkt entsprechende Maßnahmen ergreifen und Auskünfte geben. Sollten Sie dennoch Hilfe benötigen, dann können Sie sich an uns wenden.</p>
-<ul class="m-elements"><li><strong>Verarbeitete Datenarten:</strong> Kontaktdaten (z. B. Post- und E-Mail-Adressen oder Telefonnummern); Inhaltsdaten (z. B. textliche oder bildliche Nachrichten und Beiträge sowie die sie betreffenden Informationen, wie z. B. Angaben zur Autorenschaft oder Zeitpunkt der Erstellung). Nutzungsdaten (z. B. Seitenaufrufe und Verweildauer, Klickpfade, Nutzungsintensität und -frequenz, verwendete Gerätetypen und Betriebssysteme, Interaktionen mit Inhalten und Funktionen).</li><li><strong>Betroffene Personen:</strong> Nutzer (z. B. Webseitenbesucher, Nutzer von Onlinediensten).</li><li><strong>Zwecke der Verarbeitung:</strong> Kommunikation; Feedback (z. B. Sammeln von Feedback via Online-Formular). Öffentlichkeitsarbeit.</li><li><strong>Aufbewahrung und Löschung:</strong> Löschung entsprechend Angaben im Abschnitt "Allgemeine Informationen zur Datenspeicherung und Löschung".</li><li class=""><strong>Rechtsgrundlagen:</strong> Berechtigte Interessen (Art. 6 Abs. 1 S. 1 lit. f) DSGVO).</li></ul><p><strong>Weitere Hinweise zu Verarbeitungsprozessen, Verfahren und Diensten:</strong></p><ul class="m-elements"><li><strong>Facebook-Seiten: </strong>Profile innerhalb des sozialen Netzwerks Facebook - Wir sind gemeinsam mit Meta Platforms Ireland Limited für die Erhebung (jedoch nicht die weitere Verarbeitung) von Daten der Besucher unserer Facebook-Seite (sog. "Fanpage") verantwortlich. Zu diesen Daten gehören Informationen zu den Arten von Inhalten, die Nutzer sich ansehen oder mit denen sie interagieren, oder die von ihnen vorgenommenen Handlungen (siehe unter „Von dir und anderen getätigte und bereitgestellte Dinge" in der Facebook-Datenrichtlinie: <a href="https://www.facebook.com/privacy/policy/" target="_blank">https://www.facebook.com/privacy/policy/</a>), sowie Informationen über die von den Nutzern genutzten Geräte (z. B. IP-Adressen, Betriebssystem, Browsertyp, Spracheinstellungen, Cookie-Daten; siehe unter „Geräteinformationen" in der Facebook-Datenrichtlinie: <a href="https://www.facebook.com/privacy/policy/" target="_blank">https://www.facebook.com/privacy/policy/</a>). Wie in der Facebook-Datenrichtlinie unter „Wie verwenden wir diese Informationen?" erläutert, erhebt und verwendet Facebook Informationen auch, um Analysedienste, so genannte "Seiten-Insights", für Seitenbetreiber bereitzustellen, damit diese Erkenntnisse darüber erhalten, wie Personen mit ihren Seiten und mit den mit ihnen verbundenen Inhalten interagieren. Wir haben mit Facebook eine spezielle Vereinbarung abgeschlossen ("Informationen zu Seiten-Insights", <a href="https://www.facebook.com/legal/terms/page_controller_addendum" target="_blank">https://www.facebook.com/legal/terms/page_controller_addendum</a>), in der insbesondere geregelt wird, welche Sicherheitsmaßnahmen Facebook beachten muss und in der Facebook sich bereit erklärt hat die Betroffenenrechte zu erfüllen (d. h. Nutzer können z. B. Auskünfte oder Löschungsanfragen direkt an Facebook richten). Die Rechte der Nutzer (insbesondere auf Auskunft, Löschung, Widerspruch und Beschwerde bei zuständiger Aufsichtsbehörde), werden durch die Vereinbarungen mit Facebook nicht eingeschränkt. Weitere Hinweise finden sich in den "Informationen zu Seiten-Insights" (<a href="https://www.facebook.com/legal/terms/information_about_page_insights_data" target="_blank">https://www.facebook.com/legal/terms/information_about_page_insights_data</a>). Die gemeinsame Verantwortlichkeit beschränkt sich auf die Erhebung durch und Übermittlung von Daten an Meta Platforms Ireland Limited, ein Unternehmen mit Sitz in der EU. Die weitere Verarbeitung der Daten liegt in der alleinigen Verantwortung von Meta Platforms Ireland Limited, was insbesondere die Übermittlung der Daten an die Muttergesellschaft Meta Platforms, Inc. in den USA betrifft; <strong>Dienstanbieter:</strong> Meta Platforms Ireland Limited, Merrion Road, Dublin 4, D04 X2K5, Irland; <span class=""><strong>Rechtsgrundlagen:</strong> Berechtigte Interessen (Art. 6 Abs. 1 S. 1 lit. f) DSGVO); </span><strong>Website:</strong> <a href="https://www.facebook.com" target="_blank">https://www.facebook.com</a>; <strong>Datenschutzerklärung:</strong> <a href="https://www.facebook.com/privacy/policy/" target="_blank">https://www.facebook.com/privacy/policy/</a>. <strong>Grundlage Drittlandtransfers:</strong> Data Privacy Framework (DPF), Standardvertragsklauseln (<a href="https://www.facebook.com/legal/EU_data_transfer_addendum" target="_blank">https://www.facebook.com/legal/EU_data_transfer_addendum</a>).</li><li><strong>X: </strong>Soziales Netzwerk; <strong>Dienstanbieter:</strong> X Internet Unlimited Company, One Cumberland Place, Fenian Street, Dublin 2 D02 AX07, Irland; <span class=""><strong>Rechtsgrundlagen:</strong> Berechtigte Interessen (Art. 6 Abs. 1 S. 1 lit. f) DSGVO); </span><strong>Website:</strong> <a href="https://x.com" target="_blank">https://x.com</a>. <strong>Datenschutzerklärung:</strong> <a href="https://x.com/de/privacy" target="_blank">https://x.com/de/privacy</a>.</li><li><strong>YouTube: </strong>Soziales Netzwerk und Videoplattform; <strong>Dienstanbieter:</strong> Google Ireland Limited, Gordon House, Barrow Street, Dublin 4, Irland; <span class=""><strong>Rechtsgrundlagen:</strong> Berechtigte Interessen (Art. 6 Abs. 1 S. 1 lit. f) DSGVO); </span><strong>Datenschutzerklärung:</strong> <a href="https://policies.google.com/privacy" target="_blank">https://policies.google.com/privacy</a>; <strong>Grundlage Drittlandtransfers:</strong> Data Privacy Framework (DPF). <strong>Widerspruchsmöglichkeit (Opt-Out):</strong> <a href="https://myadcenter.google.com/personalizationoff" target="_blank">https://myadcenter.google.com/personalizationoff</a>.</li></ul>
-<h2 id="m328">Plug-ins und eingebettete Funktionen sowie Inhalte</h2><p>Wir binden Funktions- und Inhaltselemente in unser Onlineangebot ein, die von den Servern ihrer jeweiligen Anbieter (nachfolgend als „Drittanbieter" bezeichnet) bezogen werden. Dabei kann es sich zum Beispiel um Grafiken, Videos oder Stadtpläne handeln (nachfolgend einheitlich als „Inhalte" bezeichnet).</p>
-<p>Die Einbindung setzt immer voraus, dass die Drittanbieter dieser Inhalte die IP-Adresse der Nutzer verarbeiten, da sie ohne IP-Adresse die Inhalte nicht an deren Browser senden könnten. Die IP-Adresse ist damit für die Darstellung dieser Inhalte oder Funktionen erforderlich. Wir bemühen uns, nur solche Inhalte zu verwenden, deren jeweilige Anbieter die IP-Adresse lediglich zur Auslieferung der Inhalte anzuwenden. Drittanbieter können ferner sogenannte Pixel-Tags (unsichtbare Grafiken, auch als „Web Beacons" bezeichnet) für statistische oder Marketingzwecke einsetzen. Durch die „Pixel-Tags" können Informationen, wie etwa der Besucherverkehr auf den Seiten dieser Website, ausgewertet werden. Die pseudonymen Informationen können darüber hinaus in Cookies auf dem Gerät der Nutzer gespeichert werden und unter anderem technische Auskünfte zum Browser und zum Betriebssystem, zu verweisenden Websites, zur Besuchszeit sowie weitere Angaben zur Nutzung unseres Onlineangebots enthalten, aber auch mit solchen Informationen aus anderen Quellen verbunden werden.</p>
-<p><strong>Hinweise zu Rechtsgrundlagen:</strong> Sofern wir die Nutzer um ihre Einwilligung in den Einsatz der Drittanbieter bitten, stellt die Rechtsgrundlage der Datenverarbeitung die Erlaubnis dar. Ansonsten werden die Nutzerdaten auf Grundlage unserer berechtigten Interessen (d. h. Interesse an effizienten, wirtschaftlichen und empfängerfreundlichen Leistungen) verarbeitet. In diesem Zusammenhang möchten wir Sie auch auf die Informationen zur Verwendung von Cookies in dieser Datenschutzerklärung hinweisen.</p>
-<ul class="m-elements"><li><strong>Verarbeitete Datenarten:</strong> Nutzungsdaten (z. B. Seitenaufrufe und Verweildauer, Klickpfade, Nutzungsintensität und -frequenz, verwendete Gerätetypen und Betriebssysteme, Interaktionen mit Inhalten und Funktionen). Meta-, Kommunikations- und Verfahrensdaten (z. B. IP-Adressen, Zeitangaben, Identifikationsnummern, beteiligte Personen).</li><li><strong>Betroffene Personen:</strong> Nutzer (z. B. Webseitenbesucher, Nutzer von Onlinediensten).</li><li><strong>Zwecke der Verarbeitung:</strong> Bereitstellung unseres Onlineangebotes und Nutzerfreundlichkeit; Reichweitenmessung (z. B. Zugriffsstatistiken, Erkennung wiederkehrender Besucher); Tracking (z. B. interessens-/verhaltensbezogenes Profiling, Nutzung von Cookies); Zielgruppenbildung. Marketing.</li><li><strong>Aufbewahrung und Löschung:</strong> Löschung entsprechend Angaben im Abschnitt "Allgemeine Informationen zur Datenspeicherung und Löschung". Speicherung von Cookies von bis zu 2 Jahren (Sofern nicht anders angegeben, können Cookies und ähnliche Speichermethoden für einen Zeitraum von zwei Jahren auf den Geräten der Nutzer gespeichert werden.).</li><li class=""><strong>Rechtsgrundlagen:</strong> Einwilligung (Art. 6 Abs. 1 S. 1 lit. a) DSGVO). Berechtigte Interessen (Art. 6 Abs. 1 S. 1 lit. f) DSGVO).</li></ul><p><strong>Weitere Hinweise zu Verarbeitungsprozessen, Verfahren und Diensten:</strong></p><ul class="m-elements"><li><strong>Einbindung von Drittsoftware, Skripten oder Frameworks (z. B. jQuery): </strong>Wir binden in unser Onlineangebot Software ein, die wir von Servern anderer Anbieter abrufen (z. B. Funktions-Bibliotheken, die wir zwecks Darstellung oder Nutzerfreundlichkeit unseres Onlineangebotes verwenden). Hierbei erheben die jeweiligen Anbieter die IP-Adresse der Nutzer und können diese zu Zwecken der Übermittlung der Software an den Browser der Nutzer sowie zu Zwecken der Sicherheit, als auch zur Auswertung und Optimierung ihres Angebotes verarbeiten. - Wir binden in unser Onlineangebot Software ein, die wir von Servern anderer Anbieter abrufen (z. B. Funktions-Bibliotheken, die wir zwecks Darstellung oder Nutzerfreundlichkeit unseres Onlineangebotes verwenden). Hierbei erheben die jeweiligen Anbieter die IP-Adresse der Nutzer und können diese zu Zwecken der Übermittlung der Software an den Browser der Nutzer sowie zu Zwecken der Sicherheit, als auch zur Auswertung und Optimierung ihres Angebotes verarbeiten; <span class=""><strong>Rechtsgrundlagen:</strong> Berechtigte Interessen (Art. 6 Abs. 1 S. 1 lit. f) DSGVO).</span></li><li><strong>Google Fonts (Bezug vom Google Server): </strong>Bezug von Schriften (und Symbolen) zum Zwecke einer technisch sicheren, wartungsfreien und effizienten Nutzung von Schriften und Symbolen im Hinblick auf Aktualität und Ladezeiten, deren einheitliche Darstellung und Berücksichtigung möglicher lizenzrechtlicher Beschränkungen. Dem Anbieter der Schriftarten wird die IP-Adresse des Nutzers mitgeteilt, damit die Schriftarten im Browser des Nutzers zur Verfügung gestellt werden können. Darüber hinaus werden technische Daten (Spracheinstellungen, Bildschirmauflösung, Betriebssystem, verwendete Hardware) übermittelt, die für die Bereitstellung der Schriften in Abhängigkeit von den verwendeten Geräten und der technischen Umgebung notwendig sind. Diese Daten können auf einem Server des Anbieters der Schriftarten in den USA verarbeitet werden - Beim Besuch unseres Onlineangebotes senden die Browser der Nutzer ihre Browser HTTP-Anfragen an die Google Fonts Web API (d. h. eine Softwareschnittstelle für den Abruf der Schriftarten). Die Google Fonts Web API stellt den Nutzern die Cascading Style Sheets (CSS) von Google Fonts und danach die in der CCS angegebenen Schriftarten zur Verfügung. Zu diesen HTTP-Anfragen gehören (1) die vom jeweiligen Nutzer für den Zugriff auf das Internet verwendete IP-Adresse, (2) die angeforderte URL auf dem Google-Server und (3) die HTTP-Header, einschließlich des User-Agents, der die Browser- und Betriebssystemversionen der Websitebesucher beschreibt, sowie die Verweis-URL (d. h. die Webseite, auf der die Google-Schriftart angezeigt werden soll). IP-Adressen werden weder auf Google-Servern protokolliert noch gespeichert und sie werden nicht analysiert. Die Google Fonts Web API protokolliert Details der HTTP-Anfragen (angeforderte URL, User-Agent und Verweis-URL). Der Zugriff auf diese Daten ist eingeschränkt und streng kontrolliert. Die angeforderte URL identifiziert die Schriftfamilien, für die der Nutzer Schriftarten laden möchte. Diese Daten werden protokolliert, damit Google bestimmen kann, wie oft eine bestimmte Schriftfamilie angefordert wird. Bei der Google Fonts Web API muss der User-Agent die Schriftart anpassen, die für den jeweiligen Browsertyp generiert wird. Der User-Agent wird in erster Linie zum Debugging protokolliert und verwendet, um aggregierte Nutzungsstatistiken zu generieren, mit denen die Beliebtheit von Schriftfamilien gemessen wird. Diese zusammengefassten Nutzungsstatistiken werden auf der Seite „Analysen" von Google Fonts veröffentlicht. Schließlich wird die Verweis-URL protokolliert, sodass die Daten für die Wartung der Produktion verwendet und ein aggregierter Bericht zu den Top-Integrationen basierend auf der Anzahl der Schriftartenanfragen generiert werden kann. Google verwendet laut eigener Auskunft keine der von Google Fonts erfassten Informationen, um Profile von Endnutzern zu erstellen oder zielgerichtete Anzeigen zu schalten; <strong>Dienstanbieter:</strong> Google Ireland Limited, Gordon House, Barrow Street, Dublin 4, Irland; <span class=""><strong>Rechtsgrundlagen:</strong> Berechtigte Interessen (Art. 6 Abs. 1 S. 1 lit. f) DSGVO); </span><strong>Website:</strong> <a href="https://fonts.google.com/" target="_blank">https://fonts.google.com/</a>; <strong>Datenschutzerklärung:</strong> <a href="https://policies.google.com/privacy" target="_blank">https://policies.google.com/privacy</a>; <strong>Grundlage Drittlandtransfers:</strong> Data Privacy Framework (DPF). <strong>Weitere Informationen:</strong> <a href="https://developers.google.com/fonts/faq/privacy?hl=de" target="_blank">https://developers.google.com/fonts/faq/privacy?hl=de</a>.</li><li><strong>Font Awesome (Bereitstellung auf eigenem Server): </strong>Darstellung von Schriftarten und Symbolen; <strong>Dienstanbieter:</strong> Die Font Awesome Icons werden auf unserem Server gehostet, es werden keine Daten an den Anbieter von Font Awesome übermittelt; <span class=""><strong>Rechtsgrundlagen:</strong> Berechtigte Interessen (Art. 6 Abs. 1 S. 1 lit. f) DSGVO).</span></li><li><strong>YouTube-Videos: </strong>Videoinhalte; <strong>Dienstanbieter:</strong> Google Ireland Limited, Gordon House, Barrow Street, Dublin 4, Irland; <span class=""><strong>Rechtsgrundlagen:</strong> Einwilligung (Art. 6 Abs. 1 S. 1 lit. a) DSGVO); </span><strong>Website:</strong> <a href="https://www.youtube.com" target="_blank">https://www.youtube.com</a>; <strong>Datenschutzerklärung:</strong> <a href="https://policies.google.com/privacy" target="_blank">https://policies.google.com/privacy</a>; <strong>Grundlage Drittlandtransfers:</strong> Data Privacy Framework (DPF). <strong>Widerspruchsmöglichkeit (Opt-Out):</strong> Opt-Out-Plugin: <a href="https://tools.google.com/dlpage/gaoptout?hl=de" target="_blank">https://tools.google.com/dlpage/gaoptout?hl=de</a>,  Einstellungen für die Darstellung von Werbeeinblendungen: <a href="https://myadcenter.google.com/personalizationoff" target="_blank">https://myadcenter.google.com/personalizationoff</a>.</li></ul>
-<h2 id="m15">Änderung und Aktualisierung</h2><p>Wir bitten Sie, sich regelmäßig über den Inhalt unserer Datenschutzerklärung zu informieren. Wir passen die Datenschutzerklärung an, sobald die Änderungen der von uns durchgeführten Datenverarbeitungen dies erforderlich machen. Wir informieren Sie, sobald durch die Änderungen eine Mitwirkungshandlung Ihrerseits (z. B. Einwilligung) oder eine sonstige individuelle Benachrichtigung erforderlich wird.</p>
-<p>Sofern wir in dieser Datenschutzerklärung Adressen und Kontaktinformationen von Unternehmen und Organisationen angeben, bitten wir zu beachten, dass die Adressen sich über die Zeit ändern können und bitten die Angaben vor Kontaktaufnahme zu prüfen.</p>
+    <section class="content-section">
+        <h2 id="m2427">Maßgebliche Rechtsgrundlagen</h2>
+        <p>
+            <strong>Rechtsgrundlagen nach der DSGVO:</strong> Im Folgenden erhalten Sie eine Übersicht der 
+            Rechtsgrundlagen der DSGVO, auf deren Basis wir personenbezogene Daten verarbeiten.
+        </p>
+        
+        <div class="legal-basis">
+            <ul>
+                <li>
+                    <strong>Berechtigte Interessen (Art. 6 Abs. 1 S. 1 lit. f) DSGVO):</strong> 
+                    Verarbeitung zur Wahrung der berechtigten Interessen des Verantwortlichen oder eines Dritten, 
+                    sofern nicht die Interessen oder Grundrechte und Grundfreiheiten der betroffenen Person überwiegen.
+                </li>
+                <li>
+                    <strong>Einwilligung (Art. 6 Abs. 1 S. 1 lit. a) DSGVO):</strong> 
+                    Die betroffene Person hat ihre Einwilligung zu der Verarbeitung der sie betreffenden 
+                    personenbezogenen Daten für einen oder mehrere bestimmte Zwecke gegeben.
+                </li>
+            </ul>
+        </div>
+    </section>
 
-<h2 id="m42">Begriffsdefinitionen</h2><p>In diesem Abschnitt erhalten Sie eine Übersicht über die in dieser Datenschutzerklärung verwendeten Begrifflichkeiten. Soweit die Begrifflichkeiten gesetzlich definiert sind, gelten deren gesetzliche Definitionen. Die nachfolgenden Erläuterungen sollen dagegen vor allem dem Verständnis dienen.</p>
- <ul class="glossary"><li><strong>Inhaltsdaten:</strong> Inhaltsdaten umfassen Informationen, die im Zuge der Erstellung, Bearbeitung und Veröffentlichung von Inhalten aller Art generiert werden. Diese Kategorie von Daten kann Texte, Bilder, Videos, Audiodateien und andere multimediale Inhalte einschließen, die auf verschiedenen Plattformen und Medien veröffentlicht werden. Inhaltsdaten sind nicht nur auf den eigentlichen Inhalt beschränkt, sondern beinhalten auch Metadaten, die Informationen über den Inhalt selbst liefern, wie Tags, Beschreibungen, Autoreninformationen und Veröffentlichungsdaten </li><li><strong>Kontaktdaten:</strong> Kontaktdaten sind essentielle Informationen, die die Kommunikation mit Personen oder Organisationen ermöglichen. Sie umfassen u.a. Telefonnummern, postalische Adressen und E-Mail-Adressen, sowie Kommunikationsmittel wie soziale Medien-Handles und Instant-Messaging-Identifikatoren. </li><li><strong>Meta-, Kommunikations- und Verfahrensdaten:</strong> Meta-, Kommunikations- und Verfahrensdaten sind Kategorien, die Informationen über die Art und Weise enthalten, wie Daten verarbeitet, übermittelt und verwaltet werden. Meta-Daten, auch bekannt als Daten über Daten, umfassen Informationen, die den Kontext, die Herkunft und die Struktur anderer Daten beschreiben. Sie können Angaben zur Dateigröße, dem Erstellungsdatum, dem Autor eines Dokuments und den Änderungshistorien beinhalten. Kommunikationsdaten erfassen den Austausch von Informationen zwischen Nutzern über verschiedene Kanäle, wie E-Mail-Verkehr, Anrufprotokolle, Nachrichten in sozialen Netzwerken und Chat-Verläufe, inklusive der beteiligten Personen, Zeitstempel und Übertragungswege. Verfahrensdaten beschreiben die Prozesse und Abläufe innerhalb von Systemen oder Organisationen, einschließlich Workflow-Dokumentationen, Protokolle von Transaktionen und Aktivitäten, sowie Audit-Logs, die zur Nachverfolgung und Überprüfung von Vorgängen verwendet werden. </li><li><strong>Nutzungsdaten:</strong> Nutzungsdaten beziehen sich auf Informationen, die erfassen, wie Nutzer mit digitalen Produkten, Dienstleistungen oder Plattformen interagieren. Diese Daten umfassen eine breite Palette von Informationen, die aufzeigen, wie Nutzer Anwendungen nutzen, welche Funktionen sie bevorzugen, wie lange sie auf bestimmten Seiten verweilen und über welche Pfade sie durch eine Anwendung navigieren. Nutzungsdaten können auch die Häufigkeit der Nutzung, Zeitstempel von Aktivitäten, IP-Adressen, Geräteinformationen und Standortdaten einschließen. Sie sind besonders wertvoll für die Analyse des Nutzerverhaltens, die Optimierung von Benutzererfahrungen, das Personalisieren von Inhalten und das Verbessern von Produkten oder Dienstleistungen. Darüber hinaus spielen Nutzungsdaten eine entscheidende Rolle beim Erkennen von Trends, Vorlieben und möglichen Problembereichen innerhalb digitaler Angebote </li><li><strong>Personenbezogene Daten:</strong> "Personenbezogene Daten" sind alle Informationen, die sich auf eine identifizierte oder identifizierbare natürliche Person (im Folgenden "betroffene Person") beziehen; als identifizierbar wird eine natürliche Person angesehen, die direkt oder indirekt, insbesondere mittels Zuordnung zu einer Kennung wie einem Namen, zu einer Kennnummer, zu Standortdaten, zu einer Online-Kennung (z. B. Cookie) oder zu einem oder mehreren besonderen Merkmalen identifiziert werden kann, die Ausdruck der physischen, physiologischen, genetischen, psychischen, wirtschaftlichen, kulturellen oder sozialen Identität dieser natürlichen Person sind. </li><li><strong>Protokolldaten:</strong> Protokolldaten sind Informationen über Ereignisse oder Aktivitäten, die in einem System oder Netzwerk protokolliert wurden. Diese Daten enthalten typischerweise Informationen wie Zeitstempel, IP-Adressen, Benutzeraktionen, Fehlermeldungen und andere Details über die Nutzung oder den Betrieb eines Systems. Protokolldaten werden oft zur Analyse von Systemproblemen, zur Sicherheitsüberwachung oder zur Erstellung von Leistungsberichten verwendet. </li><li><strong>Reichweitenmessung:</strong> Die Reichweitenmessung (auch als Web Analytics bezeichnet) dient der Auswertung der Besucherströme eines Onlineangebotes und kann das Verhalten oder Interessen der Besucher an bestimmten Informationen, wie z. B. Inhalten von Webseiten, umfassen. Mit Hilfe der Reichweitenanalyse können Betreiber von Onlineangeboten z. B. erkennen, zu welcher Zeit Nutzer ihre Webseiten besuchen und für welche Inhalte sie sich interessieren. Dadurch können sie z. B. die Inhalte der Webseiten besser an die Bedürfnisse ihrer Besucher anpassen. Zu Zwecken der Reichweitenanalyse werden häufig pseudonyme Cookies und Web-Beacons eingesetzt, um wiederkehrende Besucher zu erkennen und so genauere Analysen zur Nutzung eines Onlineangebotes zu erhalten. </li><li><strong>Tracking:</strong> Vom "Tracking" spricht man, wenn das Verhalten von Nutzern über mehrere Onlineangebote hinweg nachvollzogen werden kann. Im Regelfall werden im Hinblick auf die genutzten Onlineangebote Verhaltens- und Interessensinformationen in Cookies oder auf Servern der Anbieter der Trackingtechnologien gespeichert (sogenanntes Profiling). Diese Informationen können anschließend z. B. eingesetzt werden, um den Nutzern Werbeanzeigen anzuzeigen, die voraussichtlich deren Interessen entsprechen. </li><li><strong>Verantwortlicher:</strong> Als "Verantwortlicher" wird die natürliche oder juristische Person, Behörde, Einrichtung oder andere Stelle, die allein oder gemeinsam mit anderen über die Zwecke und Mittel der Verarbeitung von personenbezogenen Daten entscheidet, bezeichnet. </li><li><strong>Verarbeitung:</strong> "Verarbeitung" ist jeder mit oder ohne Hilfe automatisierter Verfahren ausgeführte Vorgang oder jede solche Vorgangsreihe im Zusammenhang mit personenbezogenen Daten. Der Begriff reicht weit und umfasst praktisch jeden Umgang mit Daten, sei es das Erheben, das Auswerten, das Speichern, das Übermitteln oder das Löschen. </li><li><strong>Zielgruppenbildung:</strong> Von Zielgruppenbildung (englisch "Custom Audiences") spricht man, wenn Zielgruppen für Werbezwecke, z. B. Einblendung von Werbeanzeigen bestimmt werden. So kann z. B. anhand des Interesses eines Nutzers an bestimmten Produkten oder Themen im Internet geschlussfolgert werden, dass dieser Nutzer sich für Werbeanzeigen für ähnliche Produkte oder den Onlineshop, in dem er die Produkte betrachtet hat, interessiert. Von "Lookalike Audiences" (bzw. ähnlichen Zielgruppen) spricht man wiederum, wenn die als geeignet eingeschätzten Inhalte Nutzern angezeigt werden, deren Profile, bzw. Interessen mutmaßlich den Nutzern zu denen die Profile gebildet wurden, entsprechen. Zur Zwecken der Bildung von Custom Audiences und Lookalike Audiences werden im Regelfall Cookies und Web-Beacons eingesetzt. </li></ul><p class="seal"><a href="https://datenschutz-generator.de/" title="Rechtstext von Dr. Schwenke - für weitere Informationen bitte anklicken." target="_blank" rel="noopener noreferrer nofollow">Erstellt mit kostenlosem Datenschutz-Generator.de von Dr. Thomas Schwenke</a></p>
+    <section class="content-section">
+        <h2 id="m27">Sicherheitsmaßnahmen</h2>
+        <p>
+            Wir treffen nach Maßgabe der gesetzlichen Vorgaben unter Berücksichtigung des Stands der Technik, 
+            der Implementierungskosten und der Art, des Umfangs, der Umstände und der Zwecke der Verarbeitung 
+            sowie der unterschiedlichen Eintrittswahrscheinlichkeiten und des Ausmaßes der Bedrohung der Rechte 
+            und Freiheiten natürlicher Personen geeignete technische und organisatorische Maßnahmen.
+        </p>
+        
+        <div class="security-measures">
+            <h3>Implementierte Sicherheitsmaßnahmen</h3>
+            <div class="measures-grid">
+                <div class="measure-item">
+                    <i class="bi bi-shield-lock"></i>
+                    <strong>Verschlüsselung</strong>
+                    <p>HTTPS/TLS-Verschlüsselung für alle Datenübertragungen</p>
+                </div>
+                <div class="measure-item">
+                    <i class="bi bi-key"></i>
+                    <strong>Passwort-Sicherheit</strong>
+                    <p>Argon2ID-Hashing für Admin-Passwörter</p>
+                </div>
+                <div class="measure-item">
+                    <i class="bi bi-bug"></i>
+                    <strong>XSS-Schutz</strong>
+                    <p>Content Security Policy und Input-Validierung</p>
+                </div>
+                <div class="measure-item">
+                    <i class="bi bi-database-lock"></i>
+                    <strong>SQL-Injection-Schutz</strong>
+                    <p>Prepared Statements und Parameterisierung</p>
+                </div>
+                <div class="measure-item">
+                    <i class="bi bi-clock-history"></i>
+                    <strong>Session-Management</strong>
+                    <p>Sichere Session-Konfiguration mit Timeout</p>
+                </div>
+                <div class="measure-item">
+                    <i class="bi bi-shield-check"></i>
+                    <strong>CSRF-Schutz</strong>
+                    <p>Token-basierter Schutz vor Cross-Site-Request-Forgery</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="content-section">
+        <h2 id="m225">Bereitstellung des Onlineangebots und Webhosting</h2>
+        <p>
+            Zur Bereitstellung unseres Onlineangebots verarbeiten wir die IP-Adresse der Nutzer, damit 
+            wir die Inhalte und Funktionen unseres Onlineangebots an deren Browser übermitteln können.
+        </p>
+        
+        <div class="hosting-info">
+            <h3>Verarbeitete Datenarten</h3>
+            <ul>
+                <li><strong>Zugriffsdaten:</strong> IP-Adresse, Browser-Typ und Version, Betriebssystem</li>
+                <li><strong>Zeitdaten:</strong> Datum und Uhrzeit des Zugriffs</li>
+                <li><strong>Referrer-Daten:</strong> Zuvor besuchte Website (falls vorhanden)</li>
+                <li><strong>Nutzungsdaten:</strong> Aufgerufene Seiten und Funktionen</li>
+            </ul>
+            
+            <h3>Zwecke der Verarbeitung</h3>
+            <ul>
+                <li>Bereitstellung der Webanwendung und ihrer Funktionen</li>
+                <li>Gewährleistung der Systemsicherheit und -stabilität</li>
+                <li>Optimierung der Anwendungsleistung</li>
+                <li>Fehlerdiagnose und -behebung</li>
+            </ul>
+            
+            <div class="data-retention">
+                <h3>Speicherdauer</h3>
+                <p>
+                    <strong>Server-Logs:</strong> Die Daten werden für maximal 30 Tage gespeichert und 
+                    anschließend automatisch gelöscht.<br>
+                    <strong>Session-Daten:</strong> Werden nach Ende der Browser-Session oder nach 
+                    <?= getSetting('session_timeout', '3600') / 3600 ?> Stunden Inaktivität gelöscht.
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <section class="content-section">
+        <h2 id="m134">Einsatz von Cookies</h2>
+        <p>
+            Cookies sind kleine Textdateien, die von Ihrem Browser auf Ihrem Gerät gespeichert werden. 
+            Diese Website verwendet Cookies nur für technisch notwendige Funktionen.
+        </p>
+        
+        <div class="cookie-info">
+            <h3>Verwendete Cookie-Kategorien</h3>
+            
+            <div class="cookie-category">
+                <h4><i class="bi bi-gear"></i> Technisch notwendige Cookies</h4>
+                <p>
+                    Diese Cookies sind für die grundlegende Funktionalität der Website erforderlich 
+                    und können nicht deaktiviert werden.
+                </p>
+                <ul>
+                    <li><strong>Session-Cookie:</strong> Zur Aufrechterhaltung der Admin-Anmeldung</li>
+                    <li><strong>CSRF-Token:</strong> Schutz vor Sicherheitsangriffen</li>
+                    <li><strong>Theme-Präferenz:</strong> Speicherung der gewählten Farbgebung</li>
+                </ul>
+                <p><strong>Speicherdauer:</strong> Session-Ende oder maximal 24 Stunden</p>
+            </div>
+            
+            <div class="cookie-category">
+                <h4><i class="bi bi-x-circle"></i> Nicht verwendete Cookies</h4>
+                <p>Diese Website verwendet <strong>KEINE</strong>:</p>
+                <ul>
+                    <li>Analytics-Cookies (Google Analytics, etc.)</li>
+                    <li>Marketing-Cookies</li>
+                    <li>Social Media Tracking-Cookies</li>
+                    <li>Drittanbieter-Tracking-Cookies</li>
+                </ul>
+            </div>
+        </div>
+    </section>
+
+    <section class="content-section">
+        <h2 id="m328">Externe Inhalte und Dienste</h2>
+        <p>
+            Wir binden Inhalte oder Funktionen von Drittanbietern in unser Onlineangebot ein. 
+            Dies erfordert, dass die jeweiligen Anbieter die IP-Adresse der Nutzer verarbeiten.
+        </p>
+        
+        <div class="external-services">
+            <h3>Verwendete externe Dienste</h3>
+            
+            <div class="service-item">
+                <h4><i class="bi bi-github"></i> GitHub</h4>
+                <p>
+                    <strong>Zweck:</strong> Hosting des Quellcodes und Update-Informationen<br>
+                    <strong>Anbieter:</strong> GitHub, Inc., 88 Colin P Kelly Jr St, San Francisco, CA 94107, USA<br>
+                    <strong>Datenschutz:</strong> <a href="https://docs.github.com/en/site-policy/privacy-policies/github-privacy-statement" target="_blank">GitHub Privacy Statement</a><br>
+                    <strong>Datenübertragung:</strong> Nur bei Klick auf GitHub-Links
+                </p>
+            </div>
+            
+            <div class="service-item">
+                <h4><i class="bi bi-fonts"></i> Bootstrap Icons</h4>
+                <p>
+                    <strong>Zweck:</strong> Darstellung von Icons in der Benutzeroberfläche<br>
+                    <strong>Anbieter:</strong> CDN-Service (jsDelivr)<br>
+                    <strong>Lokale Alternative:</strong> Icons können lokal gehostet werden<br>
+                    <strong>Datenübertragung:</strong> IP-Adresse beim Laden der Icon-Fonts
+                </p>
+            </div>
+            
+            <div class="service-item">
+                <h4><i class="bi bi-play-circle"></i> YouTube (Optional)</h4>
+                <p>
+                    <strong>Zweck:</strong> Einbindung von Film-Trailern (falls aktiviert)<br>
+                    <strong>Anbieter:</strong> Google Ireland Limited, Gordon House, Barrow Street, Dublin 4, Irland<br>
+                    <strong>Datenschutz:</strong> <a href="https://policies.google.com/privacy" target="_blank">Google Privacy Policy</a><br>
+                    <strong>Hinweis:</strong> Trailer werden nur bei explizitem Nutzer-Wunsch geladen
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <section class="content-section">
+        <h2 id="m12">Allgemeine Informationen zur Datenspeicherung und Löschung</h2>
+        <p>
+            Wir löschen personenbezogene Daten, sobald diese für die Erfüllung des Zwecks ihrer Verarbeitung 
+            nicht mehr erforderlich sind und der Löschung keine gesetzlichen Aufbewahrungspflichten entgegenstehen.
+        </p>
+        
+        <div class="data-retention-table">
+            <h3>Speicherfristen im Überblick</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Datentyp</th>
+                        <th>Speicherdauer</th>
+                        <th>Löschung</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Server-Access-Logs</td>
+                        <td>30 Tage</td>
+                        <td>Automatisch</td>
+                    </tr>
+                    <tr>
+                        <td>Session-Daten</td>
+                        <td>1-24 Stunden</td>
+                        <td>Bei Session-Ende</td>
+                    </tr>
+                    <tr>
+                        <td>Admin-Account-Daten</td>
+                        <td>Bis zur Deaktivierung</td>
+                        <td>Manuell oder automatisch</td>
+                    </tr>
+                    <tr>
+                        <td>Film-Sammlung-Daten</td>
+                        <td>Dauerhaft (Zweck der Anwendung)</td>
+                        <td>Bei Löschung der Sammlung</td>
+                    </tr>
+                    <tr>
+                        <td>Backup-Daten</td>
+                        <td><?= getSetting('backup_retention_days', '30') ?> Tage</td>
+                        <td>Automatisch</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="content-section">
+        <h2>Ihre Rechte als betroffene Person</h2>
+        <p>
+            Sie haben verschiedene Rechte bezüglich Ihrer personenbezogenen Daten. Diese können Sie 
+            jederzeit per E-Mail an die oben genannte Kontaktadresse geltend machen.
+        </p>
+        
+        <div class="rights-grid">
+            <div class="right-item">
+                <i class="bi bi-info-circle"></i>
+                <h4>Auskunftsrecht (Art. 15 DSGVO)</h4>
+                <p>Sie haben das Recht zu erfahren, ob und welche Daten wir über Sie verarbeiten.</p>
+            </div>
+            
+            <div class="right-item">
+                <i class="bi bi-pencil"></i>
+                <h4>Berichtigungsrecht (Art. 16 DSGVO)</h4>
+                <p>Sie können die Berichtigung unrichtiger oder unvollständiger Daten verlangen.</p>
+            </div>
+            
+            <div class="right-item">
+                <i class="bi bi-trash"></i>
+                <h4>Löschungsrecht (Art. 17 DSGVO)</h4>
+                <p>Sie können unter bestimmten Umständen die Löschung Ihrer Daten verlangen.</p>
+            </div>
+            
+            <div class="right-item">
+                <i class="bi bi-pause-circle"></i>
+                <h4>Einschränkung der Verarbeitung (Art. 18 DSGVO)</h4>
+                <p>Sie können die Einschränkung der Verarbeitung Ihrer Daten verlangen.</p>
+            </div>
+            
+            <div class="right-item">
+                <i class="bi bi-download"></i>
+                <h4>Datenübertragbarkeit (Art. 20 DSGVO)</h4>
+                <p>Sie können Ihre Daten in einem maschinenlesbaren Format erhalten.</p>
+            </div>
+            
+            <div class="right-item">
+                <i class="bi bi-x-octagon"></i>
+                <h4>Widerspruchsrecht (Art. 21 DSGVO)</h4>
+                <p>Sie können der Verarbeitung Ihrer Daten widersprechen.</p>
+            </div>
+        </div>
+    </section>
+
+    <section class="content-section">
+        <h2 id="m15">Änderung und Aktualisierung der Datenschutzerklärung</h2>
+        <p>
+            Wir bitten Sie, sich regelmäßig über den Inhalt unserer Datenschutzerklärung zu informieren. 
+            Wir passen die Datenschutzerklärung an, sobald die Änderungen der von uns durchgeführten 
+            Datenverarbeitungen dies erforderlich machen.
+        </p>
+        
+        <div class="version-history">
+            <h3>Versionshistorie</h3>
+            <ul>
+                <li><strong>Version 1.3.6 (23.07.2025):</strong> Aktualisierung für erweiterte Versionsverwaltung</li>
+                <li><strong>Version 1.3.5 (20.07.2025):</strong> Ergänzung um GitHub-Integration und Update-System</li>
+                <li><strong>Version 1.3.0 (15.06.2025):</strong> Erste vollständige DSGVO-konforme Version</li>
+            </ul>
+        </div>
+    </section>
+
+    <footer class="page-footer">
+        <div class="footer-info">
+            <p>
+                <strong>DVD Profiler Liste</strong> v<?= DVDPROFILER_VERSION ?> "<?= DVDPROFILER_CODENAME ?>"<br>
+                Datenschutzerklärung | Build <?= DVDPROFILER_BUILD_DATE ?> | © <?= date('Y') ?> <?= DVDPROFILER_AUTHOR ?>
+            </p>
+            <p class="build-details">
+                <small>
+                    Diese Datenschutzerklärung wurde automatisch mit der Software-Version aktualisiert.<br>
+                    Branch: <?= DVDPROFILER_BRANCH ?> | Commit: <?= DVDPROFILER_COMMIT ?> | 
+                    Features: <?= count(array_filter(DVDPROFILER_FEATURES)) ?> aktiv
+                </small>
+            </p>
+        </div>
+    </footer>
+</div>
+
+<style>
+/* Erweiterte Styles für Datenschutzerklärung */
+.last-updated {
+    background: var(--glass-bg-strong, rgba(255, 255, 255, 0.15));
+    padding: var(--space-sm, 8px) var(--space-md, 16px);
+    border-radius: var(--radius-md, 12px);
+    font-size: 0.9rem;
+    margin-top: var(--space-md, 16px);
+    border-left: 3px solid var(--accent-color, #3498db);
+}
+
+.privacy-summary {
+    background: var(--glass-bg-strong, rgba(255, 255, 255, 0.15));
+    border-radius: var(--radius-lg, 16px);
+    padding: var(--space-xl, 24px);
+    margin-top: var(--space-lg, 20px);
+}
+
+.summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: var(--space-lg, 20px);
+    margin-top: var(--space-lg, 20px);
+}
+
+.summary-item {
+    background: var(--glass-bg, rgba(255, 255, 255, 0.1));
+    padding: var(--space-md, 16px);
+    border-radius: var(--radius-md, 12px);
+    text-align: center;
+    border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.2));
+    transition: all var(--transition-fast, 0.3s);
+}
+
+.summary-item:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-lg, 0 10px 25px rgba(0, 0, 0, 0.2));
+}
+
+.summary-item i {
+    font-size: 2rem;
+    margin-bottom: var(--space-sm, 8px);
+    color: var(--accent-color, #3498db);
+}
+
+.data-overview-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: var(--space-lg, 20px);
+    margin-top: var(--space-lg, 20px);
+}
+
+.data-category {
+    background: var(--glass-bg-strong, rgba(255, 255, 255, 0.15));
+    padding: var(--space-lg, 20px);
+    border-radius: var(--radius-md, 12px);
+    border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.2));
+}
+
+.legal-basis {
+    background: var(--glass-bg-strong, rgba(255, 255, 255, 0.15));
+    padding: var(--space-lg, 20px);
+    border-radius: var(--radius-md, 12px);
+    margin-top: var(--space-lg, 20px);
+}
+
+.security-measures {
+    margin-top: var(--space-lg, 20px);
+}
+
+.measures-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: var(--space-lg, 20px);
+    margin-top: var(--space-lg, 20px);
+}
+
+.measure-item {
+    background: var(--glass-bg-strong, rgba(255, 255, 255, 0.15));
+    padding: var(--space-lg, 20px);
+    border-radius: var(--radius-md, 12px);
+    border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.2));
+    text-align: center;
+    transition: all var(--transition-fast, 0.3s);
+}
+
+.measure-item:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md, 0 4px 12px rgba(0, 0, 0, 0.15));
+}
+
+.measure-item i {
+    font-size: 1.5rem;
+    color: var(--accent-color, #3498db);
+    margin-bottom: var(--space-sm, 8px);
+}
+
+.hosting-info,
+.cookie-info {
+    background: var(--glass-bg-strong, rgba(255, 255, 255, 0.15));
+    padding: var(--space-lg, 20px);
+    border-radius: var(--radius-md, 12px);
+    margin-top: var(--space-lg, 20px);
+}
+
+.data-retention {
+    background: var(--glass-bg, rgba(255, 255, 255, 0.1));
+    padding: var(--space-md, 16px);
+    border-radius: var(--radius-sm, 8px);
+    margin-top: var(--space-lg, 20px);
+    border-left: 3px solid var(--accent-color, #3498db);
+}
+
+.cookie-category {
+    background: var(--glass-bg, rgba(255, 255, 255, 0.1));
+    padding: var(--space-lg, 20px);
+    border-radius: var(--radius-md, 12px);
+    margin: var(--space-lg, 20px) 0;
+    border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.2));
+}
+
+.cookie-category h4 {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm, 8px);
+    margin-bottom: var(--space-md, 16px);
+}
+
+.external-services {
+    margin-top: var(--space-lg, 20px);
+}
+
+.service-item {
+    background: var(--glass-bg-strong, rgba(255, 255, 255, 0.15));
+    padding: var(--space-lg, 20px);
+    border-radius: var(--radius-md, 12px);
+    margin: var(--space-lg, 20px) 0;
+    border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.2));
+}
+
+.service-item h4 {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm, 8px);
+    margin-bottom: var(--space-md, 16px);
+    color: var(--accent-color, #3498db);
+}
+
+.data-retention-table {
+    margin-top: var(--space-lg, 20px);
+}
+
+.data-retention-table table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--glass-bg-strong, rgba(255, 255, 255, 0.15));
+    border-radius: var(--radius-md, 12px);
+    overflow: hidden;
+}
+
+.data-retention-table th,
+.data-retention-table td {
+    padding: var(--space-md, 16px);
+    text-align: left;
+    border-bottom: 1px solid var(--glass-border, rgba(255, 255, 255, 0.2));
+}
+
+.data-retention-table th {
+    background: var(--glass-bg-strong, rgba(255, 255, 255, 0.2));
+    font-weight: 600;
+}
+
+.rights-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: var(--space-lg, 20px);
+    margin-top: var(--space-lg, 20px);
+}
+
+.right-item {
+    background: var(--glass-bg-strong, rgba(255, 255, 255, 0.15));
+    padding: var(--space-lg, 20px);
+    border-radius: var(--radius-md, 12px);
+    border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.2));
+    transition: all var(--transition-fast, 0.3s);
+}
+
+.right-item:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md, 0 4px 12px rgba(0, 0, 0, 0.15));
+}
+
+.right-item i {
+    font-size: 1.5rem;
+    color: var(--accent-color, #3498db);
+    margin-bottom: var(--space-sm, 8px);
+}
+
+.right-item h4 {
+    margin: var(--space-sm, 8px) 0;
+    font-size: 1rem;
+}
+
+.version-history {
+    background: var(--glass-bg-strong, rgba(255, 255, 255, 0.15));
+    padding: var(--space-lg, 20px);
+    border-radius: var(--radius-md, 12px);
+    margin-top: var(--space-lg, 20px);
+}
+
+.index {
+    list-style: none;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: var(--space-sm, 8px);
+}
+
+.index-link {
+    display: block;
+    padding: var(--space-sm, 8px);
+    background: var(--glass-bg, rgba(255, 255, 255, 0.1));
+    border-radius: var(--radius-sm, 6px);
+    transition: all var(--transition-fast, 0.3s);
+}
+
+.index-link:hover {
+    background: var(--glass-bg-strong, rgba(255, 255, 255, 0.2));
+    transform: translateX(4px);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .summary-grid,
+    .data-overview-grid,
+    .measures-grid,
+    .rights-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .data-retention-table {
+        overflow-x: auto;
+    }
+    
+    .index {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
