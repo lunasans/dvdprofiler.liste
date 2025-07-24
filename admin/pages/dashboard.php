@@ -503,6 +503,7 @@ $dvdStats = getDVDProfilerStatistics();
         gap: var(--space-sm, 8px);
         margin-bottom: var(--space-sm, 8px);
         font-size: 0.9rem;
+        color: var(--text-white, #ffffff);
     }
 
     .recent-film-item {
@@ -573,6 +574,7 @@ $dvdStats = getDVDProfilerStatistics();
         padding: var(--space-xs, 4px) 0;
         border-bottom: 1px solid var(--glass-border, rgba(255, 255, 255, 0.1));
         font-size: 0.85rem;
+        color: var(--text-white, #ffffff);
     }
 
     .system-info .info-item:last-child {

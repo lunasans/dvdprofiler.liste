@@ -898,6 +898,7 @@ $showSaved = isset($_GET['saved']) && $_GET['saved'] === '1';
     padding: var(--space-sm, 8px) 0;
     border-bottom: 1px solid var(--glass-border, rgba(255, 255, 255, 0.1));
     font-size: 0.9rem;
+    color: var(--text-white, #ffffff);
 }
 
 .system-info .info-row:last-child {
@@ -910,6 +911,7 @@ $showSaved = isset($_GET['saved']) && $_GET['saved'] === '1';
     gap: var(--space-sm, 8px);
     padding: var(--space-sm, 8px) 0;
     border-bottom: 1px solid var(--glass-border, rgba(255, 255, 255, 0.1));
+    color: var(--text-white, #ffffff);
 }
 
 .requirements-list .requirement-item:last-child {
