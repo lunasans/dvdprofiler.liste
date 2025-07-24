@@ -1,14 +1,11 @@
 <?php
 declare(strict_types=1);
 
+// Bootstrap laden
 require_once __DIR__ . '/../includes/bootstrap.php';
+require_once __DIR__ . '/../includes/version.php';
 
-$error = null;
-$success = null;
-$require2FA = false;
-$userId = null;
-
-// Simple2FA Klasse für Login (ohne externe Dependencies)
+// Simple2FA Klasse für echte TOTP-Verifikation
 class Simple2FA {
     public static function base32Decode(string $secret): string {
         $secret = strtoupper($secret);
@@ -70,7 +67,54 @@ if (isset($_SESSION['user_id']) && !isset($_SESSION['require_2fa'])) {
     exit;
 }
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+// Rate-Limiting für Login-Versuche
+$clientIp = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+$rateLimitKey = 'login_attempts_' . md5($clientIp);
+
+function checkLoginRateLimit(): bool {
+    global $rateLimitKey;
+    $maxAttempts = 5;
+    $timeWindow = 900; // 15 Minuten
+    
+    $attempts = getSetting($rateLimitKey, '0|0');
+    [$count, $timestamp] = explode('|', $attempts . '|0');
+    
+    $count = (int)$count;
+    $timestamp = (int)$timestamp;
+    $now = time();
+    
+    if ($now - $timestamp > $timeWindow) {
+        $count = 0;
+        $timestamp = $now;
+    }
+    
+    return $count < $maxAttempts;
+}
+
+function incrementLoginAttempts(): void {
+    global $rateLimitKey;
+    $attempts = getSetting($rateLimitKey, '0|0');
+    [$count, $timestamp] = explode('|', $attempts . '|0');
+    
+    $count = (int)$count + 1;
+    $timestamp = time();
+    
+    setSetting($rateLimitKey, $count . '|' . $timestamp);
+}
+
+// Variablen initialisieren
+$error = null;
+$success = null;
+$require2FA = false;
+$userId = null;
+
+// Rate-Limit prüfen
+if (!checkLoginRateLimit()) {
+    $error = "Zu viele Login-Versuche. Bitte warten Sie 15 Minuten.";
+}
+
+// Login-Verarbeitung
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($error)) {
     
     // 2FA-Verifikation
     if (isset($_POST['verify_2fa'])) {
@@ -89,7 +133,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (!$user) {
                     $error = "Benutzer nicht gefunden.";
                 } else {
-                    // 2FA-Token mit eigener Simple2FA-Klasse prüfen
+                    // 2FA-Token mit Simple2FA-Klasse prüfen
                     $isValidToken = Simple2FA::verifyTotp($user['twofa_secret'], $token);
                     $isBackupCode = false;
                     
@@ -123,14 +167,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $_SESSION['user_email'] = $user['email'];
                         $_SESSION['login_time'] = time();
                         $_SESSION['2fa_verified'] = true;
+                        $_SESSION['initiated'] = true;
                         
                         // Temporäre Session-Daten löschen
                         unset($_SESSION['temp_user_id']);
                         unset($_SESSION['require_2fa']);
-                        
-                        // Letzten Login aktualisieren
-                        $updateStmt = $pdo->prepare("UPDATE users SET last_login = NOW() WHERE id = ?");
-                        $updateStmt->execute([$userId]);
                         
                         if ($isBackupCode) {
                             $_SESSION['backup_code_used'] = true;
@@ -189,9 +230,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $_SESSION['user_id'] = $user['id'];
                         $_SESSION['user_email'] = $user['email'];
                         $_SESSION['login_time'] = time();
-                        
-                        $updateStmt = $pdo->prepare("UPDATE users SET last_login = NOW() WHERE id = ?");
-                        $updateStmt->execute([$user['id']]);
+                        $_SESSION['initiated'] = true;
                         
                         $success = "Login erfolgreich! Sie werden weitergeleitet...";
                         
@@ -222,6 +261,102 @@ if (isset($_SESSION['require_2fa']) && isset($_SESSION['temp_user_id'])) {
     $userId = $_SESSION['temp_user_id'];
 }
 
+function handleTwoFactorAuth($pdo, $userId, $twoFactorCode, &$error, &$success) {
+    $stmt = $pdo->prepare("SELECT * FROM users WHERE id = ?");
+    $stmt->execute([$userId]);
+    $user = $stmt->fetch();
+    
+    if (!$user) {
+        $error = "Benutzer nicht gefunden.";
+        return;
+    }
+    
+    // 2FA-Secret ermitteln
+    $secret = '';
+    if (!empty($user['twofa_secret'])) {
+        $secret = $user['twofa_secret'];
+    } elseif (!empty($user['totp_secret'])) {
+        $secret = $user['totp_secret'];
+    }
+    
+    if (empty($secret)) {
+        $error = "2FA nicht korrekt konfiguriert.";
+        return;
+    }
+    
+    // 2FA-Token validieren
+    if (Simple2FA::verifyTotp($secret, $twoFactorCode)) {
+        // 2FA erfolgreich - vollständig anmelden
+        $_SESSION['user_id'] = $user['id'];
+        $_SESSION['user_email'] = $user['email'];
+        $_SESSION['initiated'] = true;
+        
+        // Temporäre Session-Daten löschen
+        unset($_SESSION['temp_user_id']);
+        unset($_SESSION['require_2fa']);
+        
+        $success = "2FA erfolgreich! Sie werden weitergeleitet...";
+        
+        $redirect = (defined('BASE_URL') && BASE_URL !== '')
+            ? BASE_URL . '/admin/index.php?page=dashboard'
+            : 'index.php?page=dashboard';
+        
+        echo "<script>
+            setTimeout(function() {
+                window.location.href = '{$redirect}';
+            }, 1500);
+        </script>";
+    } else {
+        $error = "Ungültiger 2FA-Code.";
+        incrementLoginAttempts();
+    }
+}
+
+function handleEmailPasswordAuth($pdo, $email, $password, &$require2FA, &$userId, &$error, &$success) {
+    $stmt = $pdo->prepare("SELECT * FROM users WHERE email = ?");
+    $stmt->execute([$email]);
+    $user = $stmt->fetch();
+    
+    if (!$user || !password_verify($password, $user['password'])) {
+        $error = "E-Mail oder Passwort ist falsch.";
+        incrementLoginAttempts();
+        return;
+    }
+    
+    // 2FA prüfen
+    $has2FA = false;
+    if (!empty($user['twofa_secret']) && isset($user['twofa_enabled']) && $user['twofa_enabled']) {
+        $has2FA = true;
+    } elseif (!empty($user['totp_secret'])) {
+        $has2FA = true;
+    }
+    
+    if ($has2FA && getSetting('enable_2fa', '1') === '1') {
+        // 2FA erforderlich
+        $_SESSION['require_2fa'] = true;
+        $_SESSION['temp_user_id'] = $user['id'];
+        $require2FA = true;
+        $userId = $user['id'];
+    } else {
+        // Direkter Login ohne 2FA
+        $_SESSION['user_id'] = $user['id'];
+        $_SESSION['user_email'] = $user['email'];
+        $_SESSION['initiated'] = true;
+        
+        $success = "Login erfolgreich! Sie werden weitergeleitet...";
+        
+        $redirect = (defined('BASE_URL') && BASE_URL !== '')
+            ? BASE_URL . '/admin/index.php?page=dashboard'
+            : 'index.php?page=dashboard';
+        
+        echo "<script>
+            setTimeout(function() {
+                window.location.href = '{$redirect}';
+            }, 1500);
+        </script>";
+    }
+}
+
 $siteTitle = getSetting('site_title', 'DVD-Verwaltung');
 ?>
 <!DOCTYPE html>
@@ -231,15 +366,29 @@ $siteTitle = getSetting('site_title', 'DVD-Verwaltung');
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - <?= htmlspecialchars($siteTitle) ?></title>
     
+    <!-- Preload critical resources -->
+    <link rel="preload" href="https://fonts.googleapis.com/css2?family=Segoe+UI:wght@400;500;600;700&display=swap" as="style">
+    <link rel="preload" href="css/login.css" as="style">
+    
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Segoe+UI:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css">
     <link href="css/login.css" rel="stylesheet">
     
-    <meta name="description" content="Anmeldung zum Admin-Bereich">
+    <!-- Meta Tags -->
+    <meta name="description" content="Anmeldung zum <?= htmlspecialchars($siteTitle) ?> Admin-Bereich">
+    <meta name="robots" content="noindex, nofollow">
     <meta name="theme-color" content="#1a1a2e">
+    <meta name="author" content="<?= DVDPROFILER_AUTHOR ?>">
+    
+    <!-- Enhanced Favicon -->
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%233498db'%3E%3Cpath d='M18 4v1h-2V4c0-1.1-.9-2-2-2H8c-1.1 0-2 .9-2 2v1H4v11c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4h-2zM8 4h6v1H8V4zm10 13H6V6h2v1h6V6h2v11z'/%3E%3C/svg%3E">
+    
+    <!-- Security Headers via Meta -->
+    <meta http-equiv="X-Content-Type-Options" content="nosniff">
+    <meta http-equiv="X-Frame-Options" content="DENY">
+    <meta http-equiv="X-XSS-Protection" content="1; mode=block">
 </head>
 <body>
     <section class="container">
@@ -423,57 +572,32 @@ $siteTitle = getSetting('site_title', 'DVD-Verwaltung');
             });
         };
 
-        // 2FA-spezifische JavaScript-Funktionen
+        // Load saved theme
+        const savedTheme = localStorage.getItem('adminTheme');
+        if (savedTheme) {
+            setTheme(JSON.parse(savedTheme));
+        }
+
+        displayThemeButtons();
+
+        // Enhanced JavaScript Functions
+        function togglePassword(icon) {
+            const input = icon.parentElement.querySelector('input');
+            const type = input.getAttribute('type') === 'password' ? 'text' : 'password';
+            input.setAttribute('type', type);
+            
+            icon.classList.toggle('bi-lock');
+            icon.classList.toggle('bi-unlock');
+        }
+
+        // Security enhancements
         document.addEventListener('DOMContentLoaded', function() {
-            displayThemeButtons();
-            
-            // Gespeichertes Theme laden
-            const savedTheme = localStorage.getItem('adminTheme');
-            if (savedTheme) {
-                setTheme(JSON.parse(savedTheme));
+            // Auto-focus first input
+            const firstInput = document.querySelector('input:not([type="hidden"])');
+            if (firstInput) {
+                firstInput.focus();
             }
-            
-            // 2FA-Code Auto-Format
-            const tokenInput = document.getElementById('token');
-            if (tokenInput) {
-                tokenInput.addEventListener('input', function(e) {
-                    // Nur Zahlen erlauben
-                    this.value = this.value.replace(/[^0-9]/g, '');
-                    
-                    // Auto-submit wenn 6 Zeichen
-                    if (this.value.length === 6) {
-                        setTimeout(() => {
-                            this.form.submit();
-                        }, 500);
-                    }
-                });
-                
-                // Auto-focus
-                tokenInput.focus();
-            }
-            
-            // Backup-Code Formular Toggle
-            const showBackupBtn = document.getElementById('showBackupForm');
-            const showNormalBtn = document.getElementById('showNormalForm');
-            const twoFAForm = document.getElementById('twoFAForm');
-            const backupForm = document.getElementById('backupCodeForm');
-            
-            if (showBackupBtn) {
-                showBackupBtn.addEventListener('click', function() {
-                    twoFAForm.style.display = 'none';
-                    backupForm.style.display = 'block';
-                    backupForm.querySelector('input').focus();
-                });
-            }
-            
-            if (showNormalBtn) {
-                showNormalBtn.addEventListener('click', function() {
-                    backupForm.style.display = 'none';
-                    twoFAForm.style.display = 'block';
-                    twoFAForm.querySelector('input').focus();
-                });
-            }
-            
+
             // Form-Enhancement für alle Formulare
             const forms = document.querySelectorAll('form');
             forms.forEach(form => {
@@ -495,7 +619,41 @@ $siteTitle = getSetting('site_title', 'DVD-Verwaltung');
                     }
                 });
             });
+
+            // 2FA code auto-formatting
+            const tokenInput = document.getElementById('token');
+            if (tokenInput) {
+                tokenInput.addEventListener('input', function(e) {
+                    this.value = this.value.replace(/\D/g, '').substring(0, 6);
+                    
+                    if (this.value.length === 6) {
+                        // Auto-submit when 6 digits entered
+                        setTimeout(() => {
+                            this.form.submit();
+                        }, 500);
+                    }
+                });
+                
+                // Auto-focus
+                tokenInput.focus();
+            }
+
+            // Console info entfernt
         });
+
+        // Add CSS animations
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes slideIn {
+                from { transform: translateX(100%); opacity: 0; }
+                to { transform: translateX(0); opacity: 1; }
+            }
+            @keyframes slideOut {
+                from { transform: translateX(0); opacity: 1; }
+                to { transform: translateX(100%); opacity: 0; }
+            }
+        `;
+        document.head.appendChild(style);
     </script>
 </body>
 </html>

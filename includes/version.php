@@ -9,10 +9,10 @@
  */
 
 // Version Information
-define('DVDPROFILER_VERSION', '1.4.5');
+define('DVDPROFILER_VERSION', '1.4.6');
 define('DVDPROFILER_CODENAME', 'Cinephile');
-define('DVDPROFILER_BUILD_DATE', '2025.07.23');
-define('DVDPROFILER_RELEASE_DATE', '23. Juli 2025');
+define('DVDPROFILER_BUILD_DATE', '2025.07.24');
+define('DVDPROFILER_RELEASE_DATE', '24. Juli 2025');
 
 // Build Information
 define('DVDPROFILER_BUILD_TYPE', 'Release'); // Release, Beta, Alpha, Development
@@ -197,7 +197,7 @@ define('DVDPROFILER_CHANGELOG', [
         ]
     ],
 
-    '1.3.6' => [
+    '1.4.5' => [
         'date' => '2025-07-23',
         'type' => 'minor',
         'changes' => [
@@ -212,7 +212,20 @@ define('DVDPROFILER_CHANGELOG', [
             'Enhanced GitHub integration',
             'Performance monitoring tools'
         ]
-    ]
+        ],
+
+    '1.4.6' => [
+        'date' => '2025-07-24',
+        'type'=> 'patch',
+        'changes' => [
+            'Bug fixes in 2FA implementation',
+            'Improved security measures for user authentication',
+            'Enhanced session management',
+            'Performance optimizations for large collections',
+            'UI/UX improvements in admin panel',
+            'Updated documentation and code comments'
+        ]
+        ],
 ]);
 
 // Helper Functions
