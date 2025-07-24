@@ -65,6 +65,8 @@ $imported = 0;
 $skipped = 0;
 $boxsetFixed = 0;
 $errors = 0;
+$totalActorsImported = 0;
+$totalActorLinksCreated = 0;
 
 try {
     $pdo->beginTransaction();
@@ -178,35 +180,7 @@ try {
         }
 
         try {
-            // Schauspieler verarbeiten
-            if (isset($dvd->Actors) && isset($dvd->Actors->Actor)) {
-                foreach ($dvd->Actors->Actor as $actorXml) {
-                    $firstName = trim((string)($actorXml['FirstName'] ?? ''));
-                    $lastName = trim((string)($actorXml['LastName'] ?? ''));
-                    $role = trim((string)($actorXml['Role'] ?? ''));
-                    $birthYear = (int)($actorXml['BirthYear'] ?? 0);
-                    
-                    if (!empty($firstName) || !empty($lastName)) {
-                        // Prüfen ob Schauspieler bereits existiert
-                        $stmtActor = $pdo->prepare("SELECT id FROM actors WHERE first_name = ? AND last_name = ? AND birth_year = ?");
-                        $stmtActor->execute([$firstName, $lastName, $birthYear]);
-                        $actorId = $stmtActor->fetchColumn();
-
-                        if (!$actorId) {
-                            // Neuen Schauspieler anlegen
-                            $stmtInsert = $pdo->prepare("INSERT INTO actors (first_name, last_name, birth_year) VALUES (?, ?, ?)");
-                            $stmtInsert->execute([$firstName, $lastName, $birthYear]);
-                            $actorId = $pdo->lastInsertId();
-                        }
-
-                        // Verknüpfung Film-Schauspieler anlegen
-                        $stmtLink = $pdo->prepare("INSERT IGNORE INTO film_actor (film_id, actor_id, role) VALUES (?, ?, ?)");
-                        $stmtLink->execute([$id, $actorId, $role]);
-                    }
-                }
-            }
-
-            // DVD einfügen
+            // ERST DVD einfügen
             $stmt = $pdo->prepare("
                 INSERT INTO dvds (
                     id, title, year, genre, runtime, rating_age,
@@ -236,6 +210,81 @@ try {
             
             if ($boxsetParent) {
                 error_log("DVD $id ($title) erfolgreich als Kind von Parent $boxsetParent importiert");
+            }
+
+            // DANN Schauspieler verarbeiten (nach DVD-Insert!)
+            $actorCount = 0;
+            if (isset($dvd->Actors) && isset($dvd->Actors->Actor)) {
+                error_log("DVD $id ($title): Verarbeite Schauspieler...");
+                
+                // Falls nur ein Actor, wird es nicht als Array behandelt
+                $actorElements = $dvd->Actors->Actor;
+                if (!is_array($actorElements) && !($actorElements instanceof Traversable)) {
+                    $actorElements = [$actorElements];
+                }
+                
+                foreach ($actorElements as $actorXml) {
+                    // Verschiedene XML-Strukturen testen
+                    $firstName = trim((string)($actorXml['FirstName'] ?? $actorXml->FirstName ?? ''));
+                    $lastName = trim((string)($actorXml['LastName'] ?? $actorXml->LastName ?? ''));
+                    $role = trim((string)($actorXml['Role'] ?? $actorXml->Role ?? ''));
+                    $birthYear = (int)($actorXml['BirthYear'] ?? $actorXml->BirthYear ?? 0);
+                    
+                    // Debug: XML-Struktur ausgeben
+                    if (empty($firstName) && empty($lastName)) {
+                        error_log("DVD $id: Schauspieler-Element gefunden, aber keine Namen: " . 
+                                 json_encode([
+                                     'attributes' => (array)$actorXml->attributes(),
+                                     'children' => array_keys((array)$actorXml),
+                                     'content' => (string)$actorXml
+                                 ]));
+                        continue;
+                    }
+                    
+                    if (!empty($firstName) || !empty($lastName)) {
+                        // Prüfen ob Schauspieler bereits existiert (ohne birth_year falls unbekannt)
+                        if ($birthYear > 0) {
+                            $stmtActor = $pdo->prepare("SELECT id FROM actors WHERE first_name = ? AND last_name = ? AND birth_year = ?");
+                            $stmtActor->execute([$firstName, $lastName, $birthYear]);
+                        } else {
+                            $stmtActor = $pdo->prepare("SELECT id FROM actors WHERE first_name = ? AND last_name = ? AND (birth_year IS NULL OR birth_year = 0)");
+                            $stmtActor->execute([$firstName, $lastName]);
+                        }
+                        
+                        $actorId = $stmtActor->fetchColumn();
+
+                        if (!$actorId) {
+                            // Neuen Schauspieler anlegen mit allen Spalten
+                            $stmtInsert = $pdo->prepare("
+                                INSERT INTO actors (first_name, last_name, birth_year, bio, created_at, updated_at) 
+                                VALUES (?, ?, ?, '', NOW(), NOW())
+                            ");
+                            $stmtInsert->execute([$firstName, $lastName, $birthYear > 0 ? $birthYear : null]);
+                            $actorId = $pdo->lastInsertId();
+                            $totalActorsImported++;
+                            
+                            error_log("DVD $id: Neuer Schauspieler erstellt: $firstName $lastName (ID: $actorId)");
+                        } else {
+                            error_log("DVD $id: Bestehender Schauspieler gefunden: $firstName $lastName (ID: $actorId)");
+                        }
+
+                        // Verknüpfung Film-Schauspieler anlegen
+                        $stmtLink = $pdo->prepare("INSERT IGNORE INTO film_actor (film_id, actor_id, role) VALUES (?, ?, ?)");
+                        $stmtLink->execute([$id, $actorId, $role]);
+                        
+                        $actorCount++;
+                        $totalActorLinksCreated++;
+                        error_log("DVD $id: Schauspieler verknüpft: $firstName $lastName als '$role'");
+                    }
+                }
+                
+                error_log("DVD $id ($title): $actorCount Schauspieler erfolgreich importiert");
+            } else {
+                error_log("DVD $id ($title): Keine Schauspieler-Daten in XML gefunden");
+                
+                // Debug: XML-Struktur anzeigen
+                $xmlKeys = array_keys((array)$dvd);
+                error_log("DVD $id: Verfügbare XML-Elemente: " . implode(', ', $xmlKeys));
             }
 
         } catch (Exception $e) {
@@ -274,11 +323,17 @@ try {
     // Finale Statistik
     $finalBoxsetChildren = $pdo->query("SELECT COUNT(*) FROM dvds WHERE boxset_parent IS NOT NULL")->fetchColumn();
     $finalBoxsetParents = $pdo->query("SELECT COUNT(DISTINCT boxset_parent) FROM dvds WHERE boxset_parent IS NOT NULL")->fetchColumn();
+    $finalActorsTotal = $pdo->query("SELECT COUNT(*) FROM actors")->fetchColumn();
+    $finalActorLinksTotal = $pdo->query("SELECT COUNT(*) FROM film_actor")->fetchColumn();
     
     error_log("IMPORT ABGESCHLOSSEN:");
     error_log("- $imported DVDs importiert");
     error_log("- $skipped Duplikate übersprungen");
     error_log("- $errors Fehler");
+    error_log("- $totalActorsImported neue Schauspieler erstellt");
+    error_log("- $totalActorLinksCreated Schauspieler-Film-Verknüpfungen erstellt");
+    error_log("- $finalActorsTotal Schauspieler gesamt in DB");
+    error_log("- $finalActorLinksTotal Schauspieler-Verknüpfungen gesamt in DB");
     error_log("- $finalBoxsetChildren BoxSet-Kinder");
     error_log("- $finalBoxsetParents BoxSet-Parents");
 
@@ -292,6 +347,14 @@ try {
 $resultMessage = "🎬 Import abgeschlossen:\n"
     . "$imported neue Filme importiert\n"
     . "$skipped Duplikate übersprungen\n";
+
+if ($totalActorsImported > 0) {
+    $resultMessage .= "$totalActorsImported neue Schauspieler erstellt\n";
+}
+
+if ($totalActorLinksCreated > 0) {
+    $resultMessage .= "$totalActorLinksCreated Schauspieler-Film-Verknüpfungen erstellt\n";
+}
 
 if ($finalBoxsetChildren > 0) {
     $resultMessage .= "$finalBoxsetChildren BoxSet-Kinder importiert\n";
