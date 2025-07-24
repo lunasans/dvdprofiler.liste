@@ -135,8 +135,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($error)) {
                 } else {
                     // 2FA-Token mit Simple2FA-Klasse prüfen
                     $isValidToken = Simple2FA::verifyTotp($user['twofa_secret'], $token);
+                    $isBackupCode = false;
                     
-                    if ($isValidToken) {
+                    // Falls Token ungültig, prüfe Backup-Codes
+                    if (!$isValidToken) {
+                        $stmt = $pdo->prepare("
+                            SELECT id, code FROM user_backup_codes 
+                            WHERE user_id = ? AND used_at IS NULL
+                        ");
+                        $stmt->execute([$userId]);
+                        $backupCodes = $stmt->fetchAll();
+                        
+                        foreach ($backupCodes as $backupCode) {
+                            if (password_verify($token, $backupCode['code'])) {
+                                $isBackupCode = true;
+                                // Backup-Code als verwendet markieren
+                                $updateStmt = $pdo->prepare("
+                                    UPDATE user_backup_codes 
+                                    SET used_at = NOW() 
+                                    WHERE id = ?
+                                ");
+                                $updateStmt->execute([$backupCode['id']]);
+                                break;
+                            }
+                        }
+                    }
+                    
+                    if ($isValidToken || $isBackupCode) {
                         // 2FA erfolgreich - vollständig anmelden
                         $_SESSION['user_id'] = $userId;
                         $_SESSION['user_email'] = $user['email'];
@@ -147,6 +172,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($error)) {
                         // Temporäre Session-Daten löschen
                         unset($_SESSION['temp_user_id']);
                         unset($_SESSION['require_2fa']);
+                        
+                        if ($isBackupCode) {
+                            $_SESSION['backup_code_used'] = true;
+                        }
                         
                         $success = "Anmeldung erfolgreich! Sie werden weitergeleitet...";
                         
@@ -160,7 +189,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($error)) {
                             }, 1500);
                         </script>";
                     } else {
-                        $error = "Ungültiger 2FA-Code.";
+                        $error = "Ungültiger 2FA-Code oder Backup-Code.";
                         $require2FA = true;
                         $userId = $_SESSION['temp_user_id'];
                     }
@@ -424,6 +453,42 @@ $siteTitle = getSetting('site_title', 'DVD-Verwaltung');
                         <button type="submit" class="login-btn" id="verify2FABtn">
                             <span class="btn-text">Bestätigen</span>
                         </button>
+                        
+                        <div style="text-align: center; margin-top: 1rem;">
+                            <p style="color: var(--clr-text-muted); font-size: 0.9rem;">
+                                Kein Zugriff auf Ihr Gerät?<br>
+                                <button type="button" id="showBackupForm" style="background: none; border: none; color: var(--clr-accent); text-decoration: underline; cursor: pointer;">
+                                    Backup-Code verwenden
+                                </button>
+                            </p>
+                        </div>
+                    </form>
+                    
+                    <!-- Backup-Code Formular (versteckt) -->
+                    <form method="post" action="" id="backupCodeForm" style="display: none;" novalidate>
+                        <input type="hidden" name="verify_2fa" value="1">
+                        
+                        <div class="input-group password">
+                            <input 
+                                type="text" 
+                                name="token" 
+                                placeholder="Backup-Code" 
+                                required 
+                                autocomplete="off"
+                                aria-label="Backup-Code"
+                                style="text-transform: uppercase;"
+                            />
+                        </div>
+                        
+                        <button type="submit" class="login-btn">
+                            <span class="btn-text">Mit Backup-Code anmelden</span>
+                        </button>
+                        
+                        <div style="text-align: center; margin-top: 1rem;">
+                            <button type="button" id="showNormalForm" style="background: none; border: none; color: var(--clr-accent); text-decoration: underline; cursor: pointer;">
+                                Zurück zu 2FA-Code
+                            </button>
+                        </div>
                     </form>
                     
                 <?php else: ?>
