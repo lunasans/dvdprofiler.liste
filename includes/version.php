@@ -17,7 +17,7 @@ define('DVDPROFILER_RELEASE_DATE', '24. Juli 2025');
 // Build Information
 define('DVDPROFILER_BUILD_TYPE', 'Release'); // Release, Beta, Alpha, Development
 define('DVDPROFILER_BRANCH', 'main');
-define('DVDPROFILER_COMMIT', 'c8d9e1f'); // Git commit hash (ersten 7 Zeichen)
+define('DVDPROFILER_COMMIT', '207ece9'); // Git commit hash (ersten 7 Zeichen)
 
 // Repository Information
 define('DVDPROFILER_REPOSITORY', 'lunasans/dvdprofiler.liste');
@@ -223,7 +223,9 @@ define('DVDPROFILER_CHANGELOG', [
             'Enhanced session management',
             'Performance optimizations for large collections',
             'UI/UX improvements in admin panel',
-            'Updated documentation and code comments'
+            'Updated documentation and code comments',
+            'Bug fixes in Charts.js integration',
+            'Improved error handling in database operations',
         ]
         ],
 ]);
