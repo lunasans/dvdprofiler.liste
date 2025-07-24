@@ -33,6 +33,43 @@ try {
         // Test der Verbindung
         $pdo->query('SELECT 1');
         
+        // Benötigte Funktionen definieren falls nicht vorhanden
+        if (!function_exists('findCoverImage')) {
+            function findCoverImage(string $coverId, string $suffix = 'f', string $folder = 'cover', string $fallback = 'cover/placeholder.png'): string {
+                if (empty($coverId)) return $fallback;
+                $extensions = ['.jpg', '.jpeg', '.png'];
+                foreach ($extensions as $ext) {
+                    $file = "{$folder}/{$coverId}{$suffix}{$ext}";
+                    if (file_exists($file)) {
+                        return $file;
+                    }
+                }
+                return $fallback;
+            }
+        }
+        
+        if (!function_exists('getActorsByDvdId')) {
+            function getActorsByDvdId(PDO $pdo, int $dvdId): array {
+                try {
+                    $stmt = $pdo->prepare("SELECT first_name, last_name, role FROM film_actor fa JOIN actors a ON fa.actor_id = a.id WHERE fa.film_id = ?");
+                    $stmt->execute([$dvdId]);
+                    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+                } catch (PDOException $e) {
+                    error_log("Actor query error: " . $e->getMessage());
+                    return [];
+                }
+            }
+        }
+        
+        if (!function_exists('formatRuntime')) {
+            function formatRuntime(?int $minutes): string {
+                if (!$minutes) return '';
+                $h = intdiv($minutes, 60);
+                $m = $minutes % 60;
+                return $h > 0 ? "{$h}h {$m}min" : "{$m}min";
+            }
+        }
+        
     } catch (PDOException $e) {
         throw new Exception('Datenbankfehler: ' . $e->getMessage());
     }
@@ -41,15 +78,12 @@ try {
     try {
         $stmt = $pdo->prepare("
             SELECT d.*, 
-                   u.username as added_by_user,
-                   GROUP_CONCAT(DISTINCT g.name ORDER BY g.name ASC SEPARATOR ', ') as genres_list,
+                   u.email as added_by_user,
+                   d.genre as genres_list,
                    (SELECT COUNT(*) FROM dvds WHERE boxset_parent = d.id) as boxset_children_count
             FROM dvds d 
-            LEFT JOIN users u ON d.added_by = u.id 
-            LEFT JOIN dvd_genres dg ON d.id = dg.dvd_id 
-            LEFT JOIN genres g ON dg.genre_id = g.id 
-            WHERE d.id = ? 
-            GROUP BY d.id
+            LEFT JOIN users u ON d.user_id = u.id 
+            WHERE d.id = ?
         ");
         
         if (!$stmt) {
@@ -66,6 +100,8 @@ try {
         
         // Debug: Film gefunden
         error_log("Film-Fragment: Film geladen - ID: $id, Titel: " . $dvd['title']);
+        error_log("Film-Fragment: DVD-Daten: " . json_encode(array_keys($dvd)));
+        error_log("Film-Fragment: DVD-ID Feld: " . var_export($dvd['id'] ?? 'NICHT_GESETZT', true));
         
     } catch (PDOException $e) {
         throw new Exception('Fehler beim Laden der Film-Daten: ' . $e->getMessage());
@@ -110,14 +146,8 @@ try {
     ob_start();
     
     try {
-        // Include mit Variablen-Isolation
-        $includeFunction = function($path, $data, $children) {
-            extract($data, EXTR_SKIP);
-            $boxsetChildren = $children;
-            include $path;
-        };
-        
-        $includeFunction($filmViewPath, $dvd, $boxsetChildren);
+        // Direktes Include - $dvd und $boxsetChildren sind im Scope verfügbar
+        include $filmViewPath;
         $filmViewOutput = ob_get_clean();
         
         if (empty($filmViewOutput)) {

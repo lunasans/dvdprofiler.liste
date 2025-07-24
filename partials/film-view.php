@@ -11,10 +11,6 @@ if (!isset($dvd) || !is_array($dvd) || empty($dvd['id'])) {
 $frontCover = findCoverImage($dvd['cover_id'] ?? '', 'f');
 $backCover = findCoverImage($dvd['cover_id'] ?? '', 'b');
 
-// Zusätzliche Cover (falls vorhanden)
-$sideCover = findCoverImage($dvd['cover_id'] ?? '', 's');
-$discCover = findCoverImage($dvd['cover_id'] ?? '', 'd');
-
 // Schauspieler laden
 $actors = getActorsByDvdId($pdo, (int)$dvd['id']);
 

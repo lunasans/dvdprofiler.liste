@@ -60,7 +60,8 @@ unset($_SESSION['success'], $_SESSION['error']);
                                 <td>
                                     <div class="d-flex align-items-center">
                                         <div class="avatar me-3">
-                                            <div style="width: 40px; height: 40px; background: var(--clr-accent); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold;">
+                                            <div
+                                                style="width: 40px; height: 40px; background: var(--clr-accent); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold;">
                                                 <?= strtoupper(substr($user['email'], 0, 1)) ?>
                                             </div>
                                         </div>
@@ -108,37 +109,31 @@ unset($_SESSION['success'], $_SESSION['error']);
                                 </td>
                                 <td>
                                     <div class="btn-group btn-group-sm">
-                                        <button class="btn btn-outline-primary edit-user-btn"
-                                                data-id="<?= $user['id'] ?>"
-                                                data-email="<?= htmlspecialchars($user['email']) ?>"
-                                                title="Benutzer bearbeiten">
+                                        <button class="btn btn-outline-primary edit-user-btn" data-id="<?= $user['id'] ?>"
+                                            data-email="<?= htmlspecialchars($user['email']) ?>"
+                                            title="Benutzer bearbeiten">
                                             <i class="bi bi-pencil"></i>
                                         </button>
-                                        
+
                                         <?php if (!$user['twofa_enabled']): ?>
-                                            <button class="btn btn-outline-success setup-2fa-btn"
-                                                    data-id="<?= $user['id'] ?>"
-                                                    title="2FA aktivieren">
+                                            <button class="btn btn-outline-success setup-2fa-btn" data-id="<?= $user['id'] ?>"
+                                                title="2FA aktivieren">
                                                 <i class="bi bi-shield-plus"></i>
                                             </button>
                                         <?php else: ?>
                                             <button class="btn btn-outline-warning regenerate-backup-btn"
-                                                    data-id="<?= $user['id'] ?>"
-                                                    title="Backup-Codes neu generieren">
+                                                data-id="<?= $user['id'] ?>" title="Backup-Codes neu generieren">
                                                 <i class="bi bi-arrow-clockwise"></i>
                                             </button>
-                                            <button class="btn btn-outline-danger disable-2fa-btn"
-                                                    data-id="<?= $user['id'] ?>"
-                                                    title="2FA deaktivieren">
+                                            <button class="btn btn-outline-danger disable-2fa-btn" data-id="<?= $user['id'] ?>"
+                                                title="2FA deaktivieren">
                                                 <i class="bi bi-shield-minus"></i>
                                             </button>
                                         <?php endif; ?>
-                                        
+
                                         <?php if ($user['id'] != $_SESSION['user_id']): ?>
-                                            <button class="btn btn-outline-danger delete-user-btn"
-                                                    data-id="<?= $user['id'] ?>"
-                                                    data-email="<?= htmlspecialchars($user['email']) ?>"
-                                                    title="Benutzer löschen">
+                                            <button class="btn btn-outline-danger delete-user-btn" data-id="<?= $user['id'] ?>"
+                                                data-email="<?= htmlspecialchars($user['email']) ?>" title="Benutzer löschen">
                                                 <i class="bi bi-trash"></i>
                                             </button>
                                         <?php endif; ?>
@@ -207,7 +202,8 @@ unset($_SESSION['success'], $_SESSION['error']);
                     </div>
                     <div class="mb-3">
                         <label for="new-password" class="form-label">Passwort</label>
-                        <input type="password" class="form-control" id="new-password" name="password" required minlength="8">
+                        <input type="password" class="form-control" id="new-password" name="password" required
+                            minlength="8">
                         <div class="form-text">Mindestens 8 Zeichen</div>
                     </div>
                 </div>
@@ -243,13 +239,14 @@ unset($_SESSION['success'], $_SESSION['error']);
                         </button>
                     </div>
                 </div>
-                
+
                 <div id="setup-step-2" style="display: none;">
                     <div class="row">
                         <div class="col-md-6 text-center">
                             <h6>1. QR-Code scannen</h6>
                             <div class="mb-3">
-                                <img id="qrcode-image" src="" alt="QR-Code" class="img-fluid" style="max-width: 200px; border: 1px solid var(--clr-border); border-radius: 8px;">
+                                <img id="qrcode-image" src="" alt="QR-Code" class="img-fluid"
+                                    style="max-width: 200px; border: 1px solid var(--clr-border); border-radius: 8px;">
                             </div>
                             <p class="small text-muted">
                                 Scannen Sie den QR-Code mit Ihrer Authenticator-App
@@ -261,18 +258,17 @@ unset($_SESSION['success'], $_SESSION['error']);
                             <form id="verify2faSetupForm">
                                 <div class="mb-3">
                                     <label for="setup-token" class="form-label">6-stelliger Code</label>
-                                    <input type="text" class="form-control text-center" 
-                                           id="setup-token" name="token" required
-                                           pattern="[0-9]{6}" maxlength="6"
-                                           style="font-size: 1.2rem; letter-spacing: 0.3em;">
+                                    <input type="text" class="form-control text-center" id="setup-token" name="token"
+                                        required pattern="[0-9]{6}" maxlength="6"
+                                        style="font-size: 1.2rem; letter-spacing: 0.3em;">
                                 </div>
                                 <button type="submit" class="btn btn-success w-100">
                                     <i class="bi bi-check-circle"></i> 2FA aktivieren
                                 </button>
                             </form>
-                            
+
                             <hr>
-                            
+
                             <h6>Alternative: Manueller Eintrag</h6>
                             <div class="small">
                                 <strong>Anbieter:</strong> <span id="manual-issuer"></span><br>
@@ -282,21 +278,22 @@ unset($_SESSION['success'], $_SESSION['error']);
                         </div>
                     </div>
                 </div>
-                
+
                 <div id="setup-step-3" style="display: none;">
                     <div class="text-center">
                         <div class="alert alert-success">
                             <i class="bi bi-check-circle-fill me-2"></i>
                             <strong>2FA erfolgreich aktiviert!</strong>
                         </div>
-                        
+
                         <h6>Backup-Codes</h6>
-                        <p class="text-muted">Speichern Sie diese Codes sicher. Sie können jeden Code nur einmal verwenden.</p>
-                        
+                        <p class="text-muted">Speichern Sie diese Codes sicher. Sie können jeden Code nur einmal
+                            verwenden.</p>
+
                         <div class="backup-codes" id="backup-codes-display">
                             <!-- Wird durch JavaScript gefüllt -->
                         </div>
-                        
+
                         <button type="button" class="btn btn-outline-primary mt-3" id="downloadBackupCodes">
                             <i class="bi bi-download"></i> Codes herunterladen
                         </button>
@@ -311,296 +308,296 @@ unset($_SESSION['success'], $_SESSION['error']);
 </div>
 
 <style>
-.backup-codes {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-    gap: 0.5rem;
-    max-width: 500px;
-    margin: 0 auto;
-}
+    .backup-codes {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: 0.5rem;
+        max-width: 500px;
+        margin: 0 auto;
+    }
 
-.backup-code {
-    background: var(--clr-card);
-    border: 1px solid var(--clr-border);
-    border-radius: 4px;
-    padding: 0.5rem;
-    font-family: monospace;
-    font-size: 0.9rem;
-    text-align: center;
-}
+    .backup-code {
+        background: var(--clr-card);
+        border: 1px solid var(--clr-border);
+        border-radius: 4px;
+        padding: 0.5rem;
+        font-family: monospace;
+        font-size: 0.9rem;
+        text-align: center;
+    }
 
-.avatar {
-    flex-shrink: 0;
-}
+    .avatar {
+        flex-shrink: 0;
+    }
 </style>
 
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    let currentUserId = null; // Variable richtig initialisieren
-    
-    // Edit User Modal
-    document.querySelectorAll('.edit-user-btn').forEach(btn => {
-        btn.addEventListener('click', function() {
-            document.getElementById('edit-user-id').value = this.dataset.id;
-            document.getElementById('edit-email').value = this.dataset.email;
-            document.getElementById('edit-password').value = '';
-            new bootstrap.Modal(document.getElementById('editUserModal')).show();
+    document.addEventListener('DOMContentLoaded', function () {
+        let currentUserId = null; // Variable richtig initialisieren
+
+        // Edit User Modal
+        document.querySelectorAll('.edit-user-btn').forEach(btn => {
+            btn.addEventListener('click', function () {
+                document.getElementById('edit-user-id').value = this.dataset.id;
+                document.getElementById('edit-email').value = this.dataset.email;
+                document.getElementById('edit-password').value = '';
+                new bootstrap.Modal(document.getElementById('editUserModal')).show();
+            });
         });
-    });
-    
-    // Setup 2FA
-    document.querySelectorAll('.setup-2fa-btn').forEach(btn => {
-        btn.addEventListener('click', function() {
-            currentUserId = this.dataset.id; // Hier wird die Variable gesetzt
-            console.log('Setting currentUserId to:', currentUserId);
-            
-            // Reset modal
-            document.getElementById('setup-step-1').style.display = 'block';
-            document.getElementById('setup-step-2').style.display = 'none';
-            document.getElementById('setup-step-3').style.display = 'none';
-            
-            // QR-Code Image zurücksetzen
-            document.getElementById('qrcode-image').src = '';
-            document.getElementById('manual-secret').textContent = '';
-            
-            new bootstrap.Modal(document.getElementById('setup2faModal')).show();
+
+        // Setup 2FA
+        document.querySelectorAll('.setup-2fa-btn').forEach(btn => {
+            btn.addEventListener('click', function () {
+                currentUserId = this.dataset.id; // Hier wird die Variable gesetzt
+                console.log('Setting currentUserId to:', currentUserId);
+
+                // Reset modal
+                document.getElementById('setup-step-1').style.display = 'block';
+                document.getElementById('setup-step-2').style.display = 'none';
+                document.getElementById('setup-step-3').style.display = 'none';
+
+                // QR-Code Image zurücksetzen
+                document.getElementById('qrcode-image').src = '';
+                document.getElementById('manual-secret').textContent = '';
+
+                new bootstrap.Modal(document.getElementById('setup2faModal')).show();
+            });
         });
-    });
-    
-    // Generate 2FA QR Code
-    document.getElementById('generate2faBtn').addEventListener('click', function() {
-        console.log('Generate 2FA button clicked');
-        console.log('Current User ID:', currentUserId);
-        
-        // Prüfe ob currentUserId gesetzt ist
-        if (!currentUserId) {
-            alert('Fehler: Keine Benutzer-ID gefunden. Bitte schließe das Modal und versuche es erneut.');
-            return;
-        }
-        
-        this.disabled = true;
-        this.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Generierung...';
-        
-        const requestData = {
-            'user_id': currentUserId,
-            'action': 'generate'
-        };
-        
-        console.log('Request data:', requestData);
-        
-        fetch('actions/generate_2fa.php', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-            },
-            body: new URLSearchParams(requestData)
-        })
-        .then(response => {
-            console.log('Response received');
-            console.log('Status:', response.status);
-            console.log('Status text:', response.statusText);
-            
-            // Erst den rohen Text holen
-            return response.text();
-        })
-        .then(text => {
-            console.log('Raw response text:');
-            console.log(text);
-            console.log('Text length:', text.length);
-            
-            // Prüfe ob es HTML ist (Fehlerseite)
-            if (text.trim().startsWith('<')) {
-                console.error('Server returned HTML instead of JSON');
-                
-                // Extrahiere Titel falls vorhanden
-                const titleMatch = text.match(/<title>(.*?)<\/title>/i);
-                const title = titleMatch ? titleMatch[1] : 'Unbekannter Fehler';
-                
-                alert(`Server-Fehler: ${title}\n\nDer Server hat eine HTML-Seite statt JSON zurückgegeben. Prüfe die PHP-Datei auf Syntax-Fehler.`);
+
+        // Generate 2FA QR Code
+        document.getElementById('generate2faBtn').addEventListener('click', function () {
+            console.log('Generate 2FA button clicked');
+            console.log('Current User ID:', currentUserId);
+
+            // Prüfe ob currentUserId gesetzt ist
+            if (!currentUserId) {
+                alert('Fehler: Keine Benutzer-ID gefunden. Bitte schließe das Modal und versuche es erneut.');
                 return;
             }
-            
-            // Versuche JSON zu parsen
-            let data;
-            try {
-                data = JSON.parse(text);
-                console.log('Parsed JSON:', data);
-            } catch (parseError) {
-                console.error('JSON Parse Error:', parseError);
-                console.error('Response was not valid JSON');
-                
-                // Zeige die ersten 500 Zeichen der Antwort
-                const preview = text.substring(0, 500);
-                alert(`JSON-Parse-Fehler:\n\n${preview}${text.length > 500 ? '\n\n... (gekürzt)' : ''}`);
-                return;
-            }
-            
-            if (data.success) {
-                console.log('Generation successful');
-                
-                // QR-Code anzeigen
-                if (data.qrcode) {
-                    console.log('Setting QR code image:', data.qrcode);
-                    document.getElementById('qrcode-image').src = data.qrcode;
-                    
-                    // Test ob QR-Code lädt
-                    document.getElementById('qrcode-image').onload = function() {
-                        console.log('QR code image loaded successfully');
-                    };
-                    document.getElementById('qrcode-image').onerror = function() {
-                        console.error('QR code image failed to load');
-                        // Versuche alternativen QR-Code Provider
-                        if (data.debug && data.debug.qr_providers) {
-                            console.log('Trying alternative QR providers...');
-                            const providers = Object.values(data.debug.qr_providers);
-                            let providerIndex = 1; // Starte mit dem zweiten Provider
-                            
-                            const tryNextProvider = () => {
-                                if (providerIndex < providers.length) {
-                                    console.log(`Trying provider ${providerIndex + 1}:`, providers[providerIndex]);
-                                    this.src = providers[providerIndex];
-                                    providerIndex++;
-                                } else {
-                                    alert('QR-Code konnte nicht geladen werden. Verwende die manuelle Eingabe.');
+
+            this.disabled = true;
+            this.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Generierung...';
+
+            const requestData = {
+                'user_id': currentUserId,
+                'action': 'generate'
+            };
+
+            console.log('Request data:', requestData);
+
+            fetch('actions/generate_2fa.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: new URLSearchParams(requestData)
+            })
+                .then(response => {
+                    console.log('Response received');
+                    console.log('Status:', response.status);
+                    console.log('Status text:', response.statusText);
+
+                    // Erst den rohen Text holen
+                    return response.text();
+                })
+                .then(text => {
+                    console.log('Raw response text:');
+                    console.log(text);
+                    console.log('Text length:', text.length);
+
+                    // Prüfe ob es HTML ist (Fehlerseite)
+                    if (text.trim().startsWith('<')) {
+                        console.error('Server returned HTML instead of JSON');
+
+                        // Extrahiere Titel falls vorhanden
+                        const titleMatch = text.match(/<title>(.*?)<\/title>/i);
+                        const title = titleMatch ? titleMatch[1] : 'Unbekannter Fehler';
+
+                        alert(`Server-Fehler: ${title}\n\nDer Server hat eine HTML-Seite statt JSON zurückgegeben. Prüfe die PHP-Datei auf Syntax-Fehler.`);
+                        return;
+                    }
+
+                    // Versuche JSON zu parsen
+                    let data;
+                    try {
+                        data = JSON.parse(text);
+                        console.log('Parsed JSON:', data);
+                    } catch (parseError) {
+                        console.error('JSON Parse Error:', parseError);
+                        console.error('Response was not valid JSON');
+
+                        // Zeige die ersten 500 Zeichen der Antwort
+                        const preview = text.substring(0, 500);
+                        alert(`JSON-Parse-Fehler:\n\n${preview}${text.length > 500 ? '\n\n... (gekürzt)' : ''}`);
+                        return;
+                    }
+
+                    if (data.success) {
+                        console.log('Generation successful');
+
+                        // QR-Code anzeigen
+                        if (data.qrcode) {
+                            console.log('Setting QR code image:', data.qrcode);
+                            document.getElementById('qrcode-image').src = data.qrcode;
+
+                            // Test ob QR-Code lädt
+                            document.getElementById('qrcode-image').onload = function () {
+                                console.log('QR code image loaded successfully');
+                            };
+                            document.getElementById('qrcode-image').onerror = function () {
+                                console.error('QR code image failed to load');
+                                // Versuche alternativen QR-Code Provider
+                                if (data.debug && data.debug.qr_providers) {
+                                    console.log('Trying alternative QR providers...');
+                                    const providers = Object.values(data.debug.qr_providers);
+                                    let providerIndex = 1; // Starte mit dem zweiten Provider
+
+                                    const tryNextProvider = () => {
+                                        if (providerIndex < providers.length) {
+                                            console.log(`Trying provider ${providerIndex + 1}:`, providers[providerIndex]);
+                                            this.src = providers[providerIndex];
+                                            providerIndex++;
+                                        } else {
+                                            alert('QR-Code konnte nicht geladen werden. Verwende die manuelle Eingabe.');
+                                        }
+                                    };
+
+                                    this.onerror = tryNextProvider;
+                                    tryNextProvider();
                                 }
                             };
-                            
-                            this.onerror = tryNextProvider;
-                            tryNextProvider();
                         }
-                    };
-                }
-                
-                // Manuelle Eingabe-Daten
-                if (data.manual_entry) {
-                    document.getElementById('manual-issuer').textContent = data.manual_entry.issuer;
-                    document.getElementById('manual-account').textContent = data.manual_entry.account;
-                    document.getElementById('manual-secret').textContent = data.secret;
-                }
-                
-                // Debug-Infos loggen
-                if (data.debug) {
-                    console.log('Debug info:', data.debug);
-                    console.log('Current test code:', data.debug.current_test_code);
-                }
-                
-                // Zu Schritt 2 wechseln
-                document.getElementById('setup-step-1').style.display = 'none';
-                document.getElementById('setup-step-2').style.display = 'block';
-                
-                // Focus auf Token-Input
-                setTimeout(() => {
-                    document.getElementById('setup-token').focus();
-                }, 100);
-                
-            } else {
-                console.error('Generation failed:', data.message);
-                alert('Fehler bei der 2FA-Generierung: ' + (data.message || 'Unbekannter Fehler'));
-                
-                if (data.debug) {
-                    console.log('Error debug info:', data.debug);
-                }
-            }
-        })
-        .catch(error => {
-            console.error('Fetch error:', error);
-            alert('Netzwerk-Fehler: ' + error.message);
-        })
-        .finally(() => {
-            this.disabled = false;
-            this.innerHTML = '<i class="bi bi-qr-code"></i> QR-Code generieren';
+
+                        // Manuelle Eingabe-Daten
+                        if (data.manual_entry) {
+                            document.getElementById('manual-issuer').textContent = data.manual_entry.issuer;
+                            document.getElementById('manual-account').textContent = data.manual_entry.account;
+                            document.getElementById('manual-secret').textContent = data.secret;
+                        }
+
+                        // Debug-Infos loggen
+                        if (data.debug) {
+                            console.log('Debug info:', data.debug);
+                            console.log('Current test code:', data.debug.current_test_code);
+                        }
+
+                        // Zu Schritt 2 wechseln
+                        document.getElementById('setup-step-1').style.display = 'none';
+                        document.getElementById('setup-step-2').style.display = 'block';
+
+                        // Focus auf Token-Input
+                        setTimeout(() => {
+                            document.getElementById('setup-token').focus();
+                        }, 100);
+
+                    } else {
+                        console.error('Generation failed:', data.message);
+                        alert('Fehler bei der 2FA-Generierung: ' + (data.message || 'Unbekannter Fehler'));
+
+                        if (data.debug) {
+                            console.log('Error debug info:', data.debug);
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error('Fetch error:', error);
+                    alert('Netzwerk-Fehler: ' + error.message);
+                })
+                .finally(() => {
+                    this.disabled = false;
+                    this.innerHTML = '<i class="bi bi-qr-code"></i> QR-Code generieren';
+                });
         });
-    });
-    
-    // Verify 2FA Setup
-    document.getElementById('verify2faSetupForm').addEventListener('submit', function(e) {
-        e.preventDefault();
-        
-        const token = document.getElementById('setup-token').value;
-        const submitBtn = this.querySelector('button[type="submit"]');
-        
-        if (!currentUserId) {
-            alert('Fehler: Keine Benutzer-ID gefunden.');
-            return;
-        }
-        
-        submitBtn.disabled = true;
-        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Überprüfung...';
-        
-        fetch('actions/verify_2fa.php', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-            },
-            body: new URLSearchParams({
-                'token': token,
-                'user_id': currentUserId,
-                'action': 'verify'
-            })
-        })
-        .then(response => response.text())
-        .then(text => {
-            console.log('Verify response:', text);
-            
-            let data;
-            try {
-                data = JSON.parse(text);
-            } catch (e) {
-                console.error('Verify JSON parse error:', e);
-                alert('Server-Fehler bei der Verifikation');
+
+        // Verify 2FA Setup
+        document.getElementById('verify2faSetupForm').addEventListener('submit', function (e) {
+            e.preventDefault();
+
+            const token = document.getElementById('setup-token').value;
+            const submitBtn = this.querySelector('button[type="submit"]');
+
+            if (!currentUserId) {
+                alert('Fehler: Keine Benutzer-ID gefunden.');
                 return;
             }
-            
-            if (data.success) {
-                // Backup-Codes anzeigen
-                const codesDisplay = document.getElementById('backup-codes-display');
-                codesDisplay.innerHTML = '';
-                
-                if (data.backup_codes && data.backup_codes.length > 0) {
-                    data.backup_codes.forEach(code => {
-                        const div = document.createElement('div');
-                        div.className = 'backup-code';
-                        div.textContent = code;
-                        codesDisplay.appendChild(div);
-                    });
-                    
-                    // Backup-Codes für Download speichern
-                    window.backupCodes = data.backup_codes;
-                }
-                
-                // Zu Schritt 3 wechseln
-                document.getElementById('setup-step-2').style.display = 'none';
-                document.getElementById('setup-step-3').style.display = 'block';
-                
-                // Seite nach 3 Sekunden neu laden
-                setTimeout(() => {
-                    location.reload();
-                }, 3000);
-            } else {
-                alert('Fehler: ' + data.message);
-                document.getElementById('setup-token').value = '';
-                document.getElementById('setup-token').focus();
-            }
-        })
-        .catch(error => {
-            console.error('Verify error:', error);
-            alert('Netzwerk-Fehler bei der Verifikation: ' + error.message);
-        })
-        .finally(() => {
-            submitBtn.disabled = false;
-            submitBtn.innerHTML = '<i class="bi bi-check-circle"></i> 2FA aktivieren';
+
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Überprüfung...';
+
+            fetch('actions/verify_2fa.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: new URLSearchParams({
+                    'token': token,
+                    'user_id': currentUserId,
+                    'action': 'verify'
+                })
+            })
+                .then(response => response.text())
+                .then(text => {
+                    console.log('Verify response:', text);
+
+                    let data;
+                    try {
+                        data = JSON.parse(text);
+                    } catch (e) {
+                        console.error('Verify JSON parse error:', e);
+                        alert('Server-Fehler bei der Verifikation');
+                        return;
+                    }
+
+                    if (data.success) {
+                        // Backup-Codes anzeigen
+                        const codesDisplay = document.getElementById('backup-codes-display');
+                        codesDisplay.innerHTML = '';
+
+                        if (data.backup_codes && data.backup_codes.length > 0) {
+                            data.backup_codes.forEach(code => {
+                                const div = document.createElement('div');
+                                div.className = 'backup-code';
+                                div.textContent = code;
+                                codesDisplay.appendChild(div);
+                            });
+
+                            // Backup-Codes für Download speichern
+                            window.backupCodes = data.backup_codes;
+                        }
+
+                        // Zu Schritt 3 wechseln
+                        document.getElementById('setup-step-2').style.display = 'none';
+                        document.getElementById('setup-step-3').style.display = 'block';
+
+                        // Seite nach 3 Sekunden neu laden
+                        setTimeout(() => {
+                            location.reload();
+                        }, 3000);
+                    } else {
+                        alert('Fehler: ' + data.message);
+                        document.getElementById('setup-token').value = '';
+                        document.getElementById('setup-token').focus();
+                    }
+                })
+                .catch(error => {
+                    console.error('Verify error:', error);
+                    alert('Netzwerk-Fehler bei der Verifikation: ' + error.message);
+                })
+                .finally(() => {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = '<i class="bi bi-check-circle"></i> 2FA aktivieren';
+                });
         });
-    });
-    
-    // Auto-format 2FA token input
-    document.getElementById('setup-token').addEventListener('input', function() {
-        this.value = this.value.replace(/[^0-9]/g, '');
-    });
-    
-    // Download Backup Codes
-    document.getElementById('downloadBackupCodes').addEventListener('click', function() {
-        if (window.backupCodes) {
-            const content = `2FA Backup-Codes für DVD-Verwaltung
+
+        // Auto-format 2FA token input
+        document.getElementById('setup-token').addEventListener('input', function () {
+            this.value = this.value.replace(/[^0-9]/g, '');
+        });
+
+        // Download Backup Codes
+        document.getElementById('downloadBackupCodes').addEventListener('click', function () {
+            if (window.backupCodes) {
+                const content = `2FA Backup-Codes für DVD-Verwaltung
 Generiert am: ${new Date().toLocaleString()}
 
 WICHTIG: Bewahren Sie diese Codes sicher auf!
@@ -609,60 +606,60 @@ Jeder Code kann nur einmal verwendet werden.
 ${window.backupCodes.join('\n')}
 
 Diese Codes können verwendet werden, wenn Sie keinen Zugang zu Ihrer Authenticator-App haben.`;
-            
-            const blob = new Blob([content], { type: 'text/plain' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `2FA-Backup-Codes-${new Date().toISOString().split('T')[0]}.txt`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-        }
-    });
-    
-    // Test-Funktionen für Debugging (global verfügbar)
-    window.debug2FAStatus = function() {
-        console.log('Current 2FA Debug Status:');
-        console.log('- Current User ID:', currentUserId);
-        console.log('- Setup Step 1 visible:', document.getElementById('setup-step-1').style.display !== 'none');
-        console.log('- Setup Step 2 visible:', document.getElementById('setup-step-2').style.display !== 'none');
-        console.log('- QR Image src:', document.getElementById('qrcode-image').src);
-        console.log('- Manual secret:', document.getElementById('manual-secret').textContent);
-    };
-    
-    window.test2FAGeneration = function() {
-        console.log('Testing 2FA generation with current user ID:', currentUserId);
-        
-        if (!currentUserId) {
-            console.log('No current user ID set, using test ID 1');
-            currentUserId = '1';
-        }
-        
-        fetch('actions/generate_2fa.php', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-            },
-            body: new URLSearchParams({
-                'user_id': currentUserId,
-                'action': 'generate'
-            })
-        })
-        .then(response => response.text())
-        .then(text => {
-            console.log('Test response:', text);
-            try {
-                const data = JSON.parse(text);
-                console.log('Test parsed:', data);
-            } catch (e) {
-                console.error('Test parse error:', e);
+
+                const blob = new Blob([content], { type: 'text/plain' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `2FA-Backup-Codes-${new Date().toISOString().split('T')[0]}.txt`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
             }
-        })
-        .catch(error => {
-            console.error('Test error:', error);
         });
-    };
-});
+
+        // Test-Funktionen für Debugging (global verfügbar)
+        window.debug2FAStatus = function () {
+            console.log('Current 2FA Debug Status:');
+            console.log('- Current User ID:', currentUserId);
+            console.log('- Setup Step 1 visible:', document.getElementById('setup-step-1').style.display !== 'none');
+            console.log('- Setup Step 2 visible:', document.getElementById('setup-step-2').style.display !== 'none');
+            console.log('- QR Image src:', document.getElementById('qrcode-image').src);
+            console.log('- Manual secret:', document.getElementById('manual-secret').textContent);
+        };
+
+        window.test2FAGeneration = function () {
+            console.log('Testing 2FA generation with current user ID:', currentUserId);
+
+            if (!currentUserId) {
+                console.log('No current user ID set, using test ID 1');
+                currentUserId = '1';
+            }
+
+            fetch('actions/generate_2fa.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: new URLSearchParams({
+                    'user_id': currentUserId,
+                    'action': 'generate'
+                })
+            })
+                .then(response => response.text())
+                .then(text => {
+                    console.log('Test response:', text);
+                    try {
+                        const data = JSON.parse(text);
+                        console.log('Test parsed:', data);
+                    } catch (e) {
+                        console.error('Test parse error:', e);
+                    }
+                })
+                .catch(error => {
+                    console.error('Test error:', error);
+                });
+        };
+    });
 </script>
