@@ -145,8 +145,7 @@ $schema = [
     </script>
 </head>
 <body>
-    <!-- Skip Link für Accessibility -->
-    <a href="#main-content" class="skip-link">Zum Hauptinhalt springen</a>
+    
 
     <?php
     // Header laden
