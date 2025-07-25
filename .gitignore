@@ -32,3 +32,6 @@ test.php
 admin/debug_backup.php
 admin/debug_update.php
 admin/debug-emergency.php
+idee.md
+
+sync_config.jsonc
