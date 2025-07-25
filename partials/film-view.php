@@ -7,6 +7,8 @@ if (!isset($dvd) || !is_array($dvd) || empty($dvd['id'])) {
     throw new InvalidArgumentException('Invalid DVD data provided to film-view.php');
 }
 
+
+
 // Cover-Pfade generieren
 $frontCover = findCoverImage($dvd['cover_id'] ?? '', 'f');
 $backCover = findCoverImage($dvd['cover_id'] ?? '', 'b');
@@ -452,28 +454,39 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // Rating-System
+    // Rating-System mit Debug-Ausgaben
     const ratingStars = document.querySelectorAll('.rating-star');
     const saveRatingBtn = document.querySelector('.save-rating');
     const ratingDisplay = document.querySelector('.rating-display');
     const currentRating = parseFloat(document.querySelector('.star-rating-input')?.dataset.currentRating || 0);
     let selectedRating = currentRating;
     
-    ratingStars.forEach(star => {
+    console.log('Rating System Debug:', {
+        ratingStars: ratingStars.length,
+        saveRatingBtn: !!saveRatingBtn,
+        ratingDisplay: !!ratingDisplay,
+        currentRating: currentRating
+    });
+    
+    ratingStars.forEach((star, index) => {
         star.addEventListener('mouseenter', function() {
+            console.log('Mouse enter star:', index + 1);
             const rating = parseInt(this.dataset.rating);
             highlightStars(rating);
         });
         
         star.addEventListener('mouseleave', function() {
+            console.log('Mouse leave star');
             highlightStars(selectedRating);
         });
         
         star.addEventListener('click', function() {
             selectedRating = parseInt(this.dataset.rating);
+            console.log('Star clicked, selected rating:', selectedRating);
             highlightStars(selectedRating);
             if (saveRatingBtn) {
                 saveRatingBtn.style.display = 'inline-block';
+                console.log('Save button shown');
             }
             if (ratingDisplay) {
                 ratingDisplay.textContent = selectedRating + '/5';
@@ -548,7 +561,7 @@ document.addEventListener('DOMContentLoaded', function() {
 // AJAX-Funktionen
 async function saveUserRating(filmId, rating) {
     try {
-        const response = await fetch('ajax/save-rating.php', {
+        const response = await fetch('api/save-rating.php', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -572,7 +585,7 @@ async function saveUserRating(filmId, rating) {
 
 async function toggleWishlist(filmId, button) {
     try {
-        const response = await fetch('ajax/toggle-wishlist.php', {
+        const response = await fetch('api/toggle-wishlist.php', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -600,7 +613,7 @@ async function toggleWishlist(filmId, button) {
 
 async function toggleWatched(filmId, button) {
     try {
-        const response = await fetch('ajax/toggle-watched.php', {
+        const response = await fetch('api/toggle-watched.php', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
