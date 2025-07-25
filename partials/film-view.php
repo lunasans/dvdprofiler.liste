@@ -155,13 +155,6 @@ function generateStarRating(float $rating, int $maxStars = 5): string {
     }
     return $stars;
 }
-
-function formatRuntime(?int $minutes): string {
-    if (!$minutes) return '';
-    $h = intdiv($minutes, 60);
-    $m = $minutes % 60;
-    return $h > 0 ? "{$h}h {$m}min" : "{$m}min";
-}
 ?>
 
 <div class="detail-inline" itemscope itemtype="https://schema.org/Movie">
@@ -391,10 +384,10 @@ function formatRuntime(?int $minutes): string {
     <?php endif; ?>
 
     <!-- User-Bewertung (falls eingeloggt) -->
-    <?php if (isset($_SESSION['user_id'])): ?>
-        <section class="meta-card">
-            <h3><i class="bi bi-star"></i> Bewertung abgeben</h3>
-            <div class="user-rating-section">
+    <section class="meta-card">
+        <h3><i class="bi bi-star"></i> Bewertung abgeben</h3>
+        <div class="user-rating-section">
+            <?php if (isset($_SESSION['user_id'])): ?>
                 <div class="rating-input">
                     <span>Ihre Bewertung:</span>
                     <div class="star-rating-input" data-film-id="<?= $dvd['id'] ?>" data-current-rating="<?= $userRating ?>">
@@ -408,9 +401,16 @@ function formatRuntime(?int $minutes): string {
                 <button class="btn btn-primary save-rating" style="display: none;">
                     <i class="bi bi-check"></i> Bewertung speichern
                 </button>
-            </div>
-        </section>
-    <?php endif; ?>
+            <?php else: ?>
+                <div class="login-required">
+                    <p><i class="bi bi-info-circle"></i> Melden Sie sich an, um Filme zu bewerten.</p>
+                    <a href="login.php" class="btn btn-outline-primary">
+                        <i class="bi bi-person"></i> Anmelden
+                    </a>
+                </div>
+            <?php endif; ?>
+        </div>
+    </section>
 
     <!-- Film-Aktionen -->
     <section class="film-actions">
