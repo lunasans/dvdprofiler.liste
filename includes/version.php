@@ -5,23 +5,23 @@
  * 
  * @package    dvdprofiler.liste
  * @author     René Neuhaus
- * @repository https://github.com/lunasans/dvdprofiler.liste
+ * @repository https://update.neuhaus.or.at/dvdprofiler-liste (eigenes Update-System)
  */
 
 // Version Information
-define('DVDPROFILER_VERSION', '1.4.6');
+define('DVDPROFILER_VERSION', '1.4.7');
 define('DVDPROFILER_CODENAME', 'Cinephile');
-define('DVDPROFILER_BUILD_DATE', '2025.07.24');
-define('DVDPROFILER_RELEASE_DATE', '24. Juli 2025');
+define('DVDPROFILER_BUILD_DATE', '2025.07.25');
+define('DVDPROFILER_RELEASE_DATE', '25. Juli 2025');
 
 // Build Information
 define('DVDPROFILER_BUILD_TYPE', 'Release'); // Release, Beta, Alpha, Development
 define('DVDPROFILER_BRANCH', 'main');
 define('DVDPROFILER_COMMIT', '207ece9'); // Git commit hash (ersten 7 Zeichen)
 
-// Repository Information
-define('DVDPROFILER_REPOSITORY', 'lunasans/dvdprofiler.liste');
-define('DVDPROFILER_GITHUB_URL', 'https://github.com/lunasans/dvdprofiler.liste');
+// Repository Information (GEÄNDERT für eigenes Update-System)
+define('DVDPROFILER_REPOSITORY', 'update.neuhaus.or.at/dvdprofiler-liste');
+define('DVDPROFILER_GITHUB_URL', 'https://update.neuhaus.or.at/dvdprofiler-liste'); // Ihre Projekt-URL
 define('DVDPROFILER_AUTHOR', 'René Neuhaus');
 
 // Feature Flags
@@ -212,7 +212,7 @@ define('DVDPROFILER_CHANGELOG', [
             'Enhanced GitHub integration',
             'Performance monitoring tools'
         ]
-        ],
+    ],
 
     '1.4.6' => [
         'date' => '2025-07-24',
@@ -227,7 +227,22 @@ define('DVDPROFILER_CHANGELOG', [
             'Bug fixes in Charts.js integration',
             'Improved error handling in database operations',
         ]
-        ],
+    ],
+
+    '1.4.7' => [
+        'date' => '2025-07-25',
+        'type'=> 'minor',
+        'changes' => [
+            'Migration from GitHub to custom update infrastructure',
+            'Enhanced independence from external services',
+            'Improved update performance and reliability',
+            'Simplified update configuration',
+            'Enhanced monitoring and logging capabilities',
+            'Reduced dependency on external rate limits',
+            'Improved backup and restore functionality',
+            'Better error handling in update process',
+        ]
+    ],
 ]);
 
 // Helper Functions
@@ -307,25 +322,82 @@ function checkDVDProfilerSystemRequirements()
     return $results;
 }
 
-// GitHub Integration Functions
-function getDVDProfilerLatestGitHubVersion()
+// Update-System Functions (EINFACH und zukunftssicher)
+
+/**
+ * Update-Konfiguration abrufen
+ * Zukunftssicher: Kann später um API-Keys erweitert werden
+ */
+function getDVDProfilerUpdateConfig(): array
 {
-    $repo = DVDPROFILER_REPOSITORY;
-    $apiUrl = "https://api.github.com/repos/$repo/releases/latest";
-    $opts = [
+    return [
+        'api_url' => getSetting('update_api_url', 'https://update.neuhaus.or.at/update-api.php'),
+        'base_url' => getSetting('update_base_url', 'https://update.neuhaus.or.at/packages/'),
+        'timeout' => 30,
+        'user_agent' => 'DVD-Profiler-Updater/' . DVDPROFILER_VERSION,
+        'verify_ssl' => true
+    ];
+}
+
+/**
+ * Update-URL für bestimmte Version generieren
+ */
+function getDVDProfilerUpdateUrl(string $version): string
+{
+    $config = getDVDProfilerUpdateConfig();
+    return $config['base_url'] . "dvdprofiler-liste-v{$version}.zip";
+}
+
+/**
+ * Prüfen ob Update-System verfügbar ist
+ */
+function isDVDProfilerUpdateAvailable(): bool
+{
+    $config = getDVDProfilerUpdateConfig();
+    
+    $context = stream_context_create([
+        'http' => [
+            'method' => 'HEAD',
+            'header' => "User-Agent: {$config['user_agent']}",
+            'timeout' => 10,
+            'ignore_errors' => true
+        ]
+    ]);
+    
+    $headers = @get_headers($config['api_url'], 1, $context);
+    return $headers && strpos($headers[0], '200') !== false;
+}
+
+/**
+ * Eigene Update-API aufrufen (ersetzt GitHub API)
+ * EINFACH - ohne API-Key Komplexität
+ */
+function getDVDProfilerLatestVersion(): ?array
+{
+    $config = getDVDProfilerUpdateConfig();
+    
+    $context = stream_context_create([
         'http' => [
             'method' => 'GET',
-            'header' => "User-Agent: DVDProfiler-Updater/1.0\r\n",
-            'timeout' => 10
+            'header' => "User-Agent: {$config['user_agent']}",
+            'timeout' => $config['timeout'],
+            'ignore_errors' => true
         ]
-    ];
-    $context = stream_context_create($opts);
+    ]);
     
     try {
-        $json = @file_get_contents($apiUrl, false, $context);
-        if (!$json) return null;
+        $json = @file_get_contents($config['api_url'], false, $context);
+        if (!$json) {
+            error_log('Update API request failed');
+            return null;
+        }
         
         $data = json_decode($json, true);
+        if (!$data || !isset($data['tag_name'])) {
+            error_log('Invalid update API response');
+            return null;
+        }
+        
         return [
             'version' => $data['tag_name'] ?? null,
             'name' => $data['name'] ?? null,
@@ -334,57 +406,48 @@ function getDVDProfilerLatestGitHubVersion()
             'download_url' => $data['zipball_url'] ?? null
         ];
     } catch (Exception $e) {
-        error_log('GitHub API error: ' . $e->getMessage());
+        error_log('Update API error: ' . $e->getMessage());
         return null;
     }
 }
 
-function isDVDProfilerUpdateAvailable()
+// Legacy GitHub Integration Functions (für Kompatibilität beibehalten)
+
+/**
+ * @deprecated Verwenden Sie getDVDProfilerLatestVersion() stattdessen
+ */
+function getDVDProfilerLatestGitHubVersion()
 {
-    $latestRelease = getDVDProfilerLatestGitHubVersion();
-    if (!$latestRelease || !$latestRelease['version']) {
-        return false;
-    }
-    
-    return version_compare($latestRelease['version'], DVDPROFILER_VERSION, '>');
+    error_log('Warning: getDVDProfilerLatestGitHubVersion() is deprecated. Use getDVDProfilerLatestVersion() instead.');
+    return getDVDProfilerLatestVersion();
 }
 
 // Statistics Functions
-function getDVDProfilerStatistics()
+function getDVDProfilerStatistics(): array
 {
     global $pdo;
     
     $stats = [
         'total_films' => 0,
         'total_boxsets' => 0,
-        'total_visits' => 0,
         'total_genres' => 0,
         'total_actors' => 0,
-        'storage_size' => 0,
-        'avg_rating' => 0,
         'newest_film' => null,
-        'most_viewed' => null
+        'storage_size' => 0,
+        'last_updated' => date('Y-m-d H:i:s')
     ];
     
     try {
-        if (isset($pdo) && $pdo instanceof PDO) {
+        if (isset($pdo)) {
             // Total films
             $stmt = $pdo->query("SELECT COUNT(*) as count FROM dvds");
             $result = $stmt->fetch(PDO::FETCH_ASSOC);
             $stats['total_films'] = (int)($result['count'] ?? 0);
             
-            // BoxSets
-            $stmt = $pdo->query("SELECT COUNT(DISTINCT boxset_name) as count FROM dvds WHERE boxset_name IS NOT NULL AND boxset_name != ''");
+            // Total boxsets
+            $stmt = $pdo->query("SELECT COUNT(*) as count FROM dvds WHERE is_boxset = 1");
             $result = $stmt->fetch(PDO::FETCH_ASSOC);
             $stats['total_boxsets'] = (int)($result['count'] ?? 0);
-            
-            // Visitors (if counter table exists)
-            $stmt = $pdo->query("SHOW TABLES LIKE 'counter'");
-            if ($stmt->fetch()) {
-                $stmt = $pdo->query("SELECT visits FROM counter WHERE id = 1");
-                $result = $stmt->fetch(PDO::FETCH_ASSOC);
-                $stats['total_visits'] = (int)($result['visits'] ?? 0);
-            }
             
             // Unique genres
             $stmt = $pdo->query("SELECT COUNT(DISTINCT genre) as count FROM dvds WHERE genre IS NOT NULL AND genre != ''");
