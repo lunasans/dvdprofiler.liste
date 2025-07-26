@@ -61,7 +61,7 @@ try {
 // System-Health von Bootstrap abrufen
 $systemHealth = getSystemHealth();
 $updateAvailable = isDVDProfilerUpdateAvailable();
-$latestRelease = getDVDProfilerLatestGitHubVersion();
+$latestRelease = getDVDProfilerLatestVersion();
 
 // Build-Informationen
 $buildInfo = getDVDProfilerBuildInfo();
