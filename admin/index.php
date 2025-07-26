@@ -1,9 +1,22 @@
 <?php
 declare(strict_types=1);
 
-// Bootstrap (startet bereits die Session)
+// Performance-Monitoring für Admin
+$pageStartTime = microtime(true);
+$memoryStart = memory_get_usage(true);
+
+// Bootstrap (startet bereits die Session) - LÄDT formatBytes()!
 require_once __DIR__ . '/../includes/bootstrap.php';
 require_once __DIR__ . '/../includes/version.php'; // Neue Versionsverwaltung laden
+
+// Konstanten-Fallbacks (nur falls nicht definiert)
+if (!defined('DVDPROFILER_VERSION')) define('DVDPROFILER_VERSION', '1.4.6');
+if (!defined('DVDPROFILER_CODENAME')) define('DVDPROFILER_CODENAME', 'Unknown');
+if (!defined('DVDPROFILER_BUILD_DATE')) define('DVDPROFILER_BUILD_DATE', date('Y.m.d'));
+if (!defined('DVDPROFILER_BUILD_TYPE')) define('DVDPROFILER_BUILD_TYPE', 'Release');
+if (!defined('DVDPROFILER_GITHUB_URL')) define('DVDPROFILER_GITHUB_URL', '#');
+if (!defined('DVDPROFILER_REPOSITORY')) define('DVDPROFILER_REPOSITORY', 'DVD Profiler Liste');
+if (!defined('DVDPROFILER_AUTHOR')) define('DVDPROFILER_AUTHOR', 'René Neuhaus');
 
 // Zugriffsschutz
 if (!isset($_SESSION['user_id'])) {
@@ -20,17 +33,13 @@ if (!in_array($page, $allowedPages)) {
     $page = 'dashboard'; // Fallback
 }
 
-// Version und Update-Informationen von neuer Versionsverwaltung
+// Version und Update-Informationen von neuer Versionsverwaltung (sicher)
 $currentVersion = DVDPROFILER_VERSION;
 $versionName = DVDPROFILER_CODENAME;
 $buildDate = DVDPROFILER_BUILD_DATE;
-$buildInfo = getDVDProfilerBuildInfo();
-$isUpdateAvailable = isDVDProfilerUpdateAvailable();
-$systemHealth = getSystemHealth(); // Aus bootstrap.php
-
-// Performance-Monitoring für Admin
-$pageStartTime = microtime(true);
-$memoryStart = memory_get_usage(true);
+$buildInfo = function_exists('getDVDProfilerBuildInfo') ? getDVDProfilerBuildInfo() : [];
+$isUpdateAvailable = function_exists('isDVDProfilerUpdateAvailable') ? isDVDProfilerUpdateAvailable() : false;
+$systemHealth = function_exists('getSystemHealth') ? getSystemHealth() : [];
 
 ?>
 <!DOCTYPE html>
@@ -50,146 +59,127 @@ $memoryStart = memory_get_usage(true);
     <!-- Bootstrap Icons -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css">
     
-    <!-- Custom Admin CSS (überschreibt Bootstrap) -->
+    <!-- Custom Admin CSS (ORIGINAL) -->
     <link href="css/admin.css" rel="stylesheet">
     
-    <!-- Meta Tags -->
-    <meta name="description" content="Admin Center für <?= htmlspecialchars($siteTitle) ?>">
+    <!-- Security & SEO Meta Tags -->
     <meta name="robots" content="noindex, nofollow">
+    <meta name="theme-color" content="#1a1a2e">
     <meta name="author" content="<?= DVDPROFILER_AUTHOR ?>">
+    <meta http-equiv="X-Content-Type-Options" content="nosniff">
+    <meta http-equiv="X-Frame-Options" content="SAMEORIGIN">
     
-    <!-- Admin-spezifische Meta-Informationen -->
-    <meta name="application-name" content="DVD Profiler Liste Admin">
-    <meta name="application-version" content="<?= DVDPROFILER_VERSION ?>">
-    <meta name="application-build" content="<?= DVDPROFILER_BUILD_DATE ?>">
+    <!-- Enhanced Favicon -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%233498db'%3E%3Cpath d='M18 4v1h-2V4c0-1.1-.9-2-2-2H8c-1.1 0-2 .9-2 2v1H4v11c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4h-2zM8 4h6v1H8V4zm10 13H6V6h2v1h6V6h2v11z'/%3E%3C/svg%3E">
     
     <style>
-        /* Enhanced loading animation */
-        .page-loader {
+        /* Enhanced Page Loader */
+        #pageLoader {
             position: fixed;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            background: var(--clr-bg);
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             display: flex;
             align-items: center;
             justify-content: center;
             z-index: 9999;
-            transition: opacity 0.3s ease;
+            transition: opacity 0.5s ease-out, visibility 0.5s ease-out;
         }
         
-        .page-loader.hidden {
+        #pageLoader.hidden {
             opacity: 0;
-            pointer-events: none;
+            visibility: hidden;
         }
         
         .loader-content {
             text-align: center;
-            color: var(--clr-text);
+            color: white;
         }
         
-        .loader-version {
-            margin-top: 1rem;
-            font-size: 0.85rem;
-            opacity: 0.7;
+        .loader-spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid rgba(255,255,255,0.3);
+            border-top: 4px solid white;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
         }
         
-        /* System status indicator */
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
         .system-status {
             position: fixed;
-            top: 10px;
-            right: 10px;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
             z-index: 1000;
-            padding: 0.5rem;
-            background: var(--clr-card);
-            border-radius: var(--radius);
-            border: 1px solid var(--clr-border);
-            font-size: 0.75rem;
+            display: none;
+            backdrop-filter: blur(10px);
         }
-        
-        .status-indicator {
-            display: inline-block;
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            margin-right: 0.5rem;
-        }
-        
-        .status-ok { background: var(--clr-success); }
-        .status-warning { background: var(--clr-warning); }
-        .status-error { background: var(--clr-danger); }
     </style>
 </head>
-<body>
-    <!-- Loading Screen -->
-    <div class="page-loader" id="pageLoader">
+<body class="admin-body">
+    <!-- Enhanced Page Loader -->
+    <div id="pageLoader">
         <div class="loader-content">
-            <div class="spinner-border text-primary mb-3" role="status">
-                <span class="visually-hidden">Laden...</span>
-            </div>
-            <h5>Admin Center wird geladen...</h5>
-            <div class="loader-version">
-                <?= htmlspecialchars($siteTitle) ?> v<?= DVDPROFILER_VERSION ?> "<?= DVDPROFILER_CODENAME ?>"
-            </div>
+            <div class="loader-spinner"></div>
+            <h4><?= htmlspecialchars($siteTitle) ?></h4>
+            <p>Admin Center wird geladen...</p>
+            <small>Version <?= $currentVersion ?> "<?= $versionName ?>"</small>
         </div>
     </div>
 
-    <!-- System Status Indicator -->
-    <div class="system-status" id="systemStatus" style="display: none;">
-        <span class="status-indicator <?= $systemHealth['database'] ? 'status-ok' : 'status-error' ?>"></span>
-        <span>System: <?= $systemHealth['database'] ? 'Online' : 'Offline' ?></span>
-        <?php if ($isUpdateAvailable): ?>
-            <br><small><i class="bi bi-arrow-up-circle text-warning"></i> Update verfügbar</small>
-        <?php endif; ?>
+    <!-- System Status -->
+    <div id="systemStatus" class="system-status">
+        <i class="bi bi-cpu"></i> System läuft | 
+        <i class="bi bi-clock"></i> <?= date('H:i') ?> | 
+        <i class="bi bi-person-check"></i> Admin
     </div>
 
     <div class="admin-layout">
-        <!-- Sidebar -->
-        <?php include __DIR__ . '/sidebar.php'; ?>
-        
-        <!-- Main Content -->
+        <!-- ORIGINAL Sidebar -->
+        <aside class="sidebar">
+            <?php include __DIR__ . '/sidebar.php'; ?>
+        </aside>
+
+        <!-- Main Content Area -->
         <main class="admin-content">
-            <div class="container-fluid p-4">
-                <!-- Admin Header -->
-                <div class="d-flex justify-content-between align-items-center mb-4">
+            <!-- ORIGINAL Header -->
+            <div class="admin-header">
+                <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <h1 class="h3 mb-1">
+                        <h1 class="admin-title">
                             <?php
-                            $pageIcons = [
-                                'dashboard' => 'speedometer2',
-                                'users' => 'people',
-                                'settings' => 'gear',
-                                'import' => 'upload',
-                                'update' => 'arrow-up-circle'
+                            $pagesTitles = [
+                                'dashboard' => '<i class="bi bi-speedometer2"></i> Dashboard',
+                                'users' => '<i class="bi bi-people"></i> Benutzer',
+                                'settings' => '<i class="bi bi-gear"></i> Einstellungen', 
+                                'import' => '<i class="bi bi-upload"></i> Film Import',
+                                'update' => '<i class="bi bi-arrow-repeat"></i> System Updates'
                             ];
-                            $icon = $pageIcons[$page] ?? 'file-earmark';
+                            echo $pagesTitles[$page] ?? '<i class="bi bi-question"></i> Seite';
                             ?>
-                            <i class="bi bi-<?= $icon ?>"></i>
-                            <?= ucfirst($page) ?>
                         </h1>
                         <small class="text-muted">
-                            Admin Center - Version <?= DVDPROFILER_VERSION ?> "<?= DVDPROFILER_CODENAME ?>"
+                            <?= htmlspecialchars($siteTitle) ?> Admin Center
                         </small>
                     </div>
                     
-                    <div class="d-flex gap-2">
-                        <!-- Quick Actions -->
-                        <a href="../" class="btn btn-outline-light btn-sm" title="Zur Website">
-                            <i class="bi bi-house"></i>
-                        </a>
-                        
-                        <?php if (isDVDProfilerFeatureEnabled('system_updates') && $isUpdateAvailable): ?>
-                        <a href="?page=settings&action=update" class="btn btn-warning btn-sm" title="Update verfügbar">
-                            <i class="bi bi-arrow-up-circle"></i>
-                            Update
-                        </a>
-                        <?php endif; ?>
-                        
+                    <div class="admin-header-actions">
                         <div class="dropdown">
-                            <button class="btn btn-outline-light btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                            <button class="btn btn-outline-light dropdown-toggle" type="button" data-bs-toggle="dropdown">
                                 <i class="bi bi-person-circle"></i>
-                                <?= htmlspecialchars($_SESSION['username'] ?? 'Admin') ?>
+                                <?= htmlspecialchars($_SESSION['user_email'] ?? 'Admin') ?>
                             </button>
                             <ul class="dropdown-menu dropdown-menu-end">
                                 <li><a class="dropdown-item" href="?page=settings"><i class="bi bi-gear"></i> Einstellungen</a></li>
@@ -199,96 +189,116 @@ $memoryStart = memory_get_usage(true);
                         </div>
                     </div>
                 </div>
-
-                <!-- Content Area -->
-                <div class="content-wrapper">
-                    <?php
-                    // Enhanced error handling with system information
-                    if (file_exists(__DIR__ . "/pages/{$page}.php")) {
-                        // Performance tracking
-                        $pageLoadStart = microtime(true);
-                        
-                        try {
-                            include __DIR__ . "/pages/{$page}.php";
-                        } catch (Exception $e) {
-                            error_log("Admin page error ({$page}): " . $e->getMessage());
-                            echo '<div class="alert alert-danger">
-                                    <h5><i class="bi bi-exclamation-triangle"></i> Fehler beim Laden der Seite</h5>
-                                    <p>Die angeforderte Seite konnte nicht geladen werden.</p>';
-                            
-                            if (getSetting('environment', 'production') === 'development') {
-                                echo '<details class="mt-3">
-                                        <summary>Debug-Informationen</summary>
-                                        <pre class="mt-2">' . htmlspecialchars($e->getMessage()) . '</pre>
-                                        <pre>' . htmlspecialchars($e->getTraceAsString()) . '</pre>
-                                      </details>';
-                            }
-                            
-                            echo '</div>';
-                        }
-                        
-                        $pageLoadTime = microtime(true) - $pageLoadStart;
-                        
-                        // Performance-Log für Entwicklung
-                        if (getSetting('environment', 'production') === 'development') {
-                            error_log("Admin page '{$page}' loaded in " . round($pageLoadTime * 1000, 2) . "ms");
-                        }
-                        
-                    } else {
-                        echo '<div class="alert alert-danger">
-                                <h5><i class="bi bi-exclamation-triangle"></i> Seite nicht gefunden</h5>
-                                <p>Die angeforderte Admin-Seite existiert nicht.</p>
-                                <p class="mb-0">
-                                    <a href="?page=dashboard" class="btn btn-primary">
-                                        <i class="bi bi-house"></i> Zum Dashboard
-                                    </a>
-                                </p>
-                              </div>';
-                    }
-                    ?>
-                </div>
-
-                <!-- Admin Footer -->
-                <footer class="admin-footer mt-5 pt-4 border-top border-secondary">
-                    <div class="row align-items-center">
-                        <div class="col-md-6">
-                            <small class="text-muted">
-                                <i class="bi bi-film"></i>
-                                <?= htmlspecialchars($siteTitle) ?> Admin Center
-                                <br>
-                                Version <?= DVDPROFILER_VERSION ?> "<?= DVDPROFILER_CODENAME ?>" | Build <?= DVDPROFILER_BUILD_DATE ?>
-                            </small>
-                        </div>
-                        <div class="col-md-6 text-md-end">
-                            <small class="text-muted">
-                                <?php
-                                $totalTime = microtime(true) - $pageStartTime;
-                                $memoryUsage = memory_get_usage(true) - $memoryStart;
-                                ?>
-                                <i class="bi bi-speedometer2"></i>
-                                <?= round($totalTime * 1000, 1) ?>ms | 
-                                <i class="bi bi-memory"></i>
-                                <?= formatBytes($memoryUsage) ?>
-                                <br>
-                                <i class="bi bi-github"></i>
-                                <a href="<?= DVDPROFILER_GITHUB_URL ?>" target="_blank" class="text-muted">
-                                    <?= DVDPROFILER_REPOSITORY ?>
-                                </a>
-                            </small>
-                        </div>
-                    </div>
-                </footer>
             </div>
+
+            <!-- Content Area -->
+            <div class="content-wrapper">
+                <?php
+                // Enhanced error handling with system information
+                if (file_exists(__DIR__ . "/pages/{$page}.php")) {
+                    // Performance tracking
+                    $pageLoadStart = microtime(true);
+                    
+                    try {
+                        include __DIR__ . "/pages/{$page}.php";
+                    } catch (Exception $e) {
+                        error_log("Admin page error ({$page}): " . $e->getMessage());
+                        echo '<div class="alert alert-danger">
+                                <h5><i class="bi bi-exclamation-triangle"></i> Fehler beim Laden der Seite</h5>
+                                <p>Die angeforderte Seite konnte nicht geladen werden.</p>';
+                        
+                        if (getSetting('environment', 'production') === 'development') {
+                            echo '<details class="mt-3">
+                                    <summary>Debug-Informationen</summary>
+                                    <pre class="mt-2">' . htmlspecialchars($e->getMessage()) . '</pre>
+                                    <pre>' . htmlspecialchars($e->getTraceAsString()) . '</pre>
+                                  </details>';
+                        }
+                        
+                        echo '</div>';
+                    }
+                    
+                    $pageLoadTime = microtime(true) - $pageLoadStart;
+                    
+                    // Performance-Log für Entwicklung
+                    if (getSetting('environment', 'production') === 'development') {
+                        error_log("Admin page '{$page}' loaded in " . round($pageLoadTime * 1000, 2) . "ms");
+                    }
+                    
+                } else {
+                    echo '<div class="alert alert-danger">
+                            <h5><i class="bi bi-exclamation-triangle"></i> Seite nicht gefunden</h5>
+                            <p>Die angeforderte Admin-Seite existiert nicht.</p>
+                            <p class="mb-0">
+                                <a href="?page=dashboard" class="btn btn-primary">
+                                    <i class="bi bi-house"></i> Zum Dashboard
+                                </a>
+                            </p>
+                          </div>';
+                }
+                ?>
+            </div>
+
+            <!-- ORIGINAL Admin Footer -->
+            <footer class="admin-footer mt-5 pt-4 border-top border-secondary">
+                <div class="row align-items-center">
+                    <div class="col-md-6">
+                        <small class="text-muted">
+                            <i class="bi bi-film"></i>
+                            <?= htmlspecialchars($siteTitle) ?> Admin Center
+                            <br>
+                            Version <?= DVDPROFILER_VERSION ?> "<?= DVDPROFILER_CODENAME ?>" | Build <?= DVDPROFILER_BUILD_DATE ?>
+                        </small>
+                    </div>
+                    <div class="col-md-6 text-md-end">
+                        <small class="text-muted">
+                            <?php
+                            // SICHERE Performance-Berechnung (formatBytes ist aus bootstrap.php)
+                            $totalTime = microtime(true) - $pageStartTime;
+                            $memoryUsage = memory_get_usage(true) - $memoryStart;
+                            ?>
+                            <i class="bi bi-speedometer2"></i>
+                            <?= round($totalTime * 1000, 1) ?>ms | 
+                            <i class="bi bi-memory"></i>
+                            <?= formatBytes($memoryUsage) ?>
+                            <br>
+                            <i class="bi bi-github"></i>
+                            <a href="<?= DVDPROFILER_GITHUB_URL ?>" target="_blank" class="text-muted">
+                                <?= DVDPROFILER_REPOSITORY ?>
+                            </a>
+                        </small>
+                    </div>
+                </div>
+            </footer>
         </main>
     </div>
 
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     
-    <!-- Custom Admin JS -->
+    <!-- ORIGINAL Custom Admin JS (aber SICHER) -->
     <script>
         // Enhanced Admin JavaScript
         document.addEventListener('DOMContentLoaded', function() {
+            'use strict';
+            
+            // SICHERE JavaScript-Konfiguration (alle Werte über json_encode)
+            <?php
+            $jsConfig = [
+                'currentPage' => $page,
+                'version' => DVDPROFILER_VERSION,
+                'codename' => DVDPROFILER_CODENAME,
+                'buildDate' => DVDPROFILER_BUILD_DATE,
+                'buildType' => DVDPROFILER_BUILD_TYPE,
+                'author' => DVDPROFILER_AUTHOR,
+                'isUpdateAvailable' => $isUpdateAvailable,
+                'siteTitle' => $siteTitle
+            ];
+            ?>
+            
+            // Globale Admin-Konfiguration
+            window.adminConfig = <?= json_encode($jsConfig) ?>;
+            
             // Page Loader with enhanced timing
             const loader = document.getElementById('pageLoader');
             const systemStatus = document.getElementById('systemStatus');
@@ -303,12 +313,12 @@ $memoryStart = memory_get_usage(true);
             }, 800);
 
             // Active navigation highlighting
-            const currentPage = new URLSearchParams(window.location.search).get('page') || 'dashboard';
+            const currentPage = window.adminConfig.currentPage;
             const navLinks = document.querySelectorAll('.nav-link');
             
             navLinks.forEach(link => {
                 const href = link.getAttribute('href');
-                if (href && href.includes(`page=${currentPage}`)) {
+                if (href && href.includes('page=' + currentPage)) {
                     link.classList.add('active');
                 } else {
                     link.classList.remove('active');
@@ -353,77 +363,75 @@ $memoryStart = memory_get_usage(true);
                     window.location.href = '?page=dashboard';
                 }
                 
-                // Ctrl/Cmd + U = Users
+                // Ctrl/Cmd + U = Update
                 if ((e.ctrlKey || e.metaKey) && e.key === 'u') {
                     e.preventDefault();
-                    window.location.href = '?page=users';
+                    window.location.href = '?page=update';
                 }
                 
-                // Ctrl/Cmd + S = Settings
+                // Ctrl/Cmd + I = Import
+                if ((e.ctrlKey || e.metaKey) && e.key === 'i') {
+                    e.preventDefault();
+                    window.location.href = '?page=import';
+                }
+                
+                // Ctrl/Cmd + S = Settings  
                 if ((e.ctrlKey || e.metaKey) && e.key === 's') {
                     e.preventDefault();
                     window.location.href = '?page=settings';
                 }
             });
 
-            // Version info click handler
-            const versionInfo = document.querySelector('.loader-version, small:contains("Version")');
-            if (versionInfo) {
-                versionInfo.addEventListener('click', function() {
-                    const buildInfo = <?= json_encode($buildInfo) ?>;
-                    console.log('DVD Profiler Liste Admin - Build Information:', buildInfo);
-                });
-            }
-
             // Update notification
-            <?php if ($isUpdateAvailable): ?>
-            setTimeout(() => {
-                if (!localStorage.getItem('update_notification_dismissed')) {
-                    const notification = document.createElement('div');
-                    notification.className = 'alert alert-warning alert-dismissible position-fixed';
-                    notification.style.cssText = 'top: 70px; right: 20px; z-index: 1050; max-width: 300px;';
-                    notification.innerHTML = `
-                        <i class="bi bi-arrow-up-circle"></i>
-                        <strong>Update verfügbar!</strong>
-                        <p class="mb-2">Eine neue Version ist verfügbar.</p>
-                        <button type="button" class="btn btn-sm btn-warning" onclick="window.location.href='?page=settings&action=update'">
-                            Jetzt aktualisieren
-                        </button>
-                        <button type="button" class="btn-close" data-bs-dismiss="alert" onclick="localStorage.setItem('update_notification_dismissed', 'true')"></button>
-                    `;
-                    document.body.appendChild(notification);
-                }
-            }, 2000);
-            <?php endif; ?>
-
-            console.log('DVD Profiler Liste Admin Center v<?= DVDPROFILER_VERSION ?> "<?= DVDPROFILER_CODENAME ?>" ready');
-            console.log('Build: <?= DVDPROFILER_BUILD_DATE ?> | Features: <?= count(array_filter(DVDPROFILER_FEATURES)) ?> aktiv');
-        });
-
-        // Global admin functions
-        window.dvdAdmin = {
-            version: '<?= DVDPROFILER_VERSION ?>',
-            codename: '<?= DVDPROFILER_CODENAME ?>',
-            buildDate: '<?= DVDPROFILER_BUILD_DATE ?>',
-            features: <?= json_encode(array_keys(array_filter(DVDPROFILER_FEATURES))) ?>,
-            
-            showToast: function(message, type = 'info') {
-                // Simple toast notification system
-                const toast = document.createElement('div');
-                toast.className = `alert alert-${type} position-fixed`;
-                toast.style.cssText = 'top: 20px; right: 20px; z-index: 1060; min-width: 250px;';
-                toast.innerHTML = `${message} <button type="button" class="btn-close" onclick="this.parentElement.remove()"></button>`;
-                document.body.appendChild(toast);
-                
-                setTimeout(() => toast.remove(), 5000);
-            },
-            
-            confirmAction: function(message, callback) {
-                if (confirm(message)) {
-                    callback();
-                }
+            if (window.adminConfig.isUpdateAvailable) {
+                setTimeout(function() {
+                    if (localStorage.getItem('update_notification_dismissed') !== 'true') {
+                        var notification = document.createElement('div');
+                        notification.className = 'alert alert-info alert-dismissible position-fixed';
+                        notification.style.cssText = 'top: 20px; right: 20px; z-index: 1060; max-width: 400px;';
+                        notification.innerHTML = `
+                            <i class="bi bi-info-circle"></i>
+                            <strong>Update verfügbar!</strong><br>
+                            Eine neue Version ist jetzt verfügbar.
+                            <br><br>
+                            <button type="button" class="btn btn-sm btn-primary" onclick="window.location.href='?page=update'">
+                                <i class="bi bi-download"></i>
+                                Jetzt aktualisieren
+                            </button>
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" onclick="localStorage.setItem('update_notification_dismissed', 'true')"></button>
+                        `;
+                        document.body.appendChild(notification);
+                    }
+                }, 2000);
             }
-        };
+
+            // Global admin functions
+            window.dvdAdmin = window.dvdAdmin || {};
+            Object.assign(window.dvdAdmin, {
+                version: window.adminConfig.version,
+                codename: window.adminConfig.codename,
+                buildDate: window.adminConfig.buildDate,
+                
+                showToast: function(message, type = 'info') {
+                    var toast = document.createElement('div');
+                    toast.className = `alert alert-${type} position-fixed`;
+                    toast.style.cssText = 'top: 20px; right: 20px; z-index: 1060; min-width: 250px;';
+                    toast.innerHTML = `${message} <button type="button" class="btn-close" onclick="this.parentElement.remove()"></button>`;
+                    document.body.appendChild(toast);
+                    
+                    setTimeout(() => toast.remove(), 5000);
+                },
+                
+                confirmAction: function(message, callback) {
+                    if (confirm(message)) {
+                        callback();
+                    }
+                }
+            });
+            
+            console.log('DVD Profiler Liste Admin Center v' + window.adminConfig.version + ' "' + window.adminConfig.codename + '" ready');
+            console.log('Build: ' + window.adminConfig.buildDate + ' | Features: aktiv');
+        });
     </script>
 </body>
 </html>
