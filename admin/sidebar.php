@@ -7,7 +7,7 @@ $currentVersion = DVDPROFILER_VERSION;
 
 // GitHub Update-Check verwenden
 $isUpdateAvailable = isDVDProfilerUpdateAvailable();
-$latestRelease = getDVDProfilerLatestGitHubVersion();
+$latestRelease = getDVDProfilerLatestVersion();
 $latestVersion = $latestRelease['version'] ?? 'Unbekannt';
 
 // Build-Info für Tooltip
