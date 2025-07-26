@@ -332,7 +332,7 @@ main {
 }
 
 .tabs li a {
-  display: inline-block;
+  display: block;
   padding: var(--space-sm) var(--space-lg);
   border-radius: var(--radius-md);
   color: var(--text-glass);
@@ -360,10 +360,14 @@ main {
 }
 
 .tabs li a:hover,
-.tabs li.active a {
+.tabs li active {
   color: var(--text-white);
   transform: translateY(-1px);
 }
+
+
+
+
 
 .view-toggle {
   display: flex;
@@ -694,11 +698,7 @@ main {
 }
 
 /* Latest Films */
-.latest-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-  gap: var(--space-sm);
-}
+
 
 .latest-card {
   background: var(--glass-bg);
@@ -732,6 +732,7 @@ main {
   font-weight: 500;
   color: var(--text-glass);
   line-height: 1.2;
+  text-align: left;
 }
 
 .latest-title .year {

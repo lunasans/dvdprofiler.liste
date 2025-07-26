@@ -10,9 +10,9 @@ $totalVisits = $dvdProfilerStats['total_visits'] ?? $visits ?? 0;
 $totalGenres = $dvdProfilerStats['total_genres'] ?? 0;
 $storageSize = $dvdProfilerStats['storage_size'] ?? 0;
 
-// GitHub Update Check
+//  Update Check
 $updateAvailable = isDVDProfilerUpdateAvailable();
-$latestVersion = getDVDProfilerLatestGitHubVersion();
+$latestVersion = getDVDProfilerLatestVersion();
 ?>
 
 <footer class="site-footer" role="contentinfo">
