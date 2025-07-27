@@ -1,135 +1,65 @@
 <?php
-// Bootstrap sollte bereits in film-fragment.php geladen sein
-// require_once __DIR__ . '/../includes/bootstrap.php';
+/**
+ * Partials/film-view.php - Vollständig migriert auf neues Core-System
+ * Detail-Ansicht für einzelne Filme mit erweiterten Features
+ * 
+ * @package    dvdprofiler.liste
+ * @author     René Neuhaus
+ * @version    1.4.7+ - Core Integration
+ */
 
-// Sicherheitscheck - Film-Array validieren
+declare(strict_types=1);
+
+// Sicherheitscheck - Film-Array und Core-System validieren
 if (!isset($dvd) || !is_array($dvd) || empty($dvd['id'])) {
     throw new InvalidArgumentException('Invalid DVD data provided to film-view.php');
 }
 
-
-
-// Cover-Pfade generieren
-$frontCover = findCoverImage($dvd['cover_id'] ?? '', 'f');
-$backCover = findCoverImage($dvd['cover_id'] ?? '', 'b');
-
-// Schauspieler laden
-$actors = getActorsByDvdId($pdo, (int)$dvd['id']);
-
-// BoxSet-Kinder laden
-$boxChildren = [];
-if (!empty($dvd['id'])) {
-    try {
-        $boxsetStmt = $pdo->prepare("
-            SELECT id, title, year, genre, cover_id, runtime, rating_age 
-            FROM dvds 
-            WHERE boxset_parent = ? 
-            ORDER BY year ASC, title ASC
-        ");
-        $boxsetStmt->execute([$dvd['id']]);
-        $boxChildren = $boxsetStmt->fetchAll(PDO::FETCH_ASSOC);
-    } catch (PDOException $e) {
-        error_log("BoxSet query error: " . $e->getMessage());
-    }
+// Core-System sollte bereits durch film-fragment.php geladen sein
+if (!class_exists('DVDProfiler\\Core\\Application')) {
+    throw new Exception('Core-System nicht verfügbar für film-view.php');
 }
-
-// BoxSet-Parent laden (falls dieser Film zu einem BoxSet gehört)
-$boxsetParent = null;
-if (!empty($dvd['boxset_parent'])) {
-    try {
-        $parentStmt = $pdo->prepare("SELECT id, title, year FROM dvds WHERE id = ?");
-        $parentStmt->execute([$dvd['boxset_parent']]);
-        $boxsetParent = $parentStmt->fetch(PDO::FETCH_ASSOC);
-    } catch (PDOException $e) {
-        error_log("BoxSet parent query error: " . $e->getMessage());
-    }
-}
-
-// Film-Statistiken laden
-$filmStats = [
-    'view_count' => $dvd['view_count'] ?? 0,
-    'created_at' => $dvd['created_at'] ?? null,
-    'updated_at' => $dvd['updated_at'] ?? null,
-];
-
-// Bewertung berechnen (falls vorhanden) - Robuster mit Tabellen-Check
-$averageRating = 0;
-$ratingCount = 0;
-$userRating = 0;
-$userHasRated = false;
 
 try {
-    // Prüfen ob user_ratings Tabelle existiert
-    $tableCheck = $pdo->query("SHOW TABLES LIKE 'user_ratings'");
-    if ($tableCheck && $tableCheck->rowCount() > 0) {
-        // Allgemeine Bewertungen laden
-        $ratingStmt = $pdo->prepare("
-            SELECT AVG(rating) as avg_rating, COUNT(*) as count 
-            FROM user_ratings 
-            WHERE film_id = ?
-        ");
-        $ratingStmt->execute([$dvd['id']]);
-        $ratingData = $ratingStmt->fetch(PDO::FETCH_ASSOC);
-        $averageRating = round((float)($ratingData['avg_rating'] ?? 0), 1);
-        $ratingCount = (int)($ratingData['count'] ?? 0);
-        
-        // User-spezifische Bewertung laden (falls eingeloggt)
-        if (isset($_SESSION['user_id'])) {
-            $userRatingStmt = $pdo->prepare("
-                SELECT rating FROM user_ratings 
-                WHERE film_id = ? AND user_id = ?
-            ");
-            $userRatingStmt->execute([$dvd['id'], $_SESSION['user_id']]);
-            $userRatingData = $userRatingStmt->fetch();
-            if ($userRatingData) {
-                $userRating = (float)$userRatingData['rating'];
-                $userHasRated = true;
-            }
-        }
+    // Application-Instance abrufen
+    $app = \DVDProfiler\Core\Application::getInstance();
+    $database = $app->getDatabase();
+    $security = $app->getSecurity();
+    
+    // Film-ID validieren
+    $filmId = (int)($dvd['id'] ?? 0);
+    if ($filmId <= 0) {
+        throw new InvalidArgumentException('Ungültige Film-ID in film-view.php');
     }
-} catch (PDOException $e) {
-    error_log("Rating query error: " . $e->getMessage());
+    
+    // Performance-Start-Zeit
+    $viewStartTime = microtime(true);
+    
+} catch (Exception $e) {
+    error_log("[DVDProfiler:ERROR] Film-View Initialization: " . $e->getMessage());
+    throw new Exception('Film-View konnte nicht initialisiert werden: ' . $e->getMessage());
 }
 
-// User-Status laden (Wishlist, Watched) falls eingeloggt
-$isOnWishlist = false;
-$isWatched = false;
-if (isset($_SESSION['user_id'])) {
-    try {
-        // Wishlist-Status
-        $wishCheck = $pdo->query("SHOW TABLES LIKE 'user_wishlist'");
-        if ($wishCheck && $wishCheck->rowCount() > 0) {
-            $wishStmt = $pdo->prepare("SELECT COUNT(*) FROM user_wishlist WHERE user_id = ? AND film_id = ?");
-            $wishStmt->execute([$_SESSION['user_id'], $dvd['id']]);
-            $isOnWishlist = $wishStmt->fetchColumn() > 0;
+/**
+ * Helper-Funktionen für Film-View (Core-System kompatibel)
+ */
+
+function findCoverImageView(string $coverId, string $suffix = 'f', string $folder = 'cover', string $fallback = 'cover/placeholder.png'): string {
+    if (empty($coverId)) return $fallback;
+    
+    $extensions = ['.jpg', '.jpeg', '.png', '.webp'];
+    foreach ($extensions as $ext) {
+        $file = "{$folder}/{$coverId}{$suffix}{$ext}";
+        if (file_exists($file)) {
+            return $file;
         }
-        
-        // Watched-Status
-        $watchedCheck = $pdo->query("SHOW TABLES LIKE 'user_watched'");
-        if ($watchedCheck && $watchedCheck->rowCount() > 0) {
-            $watchedStmt = $pdo->prepare("SELECT COUNT(*) FROM user_watched WHERE user_id = ? AND film_id = ?");
-            $watchedStmt->execute([$_SESSION['user_id'], $dvd['id']]);
-            $isWatched = $watchedStmt->fetchColumn() > 0;
-        }
-    } catch (PDOException $e) {
-        error_log("User status query error: " . $e->getMessage());
     }
+    return $fallback;
 }
 
-// View-Count erhöhen
-try {
-    if (!empty($dvd['id'])) {
-        $updateViewStmt = $pdo->prepare("UPDATE dvds SET view_count = COALESCE(view_count, 0) + 1 WHERE id = ?");
-        $updateViewStmt->execute([$dvd['id']]);
-        $filmStats['view_count']++; // Lokale Variable aktualisieren
-    }
-} catch (PDOException $e) {
-    error_log("View count update error: " . $e->getMessage());
-}
-
-// Helper-Funktionen
 function formatFileSize(?int $bytes): string {
     if (!$bytes) return '';
+    
     $units = ['B', 'KB', 'MB', 'GB'];
     $factor = floor((strlen((string)$bytes) - 1) / 3);
     return sprintf("%.1f", $bytes / pow(1024, $factor)) . ' ' . $units[$factor];
@@ -138,10 +68,17 @@ function formatFileSize(?int $bytes): string {
 function formatDate(?string $date): string {
     if (!$date) return '';
     try {
-        return (new DateTime($date))->format('d.m.Y');
+        return (new DateTime($date))->format('d.m.Y H:i');
     } catch (Exception $e) {
         return $date;
     }
+}
+
+function formatRuntime(?int $minutes): string {
+    if (!$minutes || $minutes <= 0) return '';
+    $h = intdiv($minutes, 60);
+    $m = $minutes % 60;
+    return $h > 0 ? "{$h}h {$m}min" : "{$m}min";
 }
 
 function generateStarRating(float $rating, int $maxStars = 5): string {
@@ -157,66 +94,218 @@ function generateStarRating(float $rating, int $maxStars = 5): string {
     }
     return $stars;
 }
+
+try {
+    // Cover-Pfade generieren
+    $frontCover = findCoverImageView($dvd['cover_id'] ?? '', 'f');
+    $backCover = findCoverImageView($dvd['cover_id'] ?? '', 'b');
+    
+    // Schauspieler laden mit Core Database
+    $actors = $database->fetchAll("
+        SELECT a.first_name, a.last_name, fa.role, fa.sort_order
+        FROM film_actor fa 
+        JOIN actors a ON fa.actor_id = a.id 
+        WHERE fa.film_id = ?
+        ORDER BY fa.sort_order ASC, a.last_name ASC, a.first_name ASC
+    ", [$filmId]);
+    
+    // BoxSet-Kinder laden (falls vorhanden)
+    $boxsetChildren = [];
+    if (!empty($dvd['boxset_children_count']) && (int)$dvd['boxset_children_count'] > 0) {
+        $boxsetChildren = $database->fetchAll("
+            SELECT id, title, year, genre, cover_id, runtime, rating_age,
+                   COALESCE(view_count, 0) as view_count
+            FROM dvds 
+            WHERE boxset_parent = ? 
+            ORDER BY year ASC, title ASC
+        ", [$filmId]);
+    }
+    
+    // BoxSet-Parent laden (falls dieser Film zu einem BoxSet gehört)
+    $boxsetParent = null;
+    if (!empty($dvd['boxset_parent'])) {
+        $boxsetParent = $database->fetchRow("
+            SELECT id, title, year, 
+                   (SELECT COUNT(*) FROM dvds WHERE boxset_parent = dvds.id) as total_children
+            FROM dvds 
+            WHERE id = ?
+        ", [$dvd['boxset_parent']]);
+    }
+    
+    // Bewertungen und User-Daten laden
+    $averageRating = 0;
+    $ratingCount = 0;
+    $userRating = 0;
+    $userHasRated = false;
+    $isWatched = false;
+    $isFavorite = false;
+    
+    // Community-Bewertungen
+    if ($database->tableExists('user_ratings')) {
+        $ratingData = $database->fetchRow("
+            SELECT AVG(rating) as avg_rating, COUNT(*) as count 
+            FROM user_ratings 
+            WHERE film_id = ?
+        ", [$filmId]);
+        
+        if ($ratingData) {
+            $averageRating = round((float)($ratingData['avg_rating'] ?? 0), 1);
+            $ratingCount = (int)($ratingData['count'] ?? 0);
+        }
+    }
+    
+    // User-spezifische Daten (falls eingeloggt)
+    if (isset($_SESSION['user_id'])) {
+        $userId = (int)$_SESSION['user_id'];
+        
+        // User-Rating
+        if ($database->tableExists('user_ratings')) {
+            $userRatingData = $database->fetchRow("
+                SELECT rating FROM user_ratings 
+                WHERE film_id = ? AND user_id = ?
+            ", [$filmId, $userId]);
+            
+            if ($userRatingData) {
+                $userRating = (float)$userRatingData['rating'];
+                $userHasRated = true;
+            }
+        }
+        
+        // Watch-Status
+        if ($database->tableExists('user_watched')) {
+            $watchedData = $database->fetchRow("
+                SELECT 1, watched_at FROM user_watched 
+                WHERE film_id = ? AND user_id = ?
+            ", [$filmId, $userId]);
+            
+            $isWatched = (bool)$watchedData;
+        }
+        
+        // Favorite-Status
+        if ($database->tableExists('user_favorites')) {
+            $favoriteData = $database->fetchRow("
+                SELECT 1 FROM user_favorites 
+                WHERE film_id = ? AND user_id = ?
+            ", [$filmId, $userId]);
+            
+            $isFavorite = (bool)$favoriteData;
+        }
+    }
+    
+    // Film-Statistiken erweitern
+    $filmStats = [
+        'view_count' => (int)($dvd['view_count'] ?? 0),
+        'created_at' => $dvd['created_at'] ?? null,
+        'updated_at' => $dvd['updated_at'] ?? null,
+        'last_viewed' => $dvd['last_viewed'] ?? null,
+        'file_size' => $dvd['file_size'] ?? null,
+    ];
+    
+    // View-Count erhöhen (asynchron, nicht blockierend)
+    try {
+        $database->execute("
+            UPDATE dvds 
+            SET view_count = COALESCE(view_count, 0) + 1,
+                last_viewed = NOW()
+            WHERE id = ?
+        ", [$filmId]);
+        
+        $filmStats['view_count']++; // Lokale Anzeige aktualisieren
+    } catch (Exception $e) {
+        error_log("[DVDProfiler:ERROR] View count update failed: " . $e->getMessage());
+        // Nicht kritisch - weiter machen
+    }
+    
+    // Ähnliche Filme laden (gleiche Genre/Jahr)
+    $similarFilms = [];
+    if (!empty($dvd['genre'])) {
+        $similarFilms = $database->fetchAll("
+            SELECT id, title, year, cover_id, COALESCE(view_count, 0) as view_count
+            FROM dvds 
+            WHERE genre = ? AND id != ? 
+            ORDER BY view_count DESC, year DESC 
+            LIMIT 4
+        ", [$dvd['genre'], $filmId]);
+    }
+    
+    // Performance-Logging (Development)
+    if ($app->getSettings()->get('environment') === 'development') {
+        $loadTime = microtime(true) - $viewStartTime;
+        error_log("[DVDProfiler:INFO] Film-View: Geladen in " . round($loadTime * 1000, 2) . "ms - Film-ID: {$filmId}");
+    }
+    
+} catch (Exception $e) {
+    error_log('[DVDProfiler:ERROR] Film-View Data Loading: ' . $e->getMessage());
+    
+    // Fallback-Werte bei Fehlern
+    $frontCover = $backCover = 'cover/placeholder.png';
+    $actors = $boxsetChildren = $similarFilms = [];
+    $boxsetParent = null;
+    $averageRating = $userRating = 0;
+    $ratingCount = 0;
+    $userHasRated = $isWatched = $isFavorite = false;
+    $filmStats = ['view_count' => 0, 'created_at' => null, 'updated_at' => null, 'last_viewed' => null, 'file_size' => null];
+}
 ?>
 
 <div class="detail-inline" itemscope itemtype="https://schema.org/Movie">
-    <!-- Film-Titel mit Schema.org Markup -->
+    <!-- Film-Header mit Schema.org Markup -->
     <header class="film-header">
         <h2 itemprop="name">
             <?= htmlspecialchars($dvd['title']) ?>
             <span class="film-year" itemprop="datePublished">(<?= htmlspecialchars((string)($dvd['year'] ?? '')) ?>)</span>
         </h2>
         
-        <!-- User-Status Badges -->
-        <?php if (isset($_SESSION['user_id'])): ?>
-            <div class="user-status-badges">
-                <?php if ($isOnWishlist): ?>
-                    <span class="badge badge-wishlist">
-                        <i class="bi bi-heart-fill"></i> Auf Wunschliste
-                    </span>
-                <?php endif; ?>
-                <?php if ($isWatched): ?>
-                    <span class="badge badge-watched">
-                        <i class="bi bi-check-circle-fill"></i> Gesehen
-                    </span>
-                <?php endif; ?>
-            </div>
-        <?php endif; ?>
-        
+        <!-- BoxSet-Breadcrumb (falls Teil eines BoxSets) -->
         <?php if ($boxsetParent): ?>
             <div class="boxset-breadcrumb">
                 <i class="bi bi-collection"></i>
-                Teil von: 
+                Teil von BoxSet: 
                 <a href="#" class="toggle-detail" data-id="<?= $boxsetParent['id'] ?>">
-                    <?= htmlspecialchars($boxsetParent['title']) ?> (<?= $boxsetParent['year'] ?>)
+                    <?= htmlspecialchars($boxsetParent['title']) ?>
                 </a>
+                (<?= $boxsetParent['total_children'] ?> Filme)
             </div>
         <?php endif; ?>
         
-        <?php if ($averageRating > 0 || $userHasRated): ?>
-            <div class="film-rating">
-                <?php if ($averageRating > 0): ?>
-                    <div class="community-rating">
-                        <span class="rating-label">Community:</span>
-                        <div class="stars">
-                            <?= generateStarRating($averageRating) ?>
-                        </div>
-                        <span class="rating-text">
-                            <?= $averageRating ?>/5 
-                            <small>(<?= $ratingCount ?> Bewertung<?= $ratingCount !== 1 ? 'en' : '' ?>)</small>
-                        </span>
-                    </div>
+        <!-- User-Status-Badges -->
+        <?php if (isset($_SESSION['user_id'])): ?>
+            <div class="user-status-badges">
+                <?php if ($isWatched): ?>
+                    <span class="badge badge-watched">
+                        <i class="bi bi-check-circle-fill"></i>
+                        Gesehen
+                    </span>
+                <?php endif; ?>
+                
+                <?php if ($isFavorite): ?>
+                    <span class="badge badge-favorite">
+                        <i class="bi bi-heart-fill"></i>
+                        Favorit
+                    </span>
                 <?php endif; ?>
                 
                 <?php if ($userHasRated): ?>
-                    <div class="user-rating">
-                        <span class="rating-label">Ihre Bewertung:</span>
-                        <div class="stars">
-                            <?= generateStarRating($userRating) ?>
-                        </div>
-                        <span class="rating-text"><?= $userRating ?>/5</span>
-                    </div>
+                    <span class="badge badge-rating">
+                        <i class="bi bi-star-fill"></i>
+                        Bewertet: <?= $userRating ?>/5
+                    </span>
                 <?php endif; ?>
+            </div>
+        <?php endif; ?>
+        
+        <!-- Community-Bewertung (falls vorhanden) -->
+        <?php if ($ratingCount > 0): ?>
+            <div class="film-rating">
+                <div class="community-rating">
+                    <div class="rating-stars">
+                        <?= generateStarRating($averageRating) ?>
+                    </div>
+                    <div class="rating-info">
+                        <span class="rating-value"><?= $averageRating ?>/5</span>
+                        <span class="rating-count">(<?= $ratingCount ?> Bewertung<?= $ratingCount !== 1 ? 'en' : '' ?>)</span>
+                    </div>
+                </div>
             </div>
         <?php endif; ?>
     </header>
@@ -224,7 +313,7 @@ function generateStarRating(float $rating, int $maxStars = 5): string {
     <!-- Cover Gallery mit Lightbox -->
     <section class="cover-gallery" aria-label="Film-Cover">
         <div class="cover-pair">
-            <?php if ($frontCover): ?>
+            <?php if ($frontCover !== 'cover/placeholder.png'): ?>
                 <a href="<?= htmlspecialchars($frontCover) ?>" 
                    data-fancybox="gallery" 
                    data-caption="<?= htmlspecialchars($dvd['title']) ?> - Frontcover">
@@ -237,11 +326,11 @@ function generateStarRating(float $rating, int $maxStars = 5): string {
             <?php else: ?>
                 <div class="no-cover">
                     <i class="bi bi-film"></i>
-                    <span>Kein Cover</span>
+                    <span>Kein Cover verfügbar</span>
                 </div>
             <?php endif; ?>
             
-            <?php if ($backCover): ?>
+            <?php if ($backCover !== 'cover/placeholder.png'): ?>
                 <a href="<?= htmlspecialchars($backCover) ?>" 
                    data-fancybox="gallery" 
                    data-caption="<?= htmlspecialchars($dvd['title']) ?> - Backcover">
@@ -261,6 +350,13 @@ function generateStarRating(float $rating, int $maxStars = 5): string {
             <span class="value" itemprop="genre"><?= htmlspecialchars($dvd['genre'] ?? 'Unbekannt') ?></span>
         </div>
         
+        <?php if (!empty($dvd['collection_type'])): ?>
+            <div class="film-info-item">
+                <span class="label">Medientyp</span>
+                <span class="value"><?= htmlspecialchars($dvd['collection_type']) ?></span>
+            </div>
+        <?php endif; ?>
+        
         <?php if (!empty($dvd['runtime'])): ?>
             <div class="film-info-item">
                 <span class="label">Laufzeit</span>
@@ -270,28 +366,8 @@ function generateStarRating(float $rating, int $maxStars = 5): string {
         
         <?php if (!empty($dvd['rating_age'])): ?>
             <div class="film-info-item">
-                <span class="label">Altersfreigabe</span>
-                <span class="value fsk-badge">
-                    <?php
-                    $fskAge = (int)$dvd['rating_age'];
-                    $fskSvgPath = "assets/svg/fsk/fsk-{$fskAge}.svg";
-                    
-                    if (file_exists($fskSvgPath)): ?>
-                        <img src="<?= htmlspecialchars($fskSvgPath) ?>" 
-                             alt="FSK <?= $fskAge ?>" 
-                             class="fsk-logo"
-                             title="Freigegeben ab <?= $fskAge ?> Jahren">
-                    <?php else: ?>
-                        <span class="fsk-text">FSK <?= $fskAge ?></span>
-                    <?php endif; ?>
-                </span>
-            </div>
-        <?php endif; ?>
-        
-        <?php if (!empty($dvd['collection_type'])): ?>
-            <div class="film-info-item">
-                <span class="label">Sammlung</span>
-                <span class="value"><?= htmlspecialchars($dvd['collection_type']) ?></span>
+                <span class="label">FSK</span>
+                <span class="value">ab <?= (int)$dvd['rating_age'] ?> Jahren</span>
             </div>
         <?php endif; ?>
         
@@ -304,6 +380,20 @@ function generateStarRating(float $rating, int $maxStars = 5): string {
             <div class="film-info-item">
                 <span class="label">Hinzugefügt</span>
                 <span class="value"><?= formatDate($filmStats['created_at']) ?></span>
+            </div>
+        <?php endif; ?>
+        
+        <?php if ($filmStats['last_viewed']): ?>
+            <div class="film-info-item">
+                <span class="label">Zuletzt angesehen</span>
+                <span class="value"><?= formatDate($filmStats['last_viewed']) ?></span>
+            </div>
+        <?php endif; ?>
+        
+        <?php if ($filmStats['file_size']): ?>
+            <div class="film-info-item">
+                <span class="label">Dateigröße</span>
+                <span class="value"><?= formatFileSize((int)$filmStats['file_size']) ?></span>
             </div>
         <?php endif; ?>
     </section>
@@ -330,7 +420,9 @@ function generateStarRating(float $rating, int $maxStars = 5): string {
                                 <?= htmlspecialchars("{$actor['first_name']} {$actor['last_name']}") ?>
                             </span>
                             <?php if (!empty($actor['role'])): ?>
-                                <span class="actor-role">als <em><?= htmlspecialchars($actor['role']) ?></em></span>
+                                <span class="actor-role" itemprop="characterName">
+                                    als <?= htmlspecialchars($actor['role']) ?>
+                                </span>
                             <?php endif; ?>
                         </li>
                     <?php endforeach; ?>
@@ -339,23 +431,35 @@ function generateStarRating(float $rating, int $maxStars = 5): string {
         </section>
     <?php endif; ?>
 
-    <!-- BoxSet-Inhalte -->
-    <?php if (!empty($boxChildren)): ?>
-        <section class="meta-card">
-            <h3><i class="bi bi-collection"></i> BoxSet-Inhalte</h3>
-            <div class="boxset-children-grid">
-                <?php foreach ($boxChildren as $child): ?>
-                    <div class="boxset-child-item">
+    <!-- BoxSet-Inhalte (falls BoxSet-Parent) -->
+    <?php if (!empty($boxsetChildren)): ?>
+        <section class="meta-card full-width">
+            <h3>
+                <i class="bi bi-collection"></i> 
+                BoxSet-Inhalte 
+                <span class="count-badge"><?= count($boxsetChildren) ?> Filme</span>
+            </h3>
+            <div class="boxset-grid">
+                <?php foreach ($boxsetChildren as $child): ?>
+                    <div class="boxset-item">
                         <a href="#" class="toggle-detail" data-id="<?= $child['id'] ?>">
-                            <img src="<?= htmlspecialchars(findCoverImage($child['cover_id'], 'f')) ?>" 
-                                 alt="<?= htmlspecialchars($child['title']) ?>"
-                                 class="child-cover"
-                                 loading="lazy">
-                            <div class="child-info">
+                            <div class="boxset-cover">
+                                <img src="<?= findCoverImageView($child['cover_id'] ?? '') ?>" 
+                                     alt="Cover von <?= htmlspecialchars($child['title']) ?>"
+                                     loading="lazy">
+                            </div>
+                            <div class="boxset-info">
                                 <h4><?= htmlspecialchars($child['title']) ?></h4>
-                                <p><?= htmlspecialchars((string)$child['year']) ?></p>
-                                <?php if (!empty($child['runtime'])): ?>
-                                    <p class="runtime"><?= formatRuntime((int)$child['runtime']) ?></p>
+                                <div class="boxset-meta">
+                                    <?= $child['year'] ?> • <?= htmlspecialchars($child['genre']) ?>
+                                    <?php if ($child['runtime']): ?>
+                                        • <?= formatRuntime((int)$child['runtime']) ?>
+                                    <?php endif; ?>
+                                </div>
+                                <?php if ($child['view_count'] > 0): ?>
+                                    <div class="boxset-stats">
+                                        <i class="bi bi-eye"></i> <?= number_format($child['view_count']) ?>
+                                    </div>
                                 <?php endif; ?>
                             </div>
                         </a>
@@ -365,341 +469,337 @@ function generateStarRating(float $rating, int $maxStars = 5): string {
         </section>
     <?php endif; ?>
 
-    <!-- Trailer -->
-    <?php if (!empty($dvd['trailer_url'])): ?>
-        <section class="meta-card">
-            <h3><i class="bi bi-play-circle"></i> Trailer</h3>
-            <div class="trailer-container">
-                <div class="trailer-box" data-src="<?= htmlspecialchars($dvd['trailer_url']) ?>">
-                    <img src="<?= htmlspecialchars($frontCover) ?>" 
-                         alt="Trailer Thumbnail"
-                         loading="lazy">
-                    <div class="play-icon">
-                        <i class="bi bi-play-fill"></i>
+    <!-- Ähnliche Filme -->
+    <?php if (!empty($similarFilms)): ?>
+        <section class="meta-card full-width">
+            <h3>
+                <i class="bi bi-search"></i> 
+                Ähnliche Filme 
+                <span class="genre-info">Genre: <?= htmlspecialchars($dvd['genre']) ?></span>
+            </h3>
+            <div class="similar-films-grid">
+                <?php foreach ($similarFilms as $similar): ?>
+                    <div class="similar-film-item">
+                        <a href="#" class="toggle-detail" data-id="<?= $similar['id'] ?>">
+                            <div class="similar-cover">
+                                <img src="<?= findCoverImageView($similar['cover_id'] ?? '') ?>" 
+                                     alt="Cover von <?= htmlspecialchars($similar['title']) ?>"
+                                     loading="lazy">
+                            </div>
+                            <div class="similar-info">
+                                <h4><?= htmlspecialchars($similar['title']) ?></h4>
+                                <div class="similar-meta">
+                                    <?= $similar['year'] ?>
+                                    <?php if ($similar['view_count'] > 0): ?>
+                                        • <i class="bi bi-eye"></i> <?= number_format($similar['view_count']) ?>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
+                        </a>
                     </div>
-                    <div class="trailer-overlay">
-                        <span>Trailer abspielen</span>
+                <?php endforeach; ?>
+            </div>
+        </section>
+    <?php endif; ?>
+
+    <!-- User-Aktionen (nur für eingeloggte User) -->
+    <?php if (isset($_SESSION['user_id'])): ?>
+        <section class="film-actions">
+            <!-- Watch-Status Toggle -->
+            <button class="btn btn-outline <?= $isWatched ? 'active' : '' ?>" 
+                    data-action="toggle-watched" 
+                    data-film-id="<?= $filmId ?>"
+                    title="<?= $isWatched ? 'Als nicht gesehen markieren' : 'Als gesehen markieren' ?>">
+                <i class="bi bi-<?= $isWatched ? 'check-circle-fill' : 'check-circle' ?>"></i>
+                <span class="btn-text"><?= $isWatched ? 'Gesehen' : 'Als gesehen markieren' ?></span>
+            </button>
+            
+            <!-- Favorite Toggle -->
+            <button class="btn btn-outline <?= $isFavorite ? 'active' : '' ?>" 
+                    data-action="toggle-favorite" 
+                    data-film-id="<?= $filmId ?>"
+                    title="<?= $isFavorite ? 'Aus Favoriten entfernen' : 'Zu Favoriten hinzufügen' ?>">
+                <i class="bi bi-<?= $isFavorite ? 'heart-fill' : 'heart' ?>"></i>
+                <span class="btn-text"><?= $isFavorite ? 'Favorit' : 'Zu Favoriten' ?></span>
+            </button>
+            
+            <!-- Rating Section -->
+            <div class="user-rating-section">
+                <h4>Ihre Bewertung:</h4>
+                <div class="rating-input">
+                    <div class="star-rating-input" data-film-id="<?= $filmId ?>">
+                        <?php for ($i = 1; $i <= 5; $i++): ?>
+                            <i class="rating-star bi-star<?= $i <= $userRating ? '-fill' : '' ?>" 
+                               data-rating="<?= $i ?>"
+                               title="<?= $i ?> Stern<?= $i !== 1 ? 'e' : '' ?>"></i>
+                        <?php endfor; ?>
+                    </div>
+                    <div class="rating-display">
+                        <?= $userHasRated ? "{$userRating}/5 Sterne" : 'Noch nicht bewertet' ?>
                     </div>
                 </div>
             </div>
         </section>
     <?php endif; ?>
 
-    <!-- User-Bewertung (falls eingeloggt) -->
-    <section class="meta-card">
-        <h3><i class="bi bi-star"></i> Bewertung abgeben</h3>
-        <div class="user-rating-section">
-            <?php if (isset($_SESSION['user_id'])): ?>
-                <div class="rating-input">
-                    <span>Ihre Bewertung:</span>
-                    <div class="star-rating-input" data-film-id="<?= $dvd['id'] ?>" data-current-rating="<?= $userRating ?>">
-                        <?php for ($i = 1; $i <= 5; $i++): ?>
-                            <i class="bi bi-star rating-star <?= $i <= $userRating ? 'bi-star-fill' : '' ?>" 
-                               data-rating="<?= $i ?>"></i>
-                        <?php endfor; ?>
+    <!-- Trailer/Video (falls vorhanden) -->
+    <?php if (!empty($dvd['trailer_url'])): ?>
+        <section class="meta-card full-width">
+            <h3><i class="bi bi-play-circle"></i> Trailer</h3>
+            <div class="trailer-container">
+                <?php if (str_contains($dvd['trailer_url'], 'youtube.com') || str_contains($dvd['trailer_url'], 'youtu.be')): ?>
+                    <div class="trailer-box" data-yt="<?= htmlspecialchars($dvd['trailer_url']) ?>">
+                        <div class="trailer-placeholder">
+                            <div class="play-icon">
+                                <i class="bi bi-play-fill"></i>
+                            </div>
+                            <span>Trailer abspielen</span>
+                        </div>
                     </div>
-                    <span class="rating-display"><?= $userHasRated ? $userRating . '/5' : 'Noch nicht bewertet' ?></span>
-                </div>
-                <button class="btn btn-primary save-rating" style="display: none;">
-                    <i class="bi bi-check"></i> Bewertung speichern
-                </button>
-            <?php else: ?>
-                <div class="login-required">
-                    <p><i class="bi bi-info-circle"></i> Melden Sie sich an, um Filme zu bewerten.</p>
-                    <a href="login.php" class="btn btn-outline-primary">
-                        <i class="bi bi-person"></i> Anmelden
+                <?php else: ?>
+                    <a href="<?= htmlspecialchars($dvd['trailer_url']) ?>" target="_blank" rel="noopener" class="btn btn-primary">
+                        <i class="bi bi-play-circle"></i>
+                        Trailer ansehen
                     </a>
-                </div>
-            <?php endif; ?>
-        </div>
-    </section>
-
-    <!-- Film-Aktionen -->
-    <section class="film-actions">
-        <button class="close-detail-button btn btn-secondary" onclick="closeDetail()">
-            <i class="bi bi-x-lg"></i> Schließen
-        </button>
-        
-        <?php if (isset($_SESSION['user_id'])): ?>
-            <button class="btn btn-outline-primary add-to-wishlist <?= $isOnWishlist ? 'active' : '' ?>" 
-                    data-film-id="<?= $dvd['id'] ?>">
-                <i class="bi bi-heart<?= $isOnWishlist ? '-fill' : '' ?>"></i>
-                <?= $isOnWishlist ? 'Auf Wunschliste' : 'Zur Wunschliste' ?>
-            </button>
-            
-            <button class="btn btn-outline-secondary mark-as-watched <?= $isWatched ? 'active' : '' ?>" 
-                    data-film-id="<?= $dvd['id'] ?>">
-                <i class="bi bi-check-circle<?= $isWatched ? '-fill' : '' ?>"></i>
-                <?= $isWatched ? 'Gesehen' : 'Als gesehen markieren' ?>
-            </button>
-        <?php endif; ?>
-        
-        <button class="btn btn-outline-info share-film" data-film-id="<?= $dvd['id'] ?>" data-film-title="<?= htmlspecialchars($dvd['title']) ?>">
-            <i class="bi bi-share"></i> Teilen
-        </button>
-    </section>
+                <?php endif; ?>
+            </div>
+        </section>
+    <?php endif; ?>
 </div>
 
-<!-- Enhanced JavaScript -->
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Trailer-Funktionalität
-    const trailerBox = document.querySelector('.trailer-box');
-    if (trailerBox) {
-        trailerBox.addEventListener('click', function() {
-            const trailerUrl = this.dataset.src;
-            if (trailerUrl) {
-                window.open(trailerUrl, 'trailer', 'width=800,height=600');
-            }
-        });
-    }
+    console.log('🎬 Film-View (Core-System) geladen für Film-ID:', <?= $filmId ?>);
     
-    // Rating-System mit Debug-Ausgaben
-    const ratingStars = document.querySelectorAll('.rating-star');
-    const saveRatingBtn = document.querySelector('.save-rating');
-    const ratingDisplay = document.querySelector('.rating-display');
-    const currentRating = parseFloat(document.querySelector('.star-rating-input')?.dataset.currentRating || 0);
-    let selectedRating = currentRating;
-    
-    console.log('Rating System Debug:', {
-        ratingStars: ratingStars.length,
-        saveRatingBtn: !!saveRatingBtn,
-        ratingDisplay: !!ratingDisplay,
-        currentRating: currentRating
-    });
-    
-    ratingStars.forEach((star, index) => {
-        star.addEventListener('mouseenter', function() {
-            console.log('Mouse enter star:', index + 1);
-            const rating = parseInt(this.dataset.rating);
-            highlightStars(rating);
+    try {
+        // Star-Rating Interaktion
+        document.querySelectorAll('.rating-star').forEach(star => {
+            star.addEventListener('click', function() {
+                const rating = parseInt(this.dataset.rating);
+                const filmId = parseInt(this.closest('.star-rating-input').dataset.filmId);
+                
+                if (!filmId || !rating) return;
+                
+                submitRating(filmId, rating);
+            });
+            
+            // Hover-Effekt für Rating-Sterne
+            star.addEventListener('mouseenter', function() {
+                const rating = parseInt(this.dataset.rating);
+                const container = this.closest('.star-rating-input');
+                
+                container.querySelectorAll('.rating-star').forEach((s, index) => {
+                    s.className = index < rating ? 'rating-star bi-star-fill' : 'rating-star bi-star';
+                });
+            });
         });
         
-        star.addEventListener('mouseleave', function() {
-            console.log('Mouse leave star');
-            highlightStars(selectedRating);
+        // Original Rating beim Mouse-Leave wiederherstellen
+        document.querySelectorAll('.star-rating-input').forEach(container => {
+            container.addEventListener('mouseleave', function() {
+                const currentRating = <?= $userRating ?>;
+                
+                this.querySelectorAll('.rating-star').forEach((star, index) => {
+                    star.className = index < currentRating ? 'rating-star bi-star-fill' : 'rating-star bi-star';
+                });
+            });
         });
         
-        star.addEventListener('click', function() {
-            selectedRating = parseInt(this.dataset.rating);
-            console.log('Star clicked, selected rating:', selectedRating);
-            highlightStars(selectedRating);
-            if (saveRatingBtn) {
-                saveRatingBtn.style.display = 'inline-block';
-                console.log('Save button shown');
-            }
-            if (ratingDisplay) {
-                ratingDisplay.textContent = selectedRating + '/5';
-            }
-        });
-    });
-    
-    function highlightStars(rating) {
-        ratingStars.forEach((star, index) => {
-            if (index < rating) {
-                star.classList.remove('bi-star');
-                star.classList.add('bi-star-fill');
-            } else {
-                star.classList.remove('bi-star-fill');
-                star.classList.add('bi-star');
-            }
-        });
-    }
-    
-    // Rating speichern
-    if (saveRatingBtn) {
-        saveRatingBtn.addEventListener('click', function() {
-            const filmId = document.querySelector('.star-rating-input').dataset.filmId;
-            saveUserRating(filmId, selectedRating);
-        });
-    }
-    
-    // Wishlist-Funktionalität
-    const wishlistBtn = document.querySelector('.add-to-wishlist');
-    if (wishlistBtn) {
-        wishlistBtn.addEventListener('click', function() {
-            const filmId = this.dataset.filmId;
-            toggleWishlist(filmId, this);
-        });
-    }
-    
-    // Als gesehen markieren
-    const watchedBtn = document.querySelector('.mark-as-watched');
-    if (watchedBtn) {
-        watchedBtn.addEventListener('click', function() {
-            const filmId = this.dataset.filmId;
-            toggleWatched(filmId, this);
-        });
-    }
-    
-    // Share-Funktionalität
-    const shareBtn = document.querySelector('.share-film');
-    if (shareBtn) {
-        shareBtn.addEventListener('click', function() {
-            const filmId = this.dataset.filmId;
-            const filmTitle = this.dataset.filmTitle;
-            shareFilm(filmId, filmTitle);
-        });
-    }
-    
-    // Lazy Loading für zusätzliche Bilder
-    const lazyImages = document.querySelectorAll('img[loading="lazy"]');
-    if ('IntersectionObserver' in window) {
-        const imageObserver = new IntersectionObserver((entries) => {
-            entries.forEach(entry => {
-                if (entry.isIntersecting) {
-                    const img = entry.target;
-                    img.classList.add('fade-in');
+        // Watch/Favorite Toggle Actions
+        document.querySelectorAll('[data-action]').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const action = this.dataset.action;
+                const filmId = parseInt(this.dataset.filmId);
+                
+                if (!filmId) return;
+                
+                switch (action) {
+                    case 'toggle-watched':
+                        toggleWatchedStatus(filmId, this);
+                        break;
+                    case 'toggle-favorite':
+                        toggleFavoriteStatus(filmId, this);
+                        break;
                 }
             });
         });
         
-        lazyImages.forEach(img => imageObserver.observe(img));
+        // YouTube Trailer Integration
+        document.querySelectorAll('[data-yt]').forEach(box => {
+            box.addEventListener('click', function() {
+                loadYouTubeTrailer(this);
+            });
+        });
+        
+    } catch (error) {
+        console.error('❌ Film-View JavaScript-Fehler:', error);
     }
 });
 
-// AJAX-Funktionen
-async function saveUserRating(filmId, rating) {
-    try {
-        const response = await fetch('api/save-rating.php', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ film_id: filmId, rating: rating })
-        });
-        
-        if (response.ok) {
-            showNotification('Bewertung gespeichert!', 'success');
-            document.querySelector('.save-rating').style.display = 'none';
-            
-            // Seite nach kurzer Zeit neu laden um Community-Rating zu aktualisieren
-            setTimeout(() => {
-                location.reload();
-            }, 1500);
+// Rating absenden
+function submitRating(filmId, rating) {
+    fetch('api/save-rating.php', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: JSON.stringify({
+            film_id: filmId,
+            rating: rating
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) {
+            throw new Error(data.error);
         }
-    } catch (error) {
+        
+        // UI aktualisieren
+        const ratingDisplay = document.querySelector('.rating-display');
+        if (ratingDisplay) {
+            ratingDisplay.textContent = `${rating}/5 Sterne`;
+        }
+        
+        showNotification('Bewertung gespeichert!', 'success');
+        
+        // Seite neu laden für aktualisierte Community-Bewertung
+        setTimeout(() => {
+            location.reload();
+        }, 1500);
+    })
+    .catch(error => {
+        console.error('Rating-Fehler:', error);
         showNotification('Fehler beim Speichern der Bewertung', 'error');
-    }
+    });
 }
 
-async function toggleWishlist(filmId, button) {
-    try {
-        const response = await fetch('api/toggle-wishlist.php', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ film_id: filmId })
-        });
-        
-        if (response.ok) {
-            const result = await response.json();
-            const icon = button.querySelector('i');
-            if (result.added) {
-                button.innerHTML = '<i class="bi bi-heart-fill"></i> Auf Wunschliste';
-                button.classList.add('active');
-                showNotification('Zur Wunschliste hinzugefügt!', 'success');
-            } else {
-                button.innerHTML = '<i class="bi bi-heart"></i> Zur Wunschliste';
-                button.classList.remove('active');
-                showNotification('Von Wunschliste entfernt!', 'info');
-            }
+// Watch-Status Toggle
+function toggleWatchedStatus(filmId, button) {
+    fetch('api/toggle-watched.php', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: JSON.stringify({film_id: filmId})
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) {
+            throw new Error(data.error);
         }
-    } catch (error) {
-        showNotification('Fehler bei Wunschliste', 'error');
-    }
-}
-
-async function toggleWatched(filmId, button) {
-    try {
-        const response = await fetch('api/toggle-watched.php', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ film_id: filmId })
-        });
         
-        if (response.ok) {
-            const result = await response.json();
-            if (result.watched) {
-                button.innerHTML = '<i class="bi bi-check-circle-fill"></i> Gesehen';
-                button.classList.add('active');
-                showNotification('Als gesehen markiert!', 'success');
-            } else {
-                button.innerHTML = '<i class="bi bi-check-circle"></i> Als gesehen markieren';
-                button.classList.remove('active');
-                showNotification('Markierung entfernt!', 'info');
-            }
+        // UI aktualisieren
+        const icon = button.querySelector('i');
+        const text = button.querySelector('.btn-text');
+        
+        if (data.watched) {
+            icon.className = 'bi bi-check-circle-fill';
+            text.textContent = 'Gesehen';
+            button.classList.add('active');
+            button.title = 'Als nicht gesehen markieren';
+        } else {
+            icon.className = 'bi bi-check-circle';
+            text.textContent = 'Als gesehen markieren';
+            button.classList.remove('active');
+            button.title = 'Als gesehen markieren';
         }
-    } catch (error) {
-        showNotification('Fehler beim Markieren', 'error');
-    }
+        
+        showNotification(data.message, 'success');
+    })
+    .catch(error => {
+        console.error('Watch-Status Fehler:', error);
+        showNotification('Fehler beim Ändern des Watch-Status', 'error');
+    });
 }
 
-function shareFilm(filmId, filmTitle) {
-    const url = window.location.origin + window.location.pathname + '?id=' + filmId;
+// Favorite-Status Toggle
+function toggleFavoriteStatus(filmId, button) {
+    fetch('api/toggle-favorite.php', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: JSON.stringify({film_id: filmId})
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) {
+            throw new Error(data.error);
+        }
+        
+        // UI aktualisieren
+        const icon = button.querySelector('i');
+        const text = button.querySelector('.btn-text');
+        
+        if (data.favorite) {
+            icon.className = 'bi bi-heart-fill';
+            text.textContent = 'Favorit';
+            button.classList.add('active');
+            button.title = 'Aus Favoriten entfernen';
+        } else {
+            icon.className = 'bi bi-heart';
+            text.textContent = 'Zu Favoriten';
+            button.classList.remove('active');
+            button.title = 'Zu Favoriten hinzufügen';
+        }
+        
+        showNotification(data.message, 'success');
+    })
+    .catch(error => {
+        console.error('Favorite-Status Fehler:', error);
+        showNotification('Fehler beim Ändern der Favoriten', 'error');
+    });
+}
+
+// YouTube Trailer laden
+function loadYouTubeTrailer(placeholder) {
+    const ytUrl = placeholder.dataset.yt;
     
-    if (navigator.share) {
-        navigator.share({
-            title: filmTitle,
-            text: 'Schau dir diesen Film an: ' + filmTitle,
-            url: url
-        });
-    } else {
-        // Fallback: URL in Zwischenablage kopieren
-        navigator.clipboard.writeText(url).then(() => {
-            showNotification('Link kopiert!', 'success');
-        }).catch(() => {
-            // Fallback für ältere Browser
-            const textArea = document.createElement('textarea');
-            textArea.value = url;
-            document.body.appendChild(textArea);
-            textArea.select();
-            document.execCommand('copy');
-            document.body.removeChild(textArea);
-            showNotification('Link kopiert!', 'success');
-        });
+    // YouTube-URL zu Embed-URL konvertieren
+    let embedUrl = ytUrl;
+    if (ytUrl.includes('watch?v=')) {
+        const videoId = ytUrl.split('watch?v=')[1].split('&')[0];
+        embedUrl = `https://www.youtube.com/embed/${videoId}?autoplay=1`;
+    } else if (ytUrl.includes('youtu.be/')) {
+        const videoId = ytUrl.split('youtu.be/')[1].split('?')[0];
+        embedUrl = `https://www.youtube.com/embed/${videoId}?autoplay=1`;
     }
+    
+    const iframe = document.createElement('iframe');
+    iframe.src = embedUrl;
+    iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture';
+    iframe.allowFullscreen = true;
+    iframe.style.cssText = `
+        width: 100%; 
+        height: 100%; 
+        border: none; 
+        border-radius: 8px;
+        min-height: 315px;
+    `;
+    
+    placeholder.replaceWith(iframe);
 }
 
-function closeDetail() {
-    const detailContainer = document.getElementById('detail-container');
-    if (detailContainer) {
-        detailContainer.innerHTML = `
-            <div class="detail-placeholder">
-                <i class="bi bi-film"></i>
-                <p>Wählen Sie einen Film aus der Liste, um Details anzuzeigen.</p>
-            </div>
-        `;
-        
-        // URL State management
-        if (history.replaceState) {
-            history.replaceState(null, '', window.location.pathname);
-        }
-    }
-}
-
+// Toast-Benachrichtigung
 function showNotification(message, type = 'info') {
-    // Einfache Benachrichtigung
     const notification = document.createElement('div');
-    notification.className = `notification notification-${type}`;
     notification.textContent = message;
     notification.style.cssText = `
         position: fixed;
         top: 20px;
         right: 20px;
         padding: 1rem 1.5rem;
-        background: var(--glass-bg-strong);
-        border: 1px solid var(--glass-border);
-        border-left: 4px solid ${type === 'success' ? '#28a745' : type === 'error' ? '#dc3545' : '#17a2b8'};
-        border-radius: var(--radius-md);
-        color: var(--text-white);
+        background: ${type === 'success' ? '#28a745' : type === 'error' ? '#dc3545' : '#17a2b8'};
+        border-radius: 8px;
+        color: white;
         z-index: 10000;
         backdrop-filter: blur(10px);
-        box-shadow: var(--shadow-lg);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
         font-weight: 500;
+        font-size: 0.9rem;
     `;
     
     document.body.appendChild(notification);
@@ -719,41 +819,87 @@ function showNotification(message, type = 'info') {
         }, 300);
     }, 3000);
 }
+
+// Performance-Info (Development)
+<?php if ($app->getSettings()->get('environment') === 'development'): ?>
+    console.log('📊 Film-View Performance:', {
+        'loadTime': '<?= round((microtime(true) - $viewStartTime) * 1000, 2) ?>ms',
+        'filmId': <?= $filmId ?>,
+        'actors': <?= count($actors) ?>,
+        'boxsetChildren': <?= count($boxsetChildren) ?>,
+        'similarFilms': <?= count($similarFilms) ?>,
+        'memoryUsage': '<?= \DVDProfiler\Core\Utils::formatBytes(memory_get_peak_usage(true)) ?>'
+    });
+<?php endif; ?>
 </script>
 
 <style>
-/* Enhanced Film View Styles */
+/* FILM-VIEW - CORE-SYSTEM OPTIMIERTE STYLES */
+
+.detail-inline {
+    max-width: 100%;
+    margin: 0 auto;
+    padding: 1rem;
+}
+
+/* Film Header */
 .film-header {
-    margin-bottom: var(--space-xl);
+    margin-bottom: 2rem;
     text-align: center;
 }
 
-.film-year {
-    color: var(--text-glass);
-    opacity: 0.8;
-    font-weight: 400;
+.film-header h2 {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--text-white, #fff);
+    margin-bottom: 0.5rem;
+    line-height: 1.2;
 }
 
+.film-year {
+    color: var(--text-glass, rgba(255, 255, 255, 0.8));
+    opacity: 0.8;
+    font-weight: 400;
+    font-size: 1.5rem;
+}
+
+.boxset-breadcrumb {
+    margin-top: 1rem;
+    font-size: 0.9rem;
+    color: var(--text-glass, rgba(255, 255, 255, 0.8));
+    padding: 0.5rem 1rem;
+    background: rgba(59, 130, 246, 0.1);
+    border: 1px solid rgba(59, 130, 246, 0.3);
+    border-radius: 8px;
+    display: inline-block;
+}
+
+.boxset-breadcrumb a {
+    color: var(--text-white, #fff);
+    text-decoration: underline;
+}
+
+.boxset-breadcrumb a:hover {
+    color: #60a5fa;
+}
+
+/* User Status Badges */
 .user-status-badges {
     display: flex;
-    gap: var(--space-sm);
+    gap: 0.5rem;
     justify-content: center;
-    margin-top: var(--space-md);
+    margin-top: 1rem;
+    flex-wrap: wrap;
 }
 
 .badge {
-    padding: var(--space-xs) var(--space-sm);
-    border-radius: var(--radius-lg);
+    padding: 0.25rem 0.75rem;
+    border-radius: 20px;
     font-size: 0.85rem;
     font-weight: 500;
     display: flex;
     align-items: center;
-    gap: var(--space-xs);
-}
-
-.badge-wishlist {
-    background: linear-gradient(135deg, #e91e63, #ad1457);
-    color: white;
+    gap: 0.25rem;
 }
 
 .badge-watched {
@@ -761,40 +907,33 @@ function showNotification(message, type = 'info') {
     color: white;
 }
 
-.boxset-breadcrumb {
-    margin-top: var(--space-sm);
-    font-size: 0.9rem;
-    color: var(--text-glass);
+.badge-favorite {
+    background: linear-gradient(135deg, #e91e63, #ad1457);
+    color: white;
 }
 
-.boxset-breadcrumb a {
-    color: var(--text-white);
-    text-decoration: underline;
+.badge-rating {
+    background: linear-gradient(135deg, #ff9800, #e65100);
+    color: white;
 }
 
+/* Film Rating */
 .film-rating {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: var(--space-md);
-    margin-top: var(--space-md);
+    gap: 0.5rem;
+    margin-top: 1rem;
 }
 
-.community-rating, .user-rating {
+.community-rating {
     display: flex;
+    flex-direction: column;
     align-items: center;
-    gap: var(--space-sm);
-    flex-wrap: wrap;
-    justify-content: center;
+    gap: 0.5rem;
 }
 
-.rating-label {
-    font-size: 0.9rem;
-    color: var(--text-glass);
-    font-weight: 500;
-}
-
-.stars {
+.rating-stars {
     display: flex;
     gap: 2px;
 }
@@ -811,24 +950,118 @@ function showNotification(message, type = 'info') {
     color: rgba(255, 255, 255, 0.3);
 }
 
+.rating-info {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.rating-value {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text-white, #fff);
+}
+
+.rating-count {
+    font-size: 0.85rem;
+    color: var(--text-glass, rgba(255, 255, 255, 0.8));
+}
+
+/* Cover Gallery */
+.cover-gallery {
+    margin-bottom: 2rem;
+}
+
+.cover-pair {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.cover-pair img.thumb {
+    max-height: 300px;
+    width: auto;
+    border-radius: 8px;
+    border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.2));
+    transition: transform 0.3s ease;
+    cursor: pointer;
+}
+
+.cover-pair img.thumb:hover {
+    transform: scale(1.05);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+}
+
 .no-cover {
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    background: var(--glass-bg);
-    border: 2px dashed var(--glass-border);
-    border-radius: var(--radius-md);
-    height: 240px;
-    width: 160px;
-    color: var(--text-glass);
-    margin: 0 auto;
+    width: 200px;
+    height: 300px;
+    background: var(--glass-bg, rgba(255, 255, 255, 0.1));
+    border: 2px dashed var(--glass-border, rgba(255, 255, 255, 0.2));
+    border-radius: 8px;
+    color: var(--text-glass, rgba(255, 255, 255, 0.8));
 }
 
 .no-cover i {
     font-size: 3rem;
-    margin-bottom: var(--space-sm);
+    margin-bottom: 0.5rem;
     opacity: 0.5;
+}
+
+/* Film Info Grid */
+.film-info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    margin: 2rem 0;
+}
+
+.film-info-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    background: var(--glass-bg, rgba(255, 255, 255, 0.1));
+    border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.2));
+    border-radius: 8px;
+    padding: 1rem;
+    gap: 0.5rem;
+    transition: all 0.3s ease;
+}
+
+.film-info-item:hover {
+    background: rgba(255, 255, 255, 0.15);
+    transform: translateY(-2px);
+}
+
+.film-info-item .label {
+    font-size: 0.85rem;
+    color: var(--text-glass, rgba(255, 255, 255, 0.8));
+    opacity: 0.8;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.film-info-item .value {
+    font-size: 1rem;
+    color: var(--text-white, #fff);
+    font-weight: 600;
+}
+
+/* Meta Cards */
+.meta-card {
+    background: var(--glass-bg, rgba(255, 255, 255, 0.1));
+    border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.2));
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    backdrop-filter: blur(10px);
 }
 
 .meta-card.full-width {
@@ -836,162 +1069,219 @@ function showNotification(message, type = 'info') {
 }
 
 .meta-card h3 {
+    color: var(--text-white, #fff);
+    margin-bottom: 1rem;
     display: flex;
     align-items: center;
-    gap: var(--space-sm);
-    color: var(--text-white);
+    gap: 0.5rem;
     font-size: 1.2rem;
-    margin-bottom: var(--space-lg);
-    border-bottom: 1px solid var(--glass-border);
-    padding-bottom: var(--space-sm);
+    font-weight: 600;
+}
+
+.count-badge {
+    background: var(--primary-color, #007bff);
+    color: white;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.genre-info {
+    font-size: 0.85rem;
+    color: var(--text-glass, rgba(255, 255, 255, 0.8));
+    font-weight: 400;
 }
 
 .overview-text {
-    line-height: 1.7;
-    font-size: 1rem;
+    color: var(--text-glass, rgba(255, 255, 255, 0.9));
+    line-height: 1.6;
+    font-size: 0.95rem;
+}
+
+/* Actor List */
+.actor-list ul {
+    list-style: none;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 0.75rem;
 }
 
 .actor-item {
     display: flex;
     flex-direction: column;
-    margin-bottom: var(--space-sm);
-    padding: var(--space-sm);
-    background: var(--glass-bg);
-    border-radius: var(--radius-sm);
-    border: 1px solid var(--glass-border);
-    transition: all var(--transition-fast);
+    gap: 0.25rem;
+    padding: 0.75rem;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    transition: background-color 0.2s;
 }
 
 .actor-item:hover {
-    background: var(--glass-bg-strong);
-    transform: translateY(-1px);
+    background: rgba(255, 255, 255, 0.1);
 }
 
 .actor-name {
+    color: var(--text-white, #fff);
     font-weight: 600;
-    color: var(--text-white);
+    font-size: 0.95rem;
 }
 
 .actor-role {
-    font-size: 0.9rem;
-    color: var(--text-glass);
-    opacity: 0.8;
+    color: var(--text-glass, rgba(255, 255, 255, 0.8));
+    font-size: 0.85rem;
+    font-style: italic;
 }
 
-.boxset-children-grid {
+/* BoxSet Grid */
+.boxset-grid, .similar-films-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-    gap: var(--space-md);
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
 }
 
-.boxset-child-item {
-    background: var(--glass-bg);
-    border-radius: var(--radius-md);
+.boxset-item, .similar-film-item {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.2));
+    border-radius: 8px;
     overflow: hidden;
-    border: 1px solid var(--glass-border);
-    transition: transform var(--transition-fast);
+    transition: all 0.3s ease;
 }
 
-.boxset-child-item:hover {
-    transform: translateY(-4px);
+.boxset-item:hover, .similar-film-item:hover {
+    background: rgba(255, 255, 255, 0.1);
+    transform: translateY(-3px);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
 }
 
-.boxset-child-item a {
+.boxset-item a, .similar-film-item a {
     display: block;
     text-decoration: none;
     color: inherit;
 }
 
-.child-cover {
-    width: 100%;
-    height: 120px;
-    object-fit: cover;
-}
-
-.child-info {
-    padding: var(--space-sm);
-}
-
-.child-info h4 {
-    font-size: 0.9rem;
-    margin-bottom: var(--space-xs);
-    color: var(--text-white);
-}
-
-.child-info p {
-    font-size: 0.8rem;
-    color: var(--text-glass);
-    margin-bottom: 2px;
-}
-
-.trailer-container {
+.boxset-cover, .similar-cover {
     position: relative;
-}
-
-.trailer-box {
-    position: relative;
-    cursor: pointer;
-    border-radius: var(--radius-md);
     overflow: hidden;
-    transition: transform var(--transition-fast);
 }
 
-.trailer-box:hover {
-    transform: scale(1.02);
+.boxset-cover img, .similar-cover img {
+    width: 100%;
+    height: 200px;
+    object-fit: cover;
+    transition: transform 0.3s ease;
 }
 
-.trailer-overlay {
-    position: absolute;
-    bottom: var(--space-md);
-    left: var(--space-md);
-    right: var(--space-md);
-    background: var(--glass-bg-strong);
-    backdrop-filter: blur(10px);
-    padding: var(--space-sm);
-    border-radius: var(--radius-sm);
-    text-align: center;
-    color: var(--text-white);
-    opacity: 0;
-    transition: opacity var(--transition-fast);
+.boxset-item:hover .boxset-cover img,
+.similar-film-item:hover .similar-cover img {
+    transform: scale(1.05);
 }
 
-.trailer-box:hover .trailer-overlay {
-    opacity: 1;
+.boxset-info, .similar-info {
+    padding: 1rem;
 }
 
-.play-icon {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 60px;
-    height: 60px;
-    background: rgba(255, 255, 255, 0.9);
-    border-radius: 50%;
+.boxset-info h4, .similar-info h4 {
+    color: var(--text-white, #fff);
+    font-size: 0.95rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    line-height: 1.3;
+}
+
+.boxset-meta, .similar-meta {
+    color: var(--text-glass, rgba(255, 255, 255, 0.8));
+    font-size: 0.8rem;
+    margin-bottom: 0.5rem;
+}
+
+.boxset-stats {
+    color: var(--text-glass, rgba(255, 255, 255, 0.8));
+    font-size: 0.75rem;
     display: flex;
     align-items: center;
+    gap: 0.25rem;
+}
+
+/* Film Actions */
+.film-actions {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
     justify-content: center;
-    font-size: 2rem;
-    color: var(--color-primary);
-    transition: all var(--transition-fast);
+    margin-top: 2rem;
+    padding-top: 2rem;
+    border-top: 1px solid var(--glass-border, rgba(255, 255, 255, 0.2));
 }
 
-.trailer-box:hover .play-icon {
-    background: rgba(255, 255, 255, 1);
-    transform: translate(-50%, -50%) scale(1.1);
+.btn {
+    padding: 0.75rem 1.5rem;
+    border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.2));
+    border-radius: 8px;
+    background: var(--glass-bg, rgba(255, 255, 255, 0.1));
+    color: var(--text-white, #fff);
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    transition: all 0.3s ease;
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: 500;
 }
 
+.btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.btn.active {
+    background: var(--primary-color, #007bff);
+    border-color: var(--primary-color, #007bff);
+    color: white;
+}
+
+.btn-outline {
+    background: transparent;
+}
+
+.btn-outline:hover {
+    background: var(--primary-color, #007bff);
+    border-color: var(--primary-color, #007bff);
+}
+
+.btn-primary {
+    background: var(--primary-color, #007bff);
+    border-color: var(--primary-color, #007bff);
+    color: white;
+}
+
+/* User Rating Section */
 .user-rating-section {
     display: flex;
     flex-direction: column;
-    gap: var(--space-md);
+    gap: 1rem;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.05);
+    padding: 1.5rem;
+    border-radius: 8px;
+    border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.2));
+}
+
+.user-rating-section h4 {
+    color: var(--text-white, #fff);
+    margin: 0;
+    font-size: 1.1rem;
 }
 
 .rating-input {
     display: flex;
     align-items: center;
-    gap: var(--space-md);
+    gap: 1rem;
     flex-wrap: wrap;
+    justify-content: center;
 }
 
 .star-rating-input {
@@ -1000,10 +1290,10 @@ function showNotification(message, type = 'info') {
 }
 
 .rating-star {
-    font-size: 1.5rem;
+    font-size: 1.8rem;
     cursor: pointer;
     color: rgba(255, 255, 255, 0.3);
-    transition: color var(--transition-fast);
+    transition: color 0.2s ease;
 }
 
 .rating-star:hover,
@@ -1013,154 +1303,158 @@ function showNotification(message, type = 'info') {
 
 .rating-display {
     font-weight: 600;
-    color: var(--text-white);
-    min-width: 120px;
+    color: var(--text-white, #fff);
+    min-width: 140px;
+    text-align: center;
+    font-size: 0.95rem;
 }
 
-.film-actions {
+/* Trailer Container */
+.trailer-container {
+    position: relative;
+}
+
+.trailer-box {
+    position: relative;
+    background: rgba(0, 0, 0, 0.5);
+    border-radius: 8px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    min-height: 200px;
     display: flex;
-    gap: var(--space-md);
-    flex-wrap: wrap;
+    align-items: center;
     justify-content: center;
-    margin-top: var(--space-xl);
-    padding-top: var(--space-xl);
-    border-top: 1px solid var(--glass-border);
 }
 
-.btn.active {
-    background: var(--gradient-primary);
-    color: var(--text-white);
-    border-color: transparent;
+.trailer-box:hover {
+    background: rgba(0, 0, 0, 0.7);
 }
 
-/* Film-Info Grid Styles */
-.film-info-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: var(--space-md);
-    margin: var(--space-lg) 0;
-}
-
-.film-info-item {
+.trailer-placeholder {
     display: flex;
     flex-direction: column;
     align-items: center;
-    text-align: center;
-    background: var(--glass-bg);
-    border: 1px solid var(--glass-border);
-    border-radius: var(--radius-md);
-    padding: var(--space-md);
-    gap: var(--space-xs);
-    transition: all var(--transition-fast);
+    gap: 1rem;
+    color: white;
 }
 
-.film-info-item:hover {
-    background: var(--glass-bg-strong);
-    transform: translateY(-2px);
-}
-
-.film-info-item .label {
-    font-size: 0.9rem;
-    color: var(--text-glass);
-    opacity: 0.8;
-    font-weight: 500;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
-
-.film-info-item .value {
-    font-size: 1rem;
-    color: var(--text-white);
-    font-weight: 600;
-}
-
-/* FSK-Logo Styles */
-.fsk-badge {
+.play-icon {
+    width: 80px;
+    height: 80px;
+    background: rgba(255, 255, 255, 0.8);
+    border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
+    font-size: 2rem;
+    color: #000;
+    transition: all 0.3s ease;
 }
 
-.fsk-logo {
-    height: 24px;
-    width: auto;
-    max-width: 40px;
-    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
+.trailer-box:hover .play-icon {
+    background: rgba(255, 255, 255, 1);
+    transform: scale(1.1);
 }
 
-.fsk-text {
-    background: var(--gradient-primary);
-    color: var(--text-white);
-    padding: 2px 8px;
-    border-radius: var(--radius-sm);
-    font-size: 0.8rem;
-    font-weight: 600;
-}
-
+/* Mobile Responsiveness */
 @media (max-width: 768px) {
-    .film-rating {
-        gap: var(--space-sm);
+    .detail-inline {
+        padding: 0.5rem;
     }
     
-    .community-rating, .user-rating {
+    .film-header h2 {
+        font-size: 1.5rem;
+    }
+    
+    .film-year {
+        font-size: 1.2rem;
+    }
+    
+    .cover-pair {
         flex-direction: column;
-        gap: var(--space-xs);
+        align-items: center;
     }
     
-    .user-rating-section {
-        align-items: flex-start;
-    }
-    
-    .rating-input {
-        flex-direction: column;
-        align-items: flex-start;
-    }
-    
-    .film-actions {
-        flex-direction: column;
-    }
-    
-    .film-actions .btn {
-        width: 100%;
-    }
-    
-    .boxset-children-grid {
-        grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
-        gap: var(--space-sm);
+    .cover-pair img.thumb {
+        max-height: 250px;
     }
     
     .film-info-grid {
         grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-        gap: var(--space-sm);
+        gap: 0.75rem;
+    }
+    
+    .film-info-item {
+        padding: 0.75rem;
+    }
+    
+    .meta-card {
+        padding: 1rem;
+        margin-bottom: 1rem;
+    }
+    
+    .actor-list ul {
+        grid-template-columns: 1fr;
+    }
+    
+    .boxset-grid, .similar-films-grid {
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 0.75rem;
+    }
+    
+    .boxset-cover img, .similar-cover img {
+        height: 150px;
+    }
+    
+    .film-actions {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .btn {
+        justify-content: center;
+    }
+    
+    .user-rating-section {
+        padding: 1rem;
+    }
+    
+    .rating-input {
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+    
+    .rating-star {
+        font-size: 1.5rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .film-header h2 {
+        font-size: 1.3rem;
     }
     
     .user-status-badges {
         flex-direction: column;
         align-items: center;
     }
-}
-
-.fade-in {
-    animation: fadeIn 0.3s ease-in;
-}
-
-@keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
-}
-
-.notification {
-    animation: slideInRight 0.3s ease-out;
-}
-
-@keyframes slideInRight {
-    from {
-        transform: translateX(100%);
-        opacity: 0;
+    
+    .film-info-grid {
+        grid-template-columns: 1fr 1fr;
+        gap: 0.5rem;
     }
-    to {
-        transform: translateX(0);
-        opacity: 1;
+    
+    .film-info-item {
+        padding: 0.5rem;
+    }
+    
+    .film-info-item .label {
+        font-size: 0.75rem;
+    }
+    
+    .film-info-item .value {
+        font-size: 0.9rem;
     }
 }
 </style>

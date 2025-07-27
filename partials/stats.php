@@ -1,67 +1,104 @@
 <?php
 /**
- * Partials/stats.php - Vollständige Version mit PHP-Funktionen
- * Eigenständige Statistik-Seite mit Datenbankabfragen
+ * Partials/stats.php - Vollständig migriert auf neues Core-System
+ * Umfassende Statistik-Seite mit optimierten Datenbankabfragen
+ * 
+ * @package    dvdprofiler.liste
+ * @author     René Neuhaus
+ * @version    1.4.7+ - Core Integration
  */
 
-// Datenbankverbindung sicherstellen
-global $pdo;
-if (!isset($pdo) || !($pdo instanceof PDO)) {
-    // Fallback: Bootstrap laden falls nicht vorhanden
-    if (file_exists(__DIR__ . '/../includes/bootstrap.php')) {
+declare(strict_types=1);
+
+try {
+    // Core-System sollte bereits durch index.php geladen sein
+    if (!class_exists('DVDProfiler\\Core\\Application')) {
         require_once __DIR__ . '/../includes/bootstrap.php';
     }
+    
+    // Application-Instance abrufen
+    $app = \DVDProfiler\Core\Application::getInstance();
+    $database = $app->getDatabase();
+    $security = $app->getSecurity();
+    
+    // Rate-Limiting für Statistik-Anfragen
+    $clientIP = $security::getClientIP();
+    if (!$app->checkRateLimit("stats_{$clientIP}", 30, 300)) {
+        http_response_code(429);
+        throw new Exception('Zu viele Statistik-Anfragen. Bitte warten Sie 5 Minuten.');
+    }
+    
+    // Performance-Start-Zeit
+    $startTime = microtime(true);
+    
+} catch (Exception $e) {
+    error_log("[DVDProfiler:ERROR] Stats-Page Initialization: " . $e->getMessage());
+    $error_message = 'Fehler beim Laden der Statistiken: ' . $e->getMessage();
 }
 
-// Statistik-Funktionen
-function getBasicStats($pdo): array {
+/**
+ * Statistik-Funktionen mit Core-Database-Integration
+ */
+
+function getBasicStats(\DVDProfiler\Core\Database $database): array {
     try {
-        $stats = [];
-        
-        // Basis-Statistiken
-        $stats['totalFilms'] = (int) $pdo->query("SELECT COUNT(*) FROM dvds")->fetchColumn();
-        $stats['totalRuntime'] = (int) ($pdo->query("SELECT SUM(runtime) FROM dvds WHERE runtime > 0")->fetchColumn() ?: 0);
-        $stats['avgRuntime'] = $stats['totalFilms'] > 0 ? round($stats['totalRuntime'] / $stats['totalFilms']) : 0;
-        $stats['hours'] = round($stats['totalRuntime'] / 60);
-        $stats['days'] = round($stats['hours'] / 24);
-        
-        // Jahr-Statistiken
-        $yearStats = $pdo->query("
+        // Optimierte Query: Alle Basic-Stats in einem Aufruf
+        $basicData = $database->fetchRow("
             SELECT 
-                ROUND(AVG(year)) as avg_year,
+                COUNT(*) as total_films,
+                COALESCE(SUM(runtime), 0) as total_runtime,
+                COALESCE(AVG(runtime), 0) as avg_runtime,
+                COALESCE(AVG(year), YEAR(NOW())) as avg_year,
                 MIN(year) as oldest_year,
-                MAX(year) as newest_year
-            FROM dvds WHERE year > 0
-        ")->fetch();
+                MAX(year) as newest_year,
+                COUNT(DISTINCT genre) as unique_genres,
+                COALESCE(SUM(view_count), 0) as total_views
+            FROM dvds 
+            WHERE year > 0
+        ");
         
-        $stats['avgYear'] = $yearStats['avg_year'] ?? date('Y');
-        $stats['yearStats'] = $yearStats ?: ['oldest_year' => 'N/A', 'newest_year' => 'N/A'];
+        if (!$basicData) {
+            throw new Exception('Keine Statistikdaten verfügbar');
+        }
         
-        return $stats;
+        return [
+            'totalFilms' => (int)$basicData['total_films'],
+            'totalRuntime' => (int)$basicData['total_runtime'],
+            'avgRuntime' => round((float)$basicData['avg_runtime']),
+            'hours' => round((int)$basicData['total_runtime'] / 60),
+            'days' => round((int)$basicData['total_runtime'] / 1440, 1),
+            'avgYear' => round((float)$basicData['avg_year']),
+            'uniqueGenres' => (int)$basicData['unique_genres'],
+            'totalViews' => (int)$basicData['total_views'],
+            'yearStats' => [
+                'oldest_year' => $basicData['oldest_year'] ?? 'N/A',
+                'newest_year' => $basicData['newest_year'] ?? 'N/A'
+            ]
+        ];
     } catch (Exception $e) {
-        error_log('Basic stats error: ' . $e->getMessage());
+        error_log('[Stats] Basic stats error: ' . $e->getMessage());
         return [
             'totalFilms' => 0, 'totalRuntime' => 0, 'avgRuntime' => 0,
-            'hours' => 0, 'days' => 0, 'avgYear' => date('Y'),
+            'hours' => 0, 'days' => 0, 'avgYear' => (int)date('Y'),
+            'uniqueGenres' => 0, 'totalViews' => 0,
             'yearStats' => ['oldest_year' => 'N/A', 'newest_year' => 'N/A']
         ];
     }
 }
 
-function getCollectionStats($pdo): array {
+function getCollectionStats(\DVDProfiler\Core\Database $database): array {
     try {
-        return $pdo->query("
+        return $database->fetchAll("
             SELECT 
-                collection_type, 
+                COALESCE(collection_type, 'Unbekannt') as collection_type, 
                 COUNT(*) as count,
                 ROUND(COUNT(*) * 100.0 / (SELECT COUNT(*) FROM dvds), 1) as percentage
             FROM dvds 
-            WHERE collection_type IS NOT NULL 
             GROUP BY collection_type 
             ORDER BY count DESC
-        ")->fetchAll();
+        ");
     } catch (Exception $e) {
-        error_log('Collection stats error: ' . $e->getMessage());
+        error_log('[Stats] Collection stats error: ' . $e->getMessage());
         return [
             ['collection_type' => 'DVD', 'count' => 0, 'percentage' => 0],
             ['collection_type' => 'Blu-ray', 'count' => 0, 'percentage' => 0]
@@ -69,20 +106,23 @@ function getCollectionStats($pdo): array {
     }
 }
 
-function getRatingStats($pdo): array {
+function getRatingStats(\DVDProfiler\Core\Database $database): array {
     try {
-        return $pdo->query("
+        return $database->fetchAll("
             SELECT 
-                rating_age, 
+                COALESCE(rating_age, 0) as rating_age, 
                 COUNT(*) as count,
                 ROUND(COUNT(*) * 100.0 / (SELECT COUNT(*) FROM dvds), 1) as percentage
             FROM dvds 
-            WHERE rating_age IS NOT NULL 
             GROUP BY rating_age 
-            ORDER BY rating_age ASC
-        ")->fetchAll();
+            ORDER BY 
+                CASE 
+                    WHEN rating_age IS NULL THEN 999 
+                    ELSE rating_age 
+                END ASC
+        ");
     } catch (Exception $e) {
-        error_log('Rating stats error: ' . $e->getMessage());
+        error_log('[Stats] Rating stats error: ' . $e->getMessage());
         return [
             ['rating_age' => 0, 'count' => 0, 'percentage' => 0],
             ['rating_age' => 12, 'count' => 0, 'percentage' => 0],
@@ -91,141 +131,220 @@ function getRatingStats($pdo): array {
     }
 }
 
-function getGenreStats($pdo): array {
+function getGenreStats(\DVDProfiler\Core\Database $database): array {
     try {
-        return $pdo->query("
+        return $database->fetchAll("
             SELECT 
-                TRIM(genre) as genre, 
+                TRIM(COALESCE(genre, 'Unbekannt')) as genre, 
                 COUNT(*) as count,
-                ROUND(COUNT(*) * 100.0 / (SELECT COUNT(*) FROM dvds WHERE genre IS NOT NULL), 1) as percentage
+                ROUND(COUNT(*) * 100.0 / (SELECT COUNT(*) FROM dvds), 1) as percentage,
+                ROUND(AVG(runtime), 0) as avg_runtime
             FROM dvds 
             WHERE genre IS NOT NULL AND genre != '' AND genre != 'NULL'
             GROUP BY TRIM(genre) 
             ORDER BY count DESC 
-            LIMIT 8
-        ")->fetchAll();
+            LIMIT 10
+        ");
     } catch (Exception $e) {
-        error_log('Genre stats error: ' . $e->getMessage());
+        error_log('[Stats] Genre stats error: ' . $e->getMessage());
         return [
-            ['genre' => 'Action', 'count' => 0, 'percentage' => 0],
-            ['genre' => 'Drama', 'count' => 0, 'percentage' => 0],
-            ['genre' => 'Comedy', 'count' => 0, 'percentage' => 0]
+            ['genre' => 'Action', 'count' => 0, 'percentage' => 0, 'avg_runtime' => 120],
+            ['genre' => 'Drama', 'count' => 0, 'percentage' => 0, 'avg_runtime' => 115],
+            ['genre' => 'Comedy', 'count' => 0, 'percentage' => 0, 'avg_runtime' => 100]
         ];
     }
 }
 
-function getYearDistribution($pdo): array {
+function getYearDistribution(\DVDProfiler\Core\Database $database): array {
     try {
-        return $pdo->query("
+        $currentYear = (int)date('Y');
+        $startYear = max(1970, $currentYear - 30); // Letzten 30 Jahre
+        
+        $data = $database->fetchAll("
             SELECT 
                 year, 
                 COUNT(*) as count 
             FROM dvds 
-            WHERE year > 0 AND year >= 1970 AND year <= " . date('Y') . "
+            WHERE year >= ? AND year <= ?
             GROUP BY year 
             ORDER BY year ASC
-        ")->fetchAll(PDO::FETCH_KEY_PAIR);
+        ", [$startYear, $currentYear]);
+        
+        // In Key-Value Array umwandeln
+        $result = [];
+        foreach ($data as $row) {
+            $result[(int)$row['year']] = (int)$row['count'];
+        }
+        
+        return $result;
     } catch (Exception $e) {
-        error_log('Year distribution error: ' . $e->getMessage());
-        return array_combine(range(2020, date('Y')), array_fill(0, date('Y') - 2019, 0));
+        error_log('[Stats] Year distribution error: ' . $e->getMessage());
+        return array_combine(range(2020, (int)date('Y')), array_fill(0, (int)date('Y') - 2019, 0));
     }
 }
 
-function getDecadeStats($pdo): array {
+function getDecadeStats(\DVDProfiler\Core\Database $database): array {
     try {
-        return $pdo->query("
+        return $database->fetchAll("
             SELECT 
                 CONCAT(FLOOR(year/10)*10, 's') as decade,
                 COUNT(*) as count,
-                ROUND(AVG(runtime)) as avg_runtime
+                ROUND(AVG(runtime), 0) as avg_runtime,
+                ROUND(COUNT(*) * 100.0 / (SELECT COUNT(*) FROM dvds WHERE year > 0), 1) as percentage
             FROM dvds 
             WHERE year > 0 
             GROUP BY FLOOR(year/10)*10 
-            ORDER BY decade ASC
-        ")->fetchAll();
+            ORDER BY FLOOR(year/10)*10 DESC
+        ");
     } catch (Exception $e) {
-        error_log('Decade stats error: ' . $e->getMessage());
+        error_log('[Stats] Decade stats error: ' . $e->getMessage());
         return [
-            ['decade' => '2020s', 'count' => 0, 'avg_runtime' => 120],
-            ['decade' => '2010s', 'count' => 0, 'avg_runtime' => 115]
+            ['decade' => '2020s', 'count' => 0, 'avg_runtime' => 120, 'percentage' => 0],
+            ['decade' => '2010s', 'count' => 0, 'avg_runtime' => 115, 'percentage' => 0]
         ];
     }
 }
 
-function getBoxsetStats($pdo): array {
+function getBoxsetStats(\DVDProfiler\Core\Database $database): array {
     try {
-        $boxsetStats = $pdo->query("
+        // Boxset-Übersicht
+        $boxsetOverview = $database->fetchRow("
             SELECT 
                 COUNT(DISTINCT boxset_parent) as total_boxsets,
-                COUNT(*) as total_boxset_items
-            FROM dvds 
-            WHERE boxset_parent IS NOT NULL
-        ")->fetch();
+                COUNT(*) as total_boxset_items,
+                ROUND(AVG(item_count)) as avg_items_per_boxset
+            FROM (
+                SELECT boxset_parent, COUNT(*) as item_count
+                FROM dvds 
+                WHERE boxset_parent IS NOT NULL
+                GROUP BY boxset_parent
+            ) boxset_counts
+        ");
         
-        $topBoxsets = $pdo->query("
+        // Top Boxsets
+        $topBoxsets = $database->fetchAll("
             SELECT 
                 p.title as boxset_name,
+                p.year as boxset_year,
                 COUNT(c.id) as child_count,
-                SUM(c.runtime) as total_runtime
+                ROUND(SUM(c.runtime) / 60, 1) as total_hours
             FROM dvds p
             JOIN dvds c ON c.boxset_parent = p.id
-            GROUP BY p.id, p.title
+            GROUP BY p.id, p.title, p.year
             ORDER BY child_count DESC
             LIMIT 5
-        ")->fetchAll();
+        ");
         
         return [
-            'stats' => $boxsetStats ?: ['total_boxsets' => 0, 'total_boxset_items' => 0],
+            'stats' => $boxsetOverview ?: ['total_boxsets' => 0, 'total_boxset_items' => 0, 'avg_items_per_boxset' => 0],
             'top' => $topBoxsets ?: []
         ];
     } catch (Exception $e) {
-        error_log('Boxset stats error: ' . $e->getMessage());
+        error_log('[Stats] Boxset stats error: ' . $e->getMessage());
         return [
-            'stats' => ['total_boxsets' => 0, 'total_boxset_items' => 0],
+            'stats' => ['total_boxsets' => 0, 'total_boxset_items' => 0, 'avg_items_per_boxset' => 0],
             'top' => []
         ];
     }
 }
 
-function getNewestFilms($pdo): array {
+function getNewestFilms(\DVDProfiler\Core\Database $database): array {
     try {
-        return $pdo->query("
-            SELECT title, year, genre, created_at 
+        return $database->fetchAll("
+            SELECT 
+                title, 
+                year, 
+                genre, 
+                collection_type,
+                created_at,
+                ROUND(runtime / 60, 1) as hours
             FROM dvds 
             ORDER BY created_at DESC 
             LIMIT 8
-        ")->fetchAll();
+        ");
     } catch (Exception $e) {
-        error_log('Newest films error: ' . $e->getMessage());
+        error_log('[Stats] Newest films error: ' . $e->getMessage());
         return [];
     }
 }
 
-// Alle Statistiken laden
+function getUserActivityStats(\DVDProfiler\Core\Database $database): array {
+    try {
+        $userStats = [];
+        
+        // User-Ratings (falls Tabelle existiert)
+        if ($database->tableExists('user_ratings')) {
+            $ratingStats = $database->fetchRow("
+                SELECT 
+                    COUNT(*) as total_ratings,
+                    ROUND(AVG(rating), 1) as avg_rating,
+                    COUNT(DISTINCT film_id) as rated_films,
+                    COUNT(DISTINCT user_id) as active_users
+                FROM user_ratings
+            ");
+            $userStats['ratings'] = $ratingStats ?: ['total_ratings' => 0, 'avg_rating' => 0, 'rated_films' => 0, 'active_users' => 0];
+        }
+        
+        // Watched-Status (falls Tabelle existiert)
+        if ($database->tableExists('user_watched')) {
+            $watchedStats = $database->fetchRow("
+                SELECT 
+                    COUNT(*) as total_watched,
+                    COUNT(DISTINCT film_id) as unique_watched_films,
+                    COUNT(DISTINCT user_id) as active_watchers
+                FROM user_watched
+            ");
+            $userStats['watched'] = $watchedStats ?: ['total_watched' => 0, 'unique_watched_films' => 0, 'active_watchers' => 0];
+        }
+        
+        return $userStats;
+    } catch (Exception $e) {
+        error_log('[Stats] User activity stats error: ' . $e->getMessage());
+        return ['ratings' => [], 'watched' => []];
+    }
+}
+
+// Statistiken laden mit Error-Handling
 try {
-    $basicStats = getBasicStats($pdo);
-    $collections = getCollectionStats($pdo);
-    $ratings = getRatingStats($pdo);
-    $topGenres = getGenreStats($pdo);
-    $yearDistribution = getYearDistribution($pdo);
-    $decades = getDecadeStats($pdo);
-    $boxsetData = getBoxsetStats($pdo);
-    $newestFilms = getNewestFilms($pdo);
+    $basicStats = getBasicStats($database);
+    $collections = getCollectionStats($database);
+    $ratings = getRatingStats($database);
+    $topGenres = getGenreStats($database);
+    $yearDistribution = getYearDistribution($database);
+    $decades = getDecadeStats($database);
+    $boxsetData = getBoxsetStats($database);
+    $newestFilms = getNewestFilms($database);
+    $userActivity = getUserActivityStats($database);
     
     // Variablen extrahieren für Template
     extract($basicStats);
     $boxsetStats = $boxsetData['stats'];
     $topBoxsets = $boxsetData['top'];
     
+    // Performance-Logging (Development)
+    if ($app->getSettings()->get('environment') === 'development') {
+        $loadTime = microtime(true) - $startTime;
+        error_log("[DVDProfiler:INFO] Stats-Page: Geladen in " . round($loadTime * 1000, 2) . "ms");
+    }
+    
 } catch (Exception $e) {
-    error_log('Stats loading error: ' . $e->getMessage());
+    error_log('[DVDProfiler:ERROR] Stats loading error: ' . $e->getMessage());
     $error_message = 'Fehler beim Laden der Statistiken: ' . $e->getMessage();
     
     // Fallback-Werte
-    $totalFilms = $hours = $days = $avgRuntime = $avgYear = 0;
+    $totalFilms = $hours = $days = $avgRuntime = $avgYear = $uniqueGenres = $totalViews = 0;
     $collections = $ratings = $topGenres = $decades = $newestFilms = $topBoxsets = [];
     $yearDistribution = [];
-    $yearStats = $boxsetStats = ['total_boxsets' => 0, 'total_boxset_items' => 0];
+    $yearStats = ['oldest_year' => 'N/A', 'newest_year' => 'N/A'];
+    $boxsetStats = ['total_boxsets' => 0, 'total_boxset_items' => 0, 'avg_items_per_boxset' => 0];
+    $userActivity = ['ratings' => [], 'watched' => []];
+}
+
+// Besucher-Counter (Legacy-Support)
+$totalVisits = 0;
+$counterFile = dirname(__DIR__) . '/counter.txt';
+if (file_exists($counterFile)) {
+    $totalVisits = (int)file_get_contents($counterFile);
 }
 ?>
 
@@ -239,12 +358,22 @@ try {
             Detaillierte Analyse Ihrer <?= number_format($totalFilms) ?> Filme umfassenden Sammlung
         </p>
         <div class="stats-summary">
-            Stand: <?= date('d.m.Y H:i') ?> Uhr | Version <?= defined('DVDPROFILER_VERSION') ? DVDPROFILER_VERSION : '1.0.0' ?>
+            Stand: <?= date('d.m.Y H:i') ?> Uhr | 
+            Version <?= \DVDProfiler\Core\Utils::env('DVDPROFILER_VERSION', '1.4.7') ?> | 
+            <?= $uniqueGenres ?> Genres | 
+            <?= number_format($totalViews) ?> Aufrufe
         </div>
     </header>
 
     <?php if (isset($error_message)): ?>
-        <div class="error-message">
+        <div class="error-message" style="
+            background: rgba(220, 53, 69, 0.1);
+            border: 1px solid rgba(220, 53, 69, 0.3);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 2rem;
+            color: #fff;
+        ">
             <i class="bi bi-exclamation-triangle"></i>
             <?= htmlspecialchars($error_message) ?>
         </div>
@@ -288,260 +417,305 @@ try {
             
             <div class="stat-card warning">
                 <div class="stat-icon">
-                    <i class="bi bi-collection"></i>
+                    <i class="bi bi-boxes"></i>
                 </div>
                 <div class="stat-content">
-                    <h3><?= number_format($boxsetStats['total_boxsets']) ?></h3>
-                    <p>BoxSet-Sammlungen</p>
-                    <small><?= number_format($boxsetStats['total_boxset_items']) ?> Einzelfilme</small>
+                    <h3><?= $boxsetStats['total_boxsets'] ?></h3>
+                    <p>BoxSets</p>
+                    <small><?= $boxsetStats['total_boxset_items'] ?> Einzelfilme (⌀ <?= $boxsetStats['avg_items_per_boxset'] ?? 0 ?> pro Set)</small>
                 </div>
             </div>
+            
+            <?php if ($totalVisits > 0): ?>
+                <div class="stat-card secondary">
+                    <div class="stat-icon">
+                        <i class="bi bi-eye"></i>
+                    </div>
+                    <div class="stat-content">
+                        <h3><?= number_format($totalVisits) ?></h3>
+                        <p>Seitenaufrufe</p>
+                        <small>seit Beginn der Aufzeichnung</small>
+                    </div>
+                </div>
+            <?php endif; ?>
+            
+            <?php if (!empty($userActivity['ratings'])): ?>
+                <div class="stat-card accent">
+                    <div class="stat-icon">
+                        <i class="bi bi-star-fill"></i>
+                    </div>
+                    <div class="stat-content">
+                        <h3><?= $userActivity['ratings']['avg_rating'] ?? 0 ?>/5</h3>
+                        <p>Durchschnittsbewertung</p>
+                        <small><?= number_format($userActivity['ratings']['total_ratings'] ?? 0) ?> Bewertungen</small>
+                    </div>
+                </div>
+            <?php endif; ?>
         </div>
     </section>
 
-    <!-- Diagramm-Bereich -->
-    <section class="charts-grid">
-        <!-- Collection Types -->
-        <div class="chart-container">
-            <div class="chart-header">
-                <h3><i class="bi bi-pie-chart"></i> Sammlungstypen</h3>
-                <p>Verteilung nach Medientyp</p>
+    <!-- Charts -->
+    <section class="charts-section">
+        <div class="charts-grid">
+            <!-- Genre-Verteilung -->
+            <div class="chart-container">
+                <div class="chart-header">
+                    <h3>
+                        <i class="bi bi-pie-chart"></i>
+                        Genre-Verteilung
+                    </h3>
+                    <p>Top <?= count($topGenres) ?> Genres nach Anzahl</p>
+                </div>
+                <canvas id="genreChart"></canvas>
             </div>
-            <canvas id="collectionChart"></canvas>
-            <div class="chart-legend">
-                <?php foreach (array_slice($collections, 0, 4) as $collection): ?>
-                    <span class="legend-item">
-                        <strong><?= htmlspecialchars($collection['collection_type']) ?>:</strong> 
-                        <?= $collection['count'] ?> (<?= $collection['percentage'] ?>%)
-                    </span>
-                <?php endforeach; ?>
+            
+            <!-- Altersfreigaben -->
+            <div class="chart-container">
+                <div class="chart-header">
+                    <h3>
+                        <i class="bi bi-shield-check"></i>
+                        Altersfreigaben
+                    </h3>
+                    <p>Verteilung nach FSK-Einstufung</p>
+                </div>
+                <canvas id="ratingChart"></canvas>
             </div>
-        </div>
-
-        <!-- Altersfreigaben -->
-        <div class="chart-container">
-            <div class="chart-header">
-                <h3><i class="bi bi-shield-check"></i> Altersfreigaben</h3>
-                <p>FSK-Verteilung der Sammlung</p>
+            
+            <!-- Jahrzehnte-Verteilung -->
+            <div class="chart-container">
+                <div class="chart-header">
+                    <h3>
+                        <i class="bi bi-calendar-range"></i>
+                        Dekaden-Verteilung
+                    </h3>
+                    <p>Filme nach Jahrzehnten gruppiert</p>
+                </div>
+                <canvas id="decadeChart"></canvas>
             </div>
-            <canvas id="ratingChart"></canvas>
-        </div>
-
-        <!-- Top Genres -->
-        <div class="chart-container wide">
-            <div class="chart-header">
-                <h3><i class="bi bi-tags"></i> Beliebteste Genres</h3>
-                <p>Top 8 Genres in Ihrer Sammlung</p>
+            
+            <!-- Collection Types -->
+            <div class="chart-container">
+                <div class="chart-header">
+                    <h3>
+                        <i class="bi bi-disc"></i>
+                        Medientypen
+                    </h3>
+                    <p>DVD, Blu-ray und andere Formate</p>
+                </div>
+                <canvas id="collectionChart"></canvas>
             </div>
-            <canvas id="genreChart"></canvas>
-        </div>
-
-        <!-- Timeline -->
-        <div class="chart-container wide">
-            <div class="chart-header">
-                <h3><i class="bi bi-graph-up"></i> Filme pro Jahr</h3>
-                <p>Chronologische Verteilung der Erscheinungsjahre</p>
+            
+            <!-- Jahr-Verteilung (breiter Chart) -->
+            <div class="chart-container wide">
+                <div class="chart-header">
+                    <h3>
+                        <i class="bi bi-graph-up"></i>
+                        Jahresverteilung
+                    </h3>
+                    <p>Anzahl Filme pro Erscheinungsjahr</p>
+                </div>
+                <canvas id="yearChart"></canvas>
             </div>
-            <canvas id="yearChart"></canvas>
         </div>
     </section>
 
     <!-- Zusätzliche Informationen -->
     <section class="additional-stats">
         <div class="stats-grid">
-            <!-- Dekaden-Übersicht -->
-            <div class="info-card">
-                <h3><i class="bi bi-calendar-range"></i> Filme nach Dekaden</h3>
-                <div class="decade-list">
-                    <?php foreach ($decades as $decade): ?>
-                        <div class="decade-item">
-                            <span class="decade-name"><?= htmlspecialchars($decade['decade']) ?></span>
-                            <span class="decade-count"><?= $decade['count'] ?> Filme</span>
-                            <span class="decade-runtime">⌀ <?= $decade['avg_runtime'] ?> Min</span>
-                        </div>
-                    <?php endforeach; ?>
-                </div>
-            </div>
-
             <!-- Top BoxSets -->
-            <div class="info-card">
-                <h3><i class="bi bi-collection"></i> Größte BoxSets</h3>
-                <div class="boxset-list">
-                    <?php foreach ($topBoxsets as $boxset): ?>
-                        <div class="boxset-item">
-                            <span class="boxset-name"><?= htmlspecialchars($boxset['boxset_name']) ?></span>
-                            <span class="boxset-count"><?= $boxset['child_count'] ?> Filme</span>
-                            <span class="boxset-runtime"><?= round(($boxset['total_runtime'] ?: 0) / 60) ?>h</span>
-                        </div>
-                    <?php endforeach; ?>
+            <?php if (!empty($topBoxsets)): ?>
+                <div class="info-card">
+                    <h3>
+                        <i class="bi bi-collection"></i>
+                        Größte BoxSets
+                    </h3>
+                    <div class="list-content">
+                        <?php foreach ($topBoxsets as $boxset): ?>
+                            <div class="list-item">
+                                <div class="item-info">
+                                    <span class="item-title"><?= htmlspecialchars($boxset['boxset_name']) ?></span>
+                                    <span class="item-meta"><?= $boxset['boxset_year'] ?></span>
+                                </div>
+                                <div class="item-stats">
+                                    <span class="item-count"><?= $boxset['child_count'] ?> Filme</span>
+                                    <span class="item-duration"><?= $boxset['total_hours'] ?>h</span>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
                 </div>
-            </div>
-
-            <!-- Zuletzt hinzugefügt -->
-            <div class="info-card">
-                <h3><i class="bi bi-plus-circle"></i> Zuletzt hinzugefügt</h3>
-                <div class="recent-list">
-                    <?php foreach ($newestFilms as $film): ?>
-                        <div class="recent-item">
-                            <span class="film-title"><?= htmlspecialchars($film['title']) ?></span>
-                            <span class="film-year">(<?= $film['year'] ?>)</span>
-                            <span class="film-date"><?= date('d.m.Y', strtotime($film['created_at'])) ?></span>
-                        </div>
-                    <?php endforeach; ?>
+            <?php endif; ?>
+            
+            <!-- Neueste Filme -->
+            <?php if (!empty($newestFilms)): ?>
+                <div class="info-card">
+                    <h3>
+                        <i class="bi bi-plus-circle"></i>
+                        Zuletzt hinzugefügt
+                    </h3>
+                    <div class="list-content">
+                        <?php foreach ($newestFilms as $film): ?>
+                            <div class="list-item">
+                                <div class="item-info">
+                                    <span class="item-title"><?= htmlspecialchars($film['title']) ?></span>
+                                    <span class="item-meta">
+                                        <?= $film['year'] ?> • <?= htmlspecialchars($film['genre']) ?>
+                                        <?php if ($film['collection_type']): ?>
+                                            • <?= htmlspecialchars($film['collection_type']) ?>
+                                        <?php endif; ?>
+                                    </span>
+                                </div>
+                                <div class="item-stats">
+                                    <span class="item-date"><?= date('d.m.Y', strtotime($film['created_at'])) ?></span>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
                 </div>
-            </div>
+            <?php endif; ?>
         </div>
     </section>
 
     <?php endif; ?>
 </div>
 
-<!-- Chart.js Skripte - SYNTAX FIXED VERSION -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-console.log('🚀 Charts werden geladen...');
+// Chart.js Charts mit Core-System Integration
+let chartsInitialized = false;
 
-// Warten auf Chart.js und DOM
-function initializeCharts() {
+async function ensureChartJsLoaded() {
     if (typeof Chart === 'undefined') {
-        console.log('⏳ Chart.js noch nicht geladen, warte...');
-        setTimeout(initializeCharts, 100);
-        return;
+        return new Promise((resolve, reject) => {
+            const script = document.createElement('script');
+            script.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js';
+            script.onload = () => {
+                console.log('📊 Chart.js geladen');
+                resolve();
+            };
+            script.onerror = () => {
+                console.error('❌ Chart.js konnte nicht geladen werden');
+                reject(new Error('Chart.js loading failed'));
+            };
+            document.head.appendChild(script);
+        });
     }
+    return Promise.resolve();
+}
+
+async function initializeCharts() {
+    if (chartsInitialized) return;
     
-    console.log('✅ Chart.js verfügbar, starte Initialisierung');
-    
-    // Canvas-Elemente suchen
-    var collectionCanvas = document.getElementById('collectionChart');
-    var ratingCanvas = document.getElementById('ratingChart');
-    var genreCanvas = document.getElementById('genreChart');
-    var yearCanvas = document.getElementById('yearChart');
-    
-    console.log('🎯 Canvas-Elemente:', {
-        collection: !!collectionCanvas,
-        rating: !!ratingCanvas,
-        genre: !!genreCanvas,
-        year: !!yearCanvas
-    });
-    
-    // PHP-Daten laden
-    var chartData = {
-        collections: <?= json_encode($collections) ?>,
-        ratings: <?= json_encode($ratings) ?>,
-        genres: <?= json_encode($topGenres) ?>,
-        years: <?= json_encode($yearDistribution) ?>
-    };
-    
-    console.log('📊 Daten geladen:', chartData);
-    
-    // Fallback-Daten setzen
-    if (chartData.collections.length === 0) {
-        chartData.collections = [
-            {collection_type: 'DVD', count: 25, percentage: 50},
-            {collection_type: 'Blu-ray', count: 20, percentage: 40},
-            {collection_type: '4K UHD', count: 5, percentage: 10}
-        ];
-        console.log('⚠️ Fallback für Collection-Daten verwendet');
-    }
-    
-    if (chartData.ratings.length === 0) {
-        chartData.ratings = [
-            {rating_age: 0, count: 10, percentage: 20},
-            {rating_age: 6, count: 8, percentage: 16},
-            {rating_age: 12, count: 15, percentage: 30},
-            {rating_age: 16, count: 12, percentage: 24},
-            {rating_age: 18, count: 5, percentage: 10}
-        ];
-        console.log('⚠️ Fallback für Rating-Daten verwendet');
-    }
-    
-    if (chartData.genres.length === 0) {
-        chartData.genres = [
-            {genre: 'Action', count: 18, percentage: 25},
-            {genre: 'Drama', count: 15, percentage: 21},
-            {genre: 'Comedy', count: 12, percentage: 17},
-            {genre: 'Thriller', count: 10, percentage: 14},
-            {genre: 'Sci-Fi', count: 8, percentage: 11},
-            {genre: 'Horror', count: 6, percentage: 8},
-            {genre: 'Romance', count: 3, percentage: 4}
-        ];
-        console.log('⚠️ Fallback für Genre-Daten verwendet');
-    }
-    
-    if (Object.keys(chartData.years).length === 0) {
-        chartData.years = {
-            '2020': 8,
-            '2021': 12,
-            '2022': 15,
-            '2023': 18,
-            '2024': 10
-        };
-        console.log('⚠️ Fallback für Jahr-Daten verwendet');
-    }
-    
-    // Farben definieren
-    var colors = [
-        '#3498db', '#2ecc71', '#f39c12', '#e74c3c', 
-        '#9b59b6', '#1abc9c', '#34495e', '#95a5a6'
-    ];
-    
-    // Basis-Optionen
-    var baseOptions = {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-            legend: {
-                labels: {
-                    color: '#ffffff',
-                    usePointStyle: true,
-                    padding: 15
+    try {
+        await ensureChartJsLoaded();
+        
+        // Chart.js Default-Konfiguration
+        Chart.defaults.color = '#ffffff';
+        Chart.defaults.font.family = 'Inter, sans-serif';
+        Chart.defaults.plugins.legend.labels.usePointStyle = true;
+        
+        const commonOptions = {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        padding: 20,
+                        color: '#ffffff'
+                    }
                 }
             }
+        };
+
+        // Genre Chart
+        if (document.getElementById('genreChart')) {
+            const genreCtx = document.getElementById('genreChart').getContext('2d');
+            const genreData = <?= json_encode($topGenres) ?>;
+            
+            new Chart(genreCtx, {
+                type: 'pie',
+                data: {
+                    labels: genreData.map(g => g.genre),
+                    datasets: [{
+                        data: genreData.map(g => g.count),
+                        backgroundColor: [
+                            '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', 
+                            '#FFEAA7', '#DDA0DD', '#98D8C8', '#F7DC6F',
+                            '#BB8FCE', '#85C1E9'
+                        ],
+                        borderWidth: 2,
+                        borderColor: 'rgba(255,255,255,0.1)'
+                    }]
+                },
+                options: {
+                    ...commonOptions,
+                    plugins: {
+                        ...commonOptions.plugins,
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const genre = genreData[context.dataIndex];
+                                    return `${genre.genre}: ${genre.count} Filme (${genre.percentage}%)`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
         }
-    };
-    
-    // 1. Collection Chart (Doughnut)
-    if (collectionCanvas) {
-        try {
-            console.log('🔨 Erstelle Collection Chart...');
-            new Chart(collectionCanvas, {
+
+        // Rating Chart
+        if (document.getElementById('ratingChart')) {
+            const ratingCtx = document.getElementById('ratingChart').getContext('2d');
+            const ratingData = <?= json_encode($ratings) ?>;
+            
+            new Chart(ratingCtx, {
                 type: 'doughnut',
                 data: {
-                    labels: chartData.collections.map(function(c) { return c.collection_type; }),
+                    labels: ratingData.map(r => r.rating_age == 0 ? 'Ohne Angabe' : `FSK ${r.rating_age}`),
                     datasets: [{
-                        data: chartData.collections.map(function(c) { return parseInt(c.count); }),
-                        backgroundColor: colors.slice(0, chartData.collections.length),
+                        data: ratingData.map(r => r.count),
+                        backgroundColor: ['#28a745', '#ffc107', '#fd7e14', '#dc3545', '#6c757d'],
                         borderWidth: 2,
-                        borderColor: '#ffffff'
+                        borderColor: 'rgba(255,255,255,0.1)'
                     }]
                 },
-                options: Object.assign({}, baseOptions, {
-                    cutout: '60%'
-                })
+                options: {
+                    ...commonOptions,
+                    plugins: {
+                        ...commonOptions.plugins,
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const rating = ratingData[context.dataIndex];
+                                    return `${context.label}: ${rating.count} Filme (${rating.percentage}%)`;
+                                }
+                            }
+                        }
+                    }
+                }
             });
-            console.log('✅ Collection Chart erfolgreich erstellt');
-        } catch (e) {
-            console.error('❌ Collection Chart Fehler:', e);
         }
-    }
-    
-    // 2. Rating Chart (Bar)
-    if (ratingCanvas) {
-        try {
-            console.log('🔨 Erstelle Rating Chart...');
-            new Chart(ratingCanvas, {
+
+        // Decade Chart
+        if (document.getElementById('decadeChart')) {
+            const decadeCtx = document.getElementById('decadeChart').getContext('2d');
+            const decadeData = <?= json_encode($decades) ?>;
+            
+            new Chart(decadeCtx, {
                 type: 'bar',
                 data: {
-                    labels: chartData.ratings.map(function(r) { return 'FSK ' + r.rating_age; }),
+                    labels: decadeData.map(d => d.decade),
                     datasets: [{
                         label: 'Anzahl Filme',
-                        data: chartData.ratings.map(function(r) { return parseInt(r.count); }),
-                        backgroundColor: colors[1],
-                        borderColor: colors[1],
+                        data: decadeData.map(d => d.count),
+                        backgroundColor: 'rgba(54, 162, 235, 0.6)',
+                        borderColor: 'rgba(54, 162, 235, 1)',
                         borderWidth: 1
                     }]
                 },
-                options: Object.assign({}, baseOptions, {
+                options: {
+                    ...commonOptions,
                     scales: {
                         y: {
                             beginAtZero: true,
@@ -553,82 +727,67 @@ function initializeCharts() {
                             grid: { color: 'rgba(255,255,255,0.1)' }
                         }
                     }
-                })
+                }
             });
-            console.log('✅ Rating Chart erfolgreich erstellt');
-        } catch (e) {
-            console.error('❌ Rating Chart Fehler:', e);
         }
-    }
-    
-    // 3. Genre Chart (Horizontal Bar)
-    if (genreCanvas) {
-        try {
-            console.log('🔨 Erstelle Genre Chart...');
-            new Chart(genreCanvas, {
-                type: 'bar',
+
+        // Collection Chart
+        if (document.getElementById('collectionChart')) {
+            const collectionCtx = document.getElementById('collectionChart').getContext('2d');
+            const collectionData = <?= json_encode($collections) ?>;
+            
+            new Chart(collectionCtx, {
+                type: 'polarArea',
                 data: {
-                    labels: chartData.genres.map(function(g) { return g.genre; }),
+                    labels: collectionData.map(c => c.collection_type),
                     datasets: [{
-                        label: 'Anzahl Filme',
-                        data: chartData.genres.map(function(g) { return parseInt(g.count); }),
-                        backgroundColor: colors[0],
-                        borderColor: colors[0],
+                        data: collectionData.map(c => c.count),
+                        backgroundColor: [
+                            'rgba(255, 99, 132, 0.6)',
+                            'rgba(54, 162, 235, 0.6)',
+                            'rgba(255, 205, 86, 0.6)',
+                            'rgba(75, 192, 192, 0.6)',
+                            'rgba(153, 102, 255, 0.6)'
+                        ],
+                        borderColor: [
+                            'rgba(255, 99, 132, 1)',
+                            'rgba(54, 162, 235, 1)',
+                            'rgba(255, 205, 86, 1)',
+                            'rgba(75, 192, 192, 1)',
+                            'rgba(153, 102, 255, 1)'
+                        ],
                         borderWidth: 1
                     }]
                 },
-                options: Object.assign({}, baseOptions, {
-                    indexAxis: 'y',
-                    scales: {
-                        x: {
-                            beginAtZero: true,
-                            ticks: { color: '#ffffff' },
-                            grid: { color: 'rgba(255,255,255,0.1)' }
-                        },
-                        y: {
-                            ticks: { color: '#ffffff' },
-                            grid: { color: 'rgba(255,255,255,0.1)' }
-                        }
-                    }
-                })
+                options: commonOptions
             });
-            console.log('✅ Genre Chart erfolgreich erstellt');
-        } catch (e) {
-            console.error('❌ Genre Chart Fehler:', e);
         }
-    }
-    
-    // 4. Year Chart (Line)
-    if (yearCanvas) {
-        try {
-            console.log('🔨 Erstelle Year Chart...');
-            new Chart(yearCanvas, {
+
+        // Year Distribution Chart
+        if (document.getElementById('yearChart')) {
+            const yearCtx = document.getElementById('yearChart').getContext('2d');
+            const yearData = <?= json_encode($yearDistribution) ?>;
+            
+            new Chart(yearCtx, {
                 type: 'line',
                 data: {
-                    labels: Object.keys(chartData.years),
+                    labels: Object.keys(yearData),
                     datasets: [{
                         label: 'Filme pro Jahr',
-                        data: Object.values(chartData.years).map(function(v) { return parseInt(v); }),
-                        backgroundColor: 'rgba(52, 152, 219, 0.2)',
-                        borderColor: colors[0],
+                        data: Object.values(yearData),
+                        borderColor: 'rgba(75, 192, 192, 1)',
+                        backgroundColor: 'rgba(75, 192, 192, 0.2)',
                         borderWidth: 2,
                         fill: true,
-                        tension: 0.3,
-                        pointBackgroundColor: colors[0],
-                        pointBorderColor: '#ffffff',
-                        pointBorderWidth: 2
+                        tension: 0.4
                     }]
                 },
-                options: Object.assign({}, baseOptions, {
+                options: {
+                    ...commonOptions,
                     scales: {
                         y: {
                             beginAtZero: true,
-                            ticks: { 
-                                color: '#ffffff',
-                                callback: function(value) {
-                                    return Number.isInteger(value) ? value : '';
-                                }
-                            },
+                            ticks: { color: '#ffffff' },
                             grid: { color: 'rgba(255,255,255,0.1)' }
                         },
                         x: {
@@ -636,439 +795,347 @@ function initializeCharts() {
                             grid: { color: 'rgba(255,255,255,0.1)' }
                         }
                     }
-                })
+                }
             });
-            console.log('✅ Year Chart erfolgreich erstellt');
-        } catch (e) {
-            console.error('❌ Year Chart Fehler:', e);
         }
+        
+        chartsInitialized = true;
+        console.log('🎯 Alle Stats-Charts erfolgreich initialisiert!');
+        
+    } catch (error) {
+        console.error('❌ Chart-Initialisierung fehlgeschlagen:', error);
     }
+}
+
+// Charts initialisieren
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('📊 Stats-Page (Core-System) geladen');
     
-    console.log('🎯 Alle Charts initialisiert!');
-}
-
-// Sofort starten
-initializeCharts();
-
-// Fallback für DOM ready
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', function() {
-        setTimeout(initializeCharts, 100);
-    });
-} else {
+    // Sofort versuchen
     setTimeout(initializeCharts, 100);
-}
+    
+    // Fallback für langsame Verbindungen
+    setTimeout(() => {
+        if (!chartsInitialized) {
+            console.log('🔄 Chart-Initialisierung Retry...');
+            initializeCharts();
+        }
+    }, 1000);
+});
+
+// Performance-Info (Development)
+<?php if ($app->getSettings()->get('environment') === 'development'): ?>
+    console.log('📊 Stats-Performance:', {
+        'loadTime': '<?= round((microtime(true) - $startTime) * 1000, 2) ?>ms',
+        'totalFilms': <?= $totalFilms ?>,
+        'genres': <?= count($topGenres) ?>,
+        'decades': <?= count($decades) ?>,
+        'memoryUsage': '<?= \DVDProfiler\Core\Utils::formatBytes(memory_get_peak_usage(true)) ?>'
+    });
+<?php endif; ?>
 </script>
 
 <style>
-/* STATS PAGE - KOMPLETTE CSS STYLES */
+/* STATS PAGE - CORE-SYSTEM OPTIMIERTE STYLES */
 
-/* CSS Variablen (falls nicht geladen) */
-
-
-/* Stats Page Container */
-.stats-page {
-  max-width: 1400px;
-  margin: 0 auto;
-  padding: var(--space-lg);
+:root {
+    --glass-bg: rgba(255, 255, 255, 0.1);
+    --glass-border: rgba(255, 255, 255, 0.2);
+    --text-white: #ffffff;
+    --text-glass: rgba(255, 255, 255, 0.8);
+    --text-muted: rgba(255, 255, 255, 0.6);
+    --gradient-primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    --gradient-success: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+    --gradient-info: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+    --gradient-warning: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+    --gradient-secondary: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
+    --gradient-accent: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%);
+    --space-xs: 0.5rem;
+    --space-sm: 0.75rem;
+    --space-md: 1rem;
+    --space-lg: 1.5rem;
+    --space-xl: 2rem;
+    --radius-lg: 12px;
+    --transition-normal: all 0.3s ease;
+    --shadow-glass: 0 8px 32px rgba(0, 0, 0, 0.1);
 }
 
-/* Page Header */
+.stats-page {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: var(--space-lg);
+}
+
 .page-header {
-  text-align: center;
-  margin-bottom: var(--space-xl);
+    text-align: center;
+    margin-bottom: var(--space-xl);
 }
 
 .page-header h1 {
-  color: var(--text-white);
-  margin-bottom: var(--space-sm);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-md);
-  font-size: 2.5rem;
-  font-weight: 700;
+    color: var(--text-white);
+    margin-bottom: var(--space-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-md);
+    font-size: 2.5rem;
+    font-weight: 700;
 }
 
 .page-subtitle {
-  color: var(--text-glass);
-  font-size: 1.1rem;
-  margin-bottom: var(--space-sm);
+    color: var(--text-glass);
+    font-size: 1.1rem;
+    margin-bottom: var(--space-sm);
 }
 
 .stats-summary {
-  color: var(--text-muted);
-  font-size: 0.9rem;
+    color: var(--text-muted);
+    font-size: 0.9rem;
 }
 
-/* Stat Cards Grid */
 .stat-cards-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: var(--space-lg);
-  margin-bottom: var(--space-xl);
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: var(--space-lg);
+    margin-bottom: var(--space-xl);
 }
 
 .stat-card {
-  background: var(--glass-bg);
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-lg);
-  padding: var(--space-xl);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  transition: all var(--transition-normal);
-  display: flex;
-  align-items: center;
-  gap: var(--space-lg);
-  position: relative;
-  overflow: hidden;
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-xl);
+    backdrop-filter: blur(10px);
+    transition: var(--transition-normal);
+    display: flex;
+    align-items: center;
+    gap: var(--space-lg);
+    position: relative;
+    overflow: hidden;
 }
 
 .stat-card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 4px;
-  background: var(--gradient-primary);
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: var(--gradient-primary);
 }
 
-.stat-card.success::before { 
-  background: var(--gradient-success); 
-}
-
-.stat-card.info::before { 
-  background: var(--gradient-info); 
-}
-
-.stat-card.warning::before { 
-  background: var(--gradient-warning); 
-}
+.stat-card.success::before { background: var(--gradient-success); }
+.stat-card.info::before { background: var(--gradient-info); }
+.stat-card.warning::before { background: var(--gradient-warning); }
+.stat-card.secondary::before { background: var(--gradient-secondary); }
+.stat-card.accent::before { background: var(--gradient-accent); }
 
 .stat-card:hover {
-  transform: translateY(-5px);
-  box-shadow: var(--shadow-glass);
+    transform: translateY(-5px);
+    box-shadow: var(--shadow-glass);
 }
 
 .stat-icon {
-  font-size: 3rem;
-  color: #3498db;
-  flex-shrink: 0;
+    font-size: 3rem;
+    color: #3498db;
+    flex-shrink: 0;
 }
 
 .stat-content h3 {
-  font-size: 2.5rem;
-  font-weight: bold;
-  color: var(--text-white);
-  margin: 0;
-  line-height: 1;
+    font-size: 2.5rem;
+    font-weight: bold;
+    color: var(--text-white);
+    margin: 0;
+    line-height: 1;
 }
 
 .stat-content p {
-  font-size: 1.1rem;
-  color: var(--text-glass);
-  margin: var(--space-xs) 0 0 0;
+    font-size: 1.1rem;
+    color: var(--text-glass);
+    margin: var(--space-xs) 0 0 0;
 }
 
 .stat-content small {
-  color: var(--text-muted);
-  font-size: 0.9rem;
+    color: var(--text-muted);
+    font-size: 0.9rem;
 }
 
-/* Charts Grid */
 .charts-grid {
-  display: grid !important;
-  grid-template-columns: repeat(auto-fit, minmax(450px, 1fr)) !important;
-  gap: var(--space-xl) !important;
-  margin-bottom: var(--space-xl) !important;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
+    gap: var(--space-xl);
+    margin-bottom: var(--space-xl);
 }
 
 .chart-container {
-  background: var(--glass-bg) !important;
-  border: 1px solid var(--glass-border) !important;
-  border-radius: var(--radius-lg) !important;
-  padding: var(--space-lg) !important;
-  backdrop-filter: blur(10px) !important;
-  -webkit-backdrop-filter: blur(10px) !important;
-  min-height: 450px !important;
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-lg);
+    backdrop-filter: blur(10px);
+    min-height: 450px;
 }
 
 .chart-container.wide {
-  grid-column: 1 / -1 !important;
+    grid-column: 1 / -1;
 }
 
 .chart-header {
-  margin-bottom: var(--space-lg);
-  text-align: center;
+    margin-bottom: var(--space-lg);
+    text-align: center;
 }
 
 .chart-header h3 {
-  color: var(--text-white);
-  margin-bottom: var(--space-xs);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-sm);
-  font-size: 1.3rem;
+    color: var(--text-white);
+    margin-bottom: var(--space-xs);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-sm);
+    font-size: 1.3rem;
 }
 
 .chart-header p {
-  color: var(--text-glass);
-  font-size: 0.9rem;
+    color: var(--text-glass);
+    font-size: 0.9rem;
 }
 
 .chart-container canvas {
-  width: 100% !important;
-  height: 400px !important;
-  max-height: 400px !important;
-}
-
-.chart-legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-md);
-  justify-content: center;
-  margin-top: var(--space-md);
-}
-
-.legend-item {
-  font-size: 0.85rem;
-  color: var(--text-glass);
-}
-
-/* Additional Stats */
-.additional-stats {
-  margin-top: var(--space-xl);
+    width: 100% !important;
+    height: 350px !important;
+    max-height: 350px !important;
 }
 
 .stats-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
-  gap: var(--space-lg);
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+    gap: var(--space-lg);
 }
 
 .info-card {
-  background: var(--glass-bg);
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-lg);
-  padding: var(--space-lg);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-lg);
+    backdrop-filter: blur(10px);
 }
 
 .info-card h3 {
-  color: var(--text-white);
-  margin-bottom: var(--space-lg);
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-  border-bottom: 1px solid var(--glass-border);
-  padding-bottom: var(--space-sm);
-  font-size: 1.2rem;
-}
-
-.decade-item,
-.boxset-item,
-.recent-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: var(--space-sm) 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.decade-item:last-child,
-.boxset-item:last-child,
-.recent-item:last-child {
-  border-bottom: none;
-}
-
-.decade-name,
-.boxset-name,
-.film-title {
-  color: var(--text-white);
-  font-weight: 500;
-  flex: 1;
-}
-
-.decade-count,
-.decade-runtime,
-.boxset-count,
-.boxset-runtime,
-.film-year,
-.film-date {
-  color: var(--text-glass);
-  font-size: 0.9rem;
-  margin-left: var(--space-sm);
-}
-
-/* Error Message */
-.error-message {
-  background: rgba(231, 76, 60, 0.2);
-  border: 1px solid #e74c3c;
-  border-radius: var(--radius-md);
-  padding: var(--space-lg);
-  color: #e74c3c;
-  text-align: center;
-  margin-bottom: var(--space-xl);
-}
-
-/* Responsive Design */
-@media (max-width: 1200px) {
-  .charts-grid {
-    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)) !important;
-  }
-}
-
-@media (max-width: 768px) {
-  .stats-page {
-    padding: var(--space-md);
-  }
-  
-  .stat-cards-grid {
-    grid-template-columns: 1fr;
-    gap: var(--space-md);
-  }
-  
-  .stat-card {
-    padding: var(--space-lg);
-    flex-direction: column;
-    text-align: center;
-    gap: var(--space-md);
-  }
-  
-  .stat-icon {
-    font-size: 2.5rem;
-  }
-  
-  .stat-content h3 {
-    font-size: 2rem;
-  }
-  
-  .charts-grid {
-    grid-template-columns: 1fr !important;
-    gap: var(--space-lg) !important;
-  }
-  
-  .chart-container {
-    min-height: 350px !important;
-    padding: var(--space-md) !important;
-  }
-  
-  .chart-container canvas {
-    height: 300px !important;
-    max-height: 300px !important;
-  }
-  
-  .stats-grid {
-    grid-template-columns: 1fr;
-  }
-  
-  .chart-legend {
-    flex-direction: column;
+    color: var(--text-white);
+    margin-bottom: var(--space-lg);
+    display: flex;
     align-items: center;
     gap: var(--space-sm);
-  }
+    font-size: 1.2rem;
+}
 
-  .page-header h1 {
-    font-size: 2rem;
+.list-content {
+    display: flex;
     flex-direction: column;
-    gap: var(--space-sm);
-  }
+    gap: var(--space-md);
+}
+
+.list-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-sm);
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    transition: var(--transition-normal);
+}
+
+.list-item:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.item-info {
+    flex: 1;
+}
+
+.item-title {
+    display: block;
+    color: var(--text-white);
+    font-weight: 600;
+    margin-bottom: 2px;
+}
+
+.item-meta {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+}
+
+.item-stats {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+}
+
+.item-count, .item-duration, .item-date {
+    color: var(--text-glass);
+    font-size: 0.85rem;
+}
+
+/* Mobile Responsiveness */
+@media (max-width: 768px) {
+    .stats-page {
+        padding: var(--space-md);
+    }
+    
+    .page-header h1 {
+        font-size: 2rem;
+        flex-direction: column;
+        gap: var(--space-sm);
+    }
+    
+    .stat-cards-grid {
+        grid-template-columns: 1fr;
+        gap: var(--space-md);
+    }
+    
+    .stat-card {
+        padding: var(--space-lg);
+    }
+    
+    .stat-icon {
+        font-size: 2.5rem;
+    }
+    
+    .stat-content h3 {
+        font-size: 2rem;
+    }
+    
+    .charts-grid {
+        grid-template-columns: 1fr;
+        gap: var(--space-lg);
+    }
+    
+    .chart-container canvas {
+        height: 300px !important;
+    }
+    
+    .stats-grid {
+        grid-template-columns: 1fr;
+    }
 }
 
 @media (max-width: 480px) {
-  .decade-item,
-  .boxset-item,
-  .recent-item {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: var(--space-xs);
-  }
-  
-  .stat-content h3 {
-    font-size: 1.8rem;
-  }
-
-  .charts-grid {
-    grid-template-columns: 1fr !important;
-  }
-  
-  .chart-container {
-    min-height: 300px !important;
-  }
-  
-  .chart-container canvas {
-    height: 250px !important;
-    max-height: 250px !important;
-  }
-}
-
-/* Animationen */
-@keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(30px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes slideInRight {
-  from {
-    opacity: 0;
-    transform: translateX(30px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-
-@keyframes pulse {
-  0%, 100% {
-    transform: scale(1);
-  }
-  50% {
-    transform: scale(1.05);
-  }
-}
-
-/* Chart-spezifische Verbesserungen */
-.chart-container:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-xl);
-  transition: all var(--transition-normal);
-}
-
-/* Utilities */
-.fade-in {
-  animation: fadeInUp 0.6s ease-out;
-}
-
-.slide-in-right {
-  animation: slideInRight 0.4s ease-out;
-}
-
-/* Chart Loading State */
-.chart-container.loading {
-  position: relative;
-  opacity: 0.7;
-}
-
-.chart-container.loading::after {
-  content: 'Lädt...';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  background: var(--glass-bg-strong);
-  padding: var(--space-md) var(--space-lg);
-  border-radius: var(--radius-md);
-  color: var(--text-white);
-  font-weight: 500;
+    .chart-container {
+        min-height: 350px;
+        padding: var(--space-md);
+    }
+    
+    .list-item {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--space-xs);
+    }
+    
+    .item-stats {
+        align-items: flex-start;
+        flex-direction: row;
+        gap: var(--space-sm);
+    }
 }
 </style>

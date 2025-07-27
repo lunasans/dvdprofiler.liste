@@ -1,11 +1,11 @@
 <?php
 /**
  * DVD Profiler Liste - Hauptseite
- * Beispiel für die Verwendung des neuen Core-Systems
+ * Korrigiert: Zeigt wieder die neuesten Filme auf der Startseite
  * 
  * @package    dvdprofiler.liste
  * @author     René Neuhaus
- * @version    1.4.7+
+ * @version    1.4.7+ - Core Integration
  */
 
 declare(strict_types=1);
@@ -19,7 +19,7 @@ $app = \DVDProfiler\Core\Application::getInstance();
 try {
     // Sicherheitsvalidierung für Admin-Bereiche
     $page = $_GET['page'] ?? 'home';
-    $allowedPages = ['home', 'stats', 'impressum', 'datenschutz'];
+    $allowedPages = ['home', 'films', 'stats', 'impressum', 'datenschutz'];
     
     if (!in_array($page, $allowedPages)) {
         $page = 'home';
@@ -106,7 +106,7 @@ try {
         <section class="film-list-area" aria-label="Film-Liste">
             <?php 
             try {
-                // Je nach Seite verschiedene Inhalte laden
+                // KORRIGIERT: Je nach Seite verschiedene Inhalte laden
                 switch ($page) {
                     case 'stats':
                         include __DIR__ . '/partials/stats.php';
@@ -117,8 +117,15 @@ try {
                     case 'datenschutz':
                         include __DIR__ . '/partials/datenschutz.php';
                         break;
-                    default:
+                    case 'films':
+                        // Alle Filme mit Filtern (neue URL: ?page=films)
                         include __DIR__ . '/partials/film-list.php';
+                        break;
+                    case 'home':
+                    default:
+                        // STARTSEITE: 10 neueste Filme anzeigen
+                        include __DIR__ . '/10-latest-fragment.php';
+                        break;
                 }
             } catch (Exception $e) {
                 error_log('Content include error: ' . $e->getMessage());
@@ -153,57 +160,24 @@ try {
                             Version ' . htmlspecialchars($version) . '
                         </div>
                         <div class="copyright">
-                            &copy; ' . date('Y') . ' René Neuhaus
+                            &copy; ' . date('Y') . ' DVD Profiler Liste
                         </div>
                     </div>
                 </div>
-              </footer>';
+            </footer>';
     }
     ?>
 
-    <!-- JavaScript -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/fancybox/3.5.7/jquery.fancybox.min.js"></script>
+    <!-- JavaScript für Navigation und Interaktivität -->
     <script src="js/main.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     
-    <!-- Performance-Info (Development only) -->
-    <?php if ($app->getSettings()->get('environment') === 'development'): ?>
-    <script>
-        console.group('🚀 Performance Info');
-        console.log('⏱️ Ladezeit:', <?= json_encode(number_format((microtime(true) - $startTime) * 1000, 2)) ?>ms);
-        console.log('💾 Memory:', '<?= \DVDProfiler\Core\Utils::formatBytes(memory_get_peak_usage(true)) ?>');
-        
-        <?php 
-        $dbStats = $app->getDatabase()->getStats();
-        if ($dbStats['query_count'] > 0):
-        ?>
-        console.log('🗄️ DB Queries:', <?= $dbStats['query_count'] ?>);
-        console.log('🗄️ DB Zeit:', <?= json_encode(number_format($dbStats['total_query_time'] * 1000, 2)) ?>ms);
-        <?php endif; ?>
-        
-        console.groupEnd();
-    </script>
+    <!-- Performance-Info (Development) -->
+    <?php if ($app->getSettings()->get('environment') === 'development' && isset($startTime)): ?>
+        <script>
+            const loadTime = <?= (microtime(true) - $startTime) * 1000 ?>;
+            console.log(`📊 Page loaded in ${loadTime.toFixed(2)}ms`);
+        </script>
     <?php endif; ?>
-
-    <!-- CSRF-Token für AJAX-Requests -->
-    <script>
-        window.csrfToken = '<?= \DVDProfiler\Core\Security::generateCSRFToken() ?>';
-    </script>
 </body>
 </html>
-
-<?php
-// Finale Performance-Logs (Development)
-if ($app->getSettings()->get('environment') === 'development') {
-    $loadTime = microtime(true) - $startTime;
-    $memoryUsage = memory_get_peak_usage(true);
-    $dbStats = $app->getDatabase()->getStats();
-    
-    error_log(sprintf(
-        '[Performance] Page: %s | Time: %.3fs | Memory: %s | DB Queries: %d',
-        $page,
-        $loadTime,
-        \DVDProfiler\Core\Utils::formatBytes($memoryUsage),
-        $dbStats['query_count']
-    ));
-}
-?>
