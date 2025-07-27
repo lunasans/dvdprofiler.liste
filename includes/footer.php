@@ -60,28 +60,24 @@ $latestVersion = getDVDProfilerLatestVersion();
                     </span>
                 <?php endif; ?>
             </div>
-            
+
             <div class="version-info">
                 <div class="version-link">
-                    <span class="version-badge" 
-                          title="<?= getDVDProfilerVersionFull() ?>" 
-                          data-clipboard="<?= htmlspecialchars(json_encode(getDVDProfilerBuildInfo())) ?>">
+                    <span class="version-badge" title="<?= getDVDProfilerVersionFull() ?>"
+                        data-clipboard="<?= htmlspecialchars(json_encode(getDVDProfilerBuildInfo())) ?>">
                         v<?= $version ?>
                     </span>
                     <span class="codename"><?= $codename ?></span>
-                    <a href="<?= DVDPROFILER_GITHUB_URL ?>" 
-                       target="_blank" 
-                       rel="noopener noreferrer"
-                       aria-label="GitHub Repository öffnen"
-                       title="Auf GitHub ansehen">
+                    <a href="<?= DVDPROFILER_GITHUB_URL ?>" target="_blank" rel="noopener noreferrer"
+                        aria-label="GitHub Repository öffnen" title="Auf GitHub ansehen">
                         <i class="bi bi-github" aria-hidden="true"></i>
                     </a>
                 </div>
-                
+
                 <div class="build-info">
                     Build <?= $buildDate ?> | PHP <?= PHP_VERSION ?>
                 </div>
-                
+
                 <div class="copyright">
                     &copy; <?= date('Y') ?> <?= DVDPROFILER_AUTHOR ?>
                 </div>
@@ -94,11 +90,11 @@ $latestVersion = getDVDProfilerLatestVersion();
                 <li><a href="?page=datenschutz">Datenschutz</a></li>
                 <?php if (isset($_SESSION['user_id'])): ?>
                     <li><a href="<?= $baseUrl ?>admin/" rel="nofollow">
-                        Admin-Panel 
-                        <?php if ($updateAvailable): ?>
-                            <span class="badge update-badge" title="Update verfügbar">!</span>
-                        <?php endif; ?>
-                    </a></li>
+                            Admin-Panel
+                            <?php if ($updateAvailable): ?>
+                                <span class="badge update-badge" title="Update verfügbar">!</span>
+                            <?php endif; ?>
+                        </a></li>
                     <li><a href="<?= $baseUrl ?>admin/logout.php" rel="nofollow">Logout</a></li>
                 <?php else: ?>
                     <li><a href="<?= $baseUrl ?>admin/login.php" rel="nofollow">Login</a></li>
@@ -127,7 +123,7 @@ $latestVersion = getDVDProfilerLatestVersion();
                 <strong>Libraries:</strong> Bootstrap Icons, Fancybox, Chart.js
             </div>
             <div class="tech-item">
-                <strong>Repository:</strong> 
+                <strong>Repository:</strong>
                 <a href="<?= DVDPROFILER_GITHUB_URL ?>" target="_blank" rel="noopener">
                     <?= DVDPROFILER_REPOSITORY ?>
                 </a>
@@ -136,7 +132,7 @@ $latestVersion = getDVDProfilerLatestVersion();
                 <strong>Letzter Commit:</strong> <?= DVDPROFILER_COMMIT ?>
             </div>
         </div>
-        
+
         <?php if (isDVDProfilerFeatureEnabled('system_updates') && isset($_SESSION['user_id'])): ?>
             <div class="admin-shortcuts">
                 <a href="<?= $baseUrl ?>admin/?page=settings" class="admin-link">
@@ -163,10 +159,10 @@ $latestVersion = getDVDProfilerLatestVersion();
     document.addEventListener('DOMContentLoaded', function () {
         const footer = document.querySelector('.site-footer');
         const footerExtended = document.getElementById('footerExtended');
-        
+
         // Scroll Progress Indicator
         const scrollIndicator = document.querySelector('.scroll-indicator');
-        
+
         if (scrollIndicator) {
             window.addEventListener('scroll', function () {
                 const scrollPercent = (window.scrollY / (document.documentElement.scrollHeight - window.innerHeight)) * 100;
@@ -177,21 +173,21 @@ $latestVersion = getDVDProfilerLatestVersion();
         // Footer Extended Info Toggle
         if (footerExtended) {
             let extendedVisible = false;
-            
+
             // Desktop: Hover effect
             if (window.innerWidth > 768) {
-                footer.addEventListener('mouseenter', function() {
+                footer.addEventListener('mouseenter', function () {
                     footerExtended.classList.add('show');
                     extendedVisible = true;
                 });
-                
-                footer.addEventListener('mouseleave', function() {
+
+                footer.addEventListener('mouseleave', function () {
                     footerExtended.classList.remove('show');
                     extendedVisible = false;
                 });
             } else {
                 // Mobile: Click to toggle
-                footer.addEventListener('click', function(e) {
+                footer.addEventListener('click', function (e) {
                     if (!e.target.closest('a') && !e.target.closest('button')) {
                         footerExtended.classList.toggle('show');
                         extendedVisible = !extendedVisible;
@@ -269,22 +265,11 @@ GitHub: ${buildInfo.github_url}`;
         // GitHub Link Click Tracking
         const githubLinks = document.querySelectorAll('a[href*="github.com"]');
         githubLinks.forEach(link => {
-            link.addEventListener('click', function() {
+            link.addEventListener('click', function () {
                 showDVDProfilerToast('🔗 GitHub Repository wird geöffnet...', 'info');
             });
         });
 
-        // Update Notification Animation
-        const updateNotification = document.querySelector('.update-notification');
-        if (updateNotification) {
-            // Pulse animation for update notification
-            setInterval(() => {
-                updateNotification.style.animation = 'none';
-                setTimeout(() => {
-                    updateNotification.style.animation = 'pulse 2s ease-in-out';
-                }, 10);
-            }, 5000);
-        }
 
         // Stats Animation beim Scrollen ins Bild
         const statsItems = document.querySelectorAll('.stat-item');
@@ -311,12 +296,12 @@ GitHub: ${buildInfo.github_url}`;
         if (featuresText) {
             const enabledCount = <?= count(array_filter(DVDPROFILER_FEATURES)) ?>;
             const totalCount = <?= count(DVDPROFILER_FEATURES) ?>;
-            
-            featuresText.addEventListener('mouseenter', function() {
-                this.innerHTML = `<strong>Features:</strong> ${enabledCount} aktiv, ${totalCount - enabledCount} geplant (${Math.round((enabledCount/totalCount)*100)}%)`;
+
+            featuresText.addEventListener('mouseenter', function () {
+                this.innerHTML = `<strong>Features:</strong> ${enabledCount} aktiv, ${totalCount - enabledCount} geplant (${Math.round((enabledCount / totalCount) * 100)}%)`;
             });
-            
-            featuresText.addEventListener('mouseleave', function() {
+
+            featuresText.addEventListener('mouseleave', function () {
                 this.innerHTML = `<strong>Features:</strong> ${enabledCount} aktiv (${totalCount} gesamt)`;
             });
         }
@@ -325,17 +310,17 @@ GitHub: ${buildInfo.github_url}`;
     // Enhanced Toast Notification für DVD Profiler
     function showDVDProfilerToast(message, type = 'info', duration = 4000) {
         const toastContainer = document.getElementById('toast-container') || createToastContainer();
-        
+
         const toast = document.createElement('div');
         toast.className = `dvd-toast toast-${type}`;
-        
+
         const iconMap = {
             'success': 'bi-check-circle',
             'error': 'bi-x-circle',
             'warning': 'bi-exclamation-triangle',
             'info': 'bi-info-circle'
         };
-        
+
         toast.innerHTML = `
             <div class="toast-content">
                 <i class="bi ${iconMap[type] || iconMap.info}"></i>
@@ -345,7 +330,7 @@ GitHub: ${buildInfo.github_url}`;
                 </button>
             </div>
         `;
-        
+
         // Toast Styling
         toast.style.cssText = `
             background: var(--glass-bg-strong, rgba(0, 0, 0, 0.8));
@@ -360,9 +345,9 @@ GitHub: ${buildInfo.github_url}`;
             min-width: 300px;
             max-width: 400px;
         `;
-        
+
         toastContainer.appendChild(toast);
-        
+
         // Auto-remove
         setTimeout(() => {
             if (toast.parentNode) {
@@ -371,7 +356,7 @@ GitHub: ${buildInfo.github_url}`;
             }
         }, duration);
     }
-    
+
     function createToastContainer() {
         const container = document.createElement('div');
         container.id = 'toast-container';
@@ -389,324 +374,329 @@ GitHub: ${buildInfo.github_url}`;
 </script>
 
 <style>
-/* Erweiterte Footer Styles für DVD Profiler Liste */
-.footer-logo {
-    display: flex;
-    align-items: center;
-    gap: var(--space-sm, 8px);
-    font-weight: 700;
-    font-size: 1.1rem;
-    margin-bottom: var(--space-xs, 4px);
-}
-
-.footer-logo i {
-    font-size: 1.3rem;
-    background: var(--gradient-primary, linear-gradient(135deg, #667eea 0%, #764ba2 100%));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-}
-
-.footer-tagline {
-    font-size: 0.85rem;
-    opacity: 0.8;
-    color: var(--text-glass, rgba(255, 255, 255, 0.8));
-    margin-bottom: var(--space-sm, 8px);
-}
-
-.update-notification {
-    display: flex;
-    align-items: center;
-    gap: var(--space-xs, 4px);
-    font-size: 0.8rem;
-    color: #4ade80;
-    background: rgba(74, 222, 128, 0.1);
-    padding: 4px 8px;
-    border-radius: var(--radius-sm, 6px);
-    border: 1px solid rgba(74, 222, 128, 0.3);
-    animation: pulse 2s ease-in-out infinite;
-}
-
-.footer-stats {
-    display: flex;
-    gap: var(--space-md, 12px);
-    margin-bottom: var(--space-md, 12px);
-    flex-wrap: wrap;
-    justify-content: center;
-}
-
-.stat-item {
-    display: flex;
-    align-items: center;
-    gap: var(--space-xs, 4px);
-    font-size: 0.85rem;
-    color: var(--text-glass, rgba(255, 255, 255, 0.8));
-    transition: all var(--transition-fast, 0.3s);
-    opacity: 0;
-    transform: translateY(10px);
-    cursor: help;
-}
-
-.stat-item.animate-in {
-    opacity: 1;
-    transform: translateY(0);
-}
-
-.stat-item:hover {
-    color: var(--text-white, #ffffff);
-    transform: translateY(-2px);
-}
-
-.stat-item i {
-    font-size: 1rem;
-    color: var(--text-white, #ffffff);
-    transition: transform 0.3s ease;
-}
-
-.version-badge {
-    background: var(--gradient-accent, linear-gradient(135deg, #667eea 0%, #764ba2 100%));
-    color: var(--text-white, #ffffff);
-    padding: 3px 10px;
-    border-radius: var(--radius-sm, 6px);
-    font-size: 0.85rem;
-    font-weight: 700;
-    cursor: pointer;
-    transition: all var(--transition-fast, 0.3s);
-    display: inline-block;
-    user-select: none;
-}
-
-.version-badge:hover {
-    transform: scale(1.05);
-    box-shadow: var(--shadow-md, 0 4px 12px rgba(0, 0, 0, 0.2));
-}
-
-.codename {
-    font-style: italic;
-    font-size: 0.8rem;
-    opacity: 0.9;
-    margin-left: var(--space-xs, 4px);
-    color: var(--text-glass, rgba(255, 255, 255, 0.8));
-}
-
-.build-info {
-    font-size: 0.75rem;
-    opacity: 0.7;
-    margin: var(--space-xs, 4px) 0;
-    font-family: 'Courier New', monospace;
-}
-
-.update-badge {
-    background: #ef4444;
-    color: white;
-    font-size: 0.7rem;
-    padding: 2px 6px;
-    border-radius: 50%;
-    margin-left: var(--space-xs, 4px);
-    animation: bounce 1s ease-in-out infinite;
-}
-
-.footer-extended {
-    background: var(--glass-bg-strong, rgba(255, 255, 255, 0.1));
-    backdrop-filter: blur(20px);
-    border-top: 1px solid var(--glass-border, rgba(255, 255, 255, 0.2));
-    padding: var(--space-md, 12px) var(--space-xl, 24px);
-    margin-top: var(--space-md, 12px);
-    border-radius: 0 0 var(--radius-xl, 20px) var(--radius-xl, 20px);
-    opacity: 0;
-    max-height: 0;
-    overflow: hidden;
-    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.footer-extended.show {
-    opacity: 1;
-    max-height: 300px;
-}
-
-.tech-info {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-    gap: var(--space-sm, 8px);
-    font-size: 0.8rem;
-    margin-bottom: var(--space-md, 12px);
-}
-
-.tech-item {
-    color: var(--text-glass, rgba(255, 255, 255, 0.8));
-    transition: color 0.3s ease;
-}
-
-.tech-item:hover {
-    color: var(--text-white, #ffffff);
-}
-
-.admin-shortcuts {
-    display: flex;
-    gap: var(--space-sm, 8px);
-    padding-top: var(--space-sm, 8px);
-    border-top: 1px solid var(--glass-border, rgba(255, 255, 255, 0.2));
-    flex-wrap: wrap;
-}
-
-.admin-link {
-    display: flex;
-    align-items: center;
-    gap: var(--space-xs, 4px);
-    padding: var(--space-xs, 4px) var(--space-sm, 8px);
-    background: var(--glass-bg, rgba(255, 255, 255, 0.1));
-    border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.2));
-    border-radius: var(--radius-sm, 6px);
-    color: var(--text-glass, rgba(255, 255, 255, 0.8));
-    font-size: 0.75rem;
-    transition: all 0.3s ease;
-}
-
-.admin-link:hover {
-    background: var(--gradient-accent, linear-gradient(135deg, #667eea 0%, #764ba2 100%));
-    color: var(--text-white, #ffffff);
-    transform: translateY(-2px);
-}
-
-.update-link {
-    background: rgba(74, 222, 128, 0.2) !important;
-    border-color: rgba(74, 222, 128, 0.4) !important;
-    color: #4ade80 !important;
-}
-
-.scroll-indicator {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    height: 3px;
-    width: 0%;
-    background: var(--gradient-primary, linear-gradient(135deg, #667eea 0%, #764ba2 100%));
-    border-radius: 0 2px 0 0;
-    transition: width 0.1s ease-out;
-}
-
-.konami-active {
-    animation: dvdBounce 0.8s ease-in-out;
-}
-
-/* Animations */
-@keyframes slideInRight {
-    from {
-        transform: translateX(100%);
-        opacity: 0;
-    }
-    to {
-        transform: translateX(0);
-        opacity: 1;
-    }
-}
-
-@keyframes slideOutRight {
-    from {
-        transform: translateX(0);
-        opacity: 1;
-    }
-    to {
-        transform: translateX(100%);
-        opacity: 0;
-    }
-}
-
-@keyframes dvdBounce {
-    0%, 20%, 60%, 100% {
-        transform: translateY(0) scale(1);
-    }
-    40% {
-        transform: translateY(-15px) scale(1.1);
-    }
-    80% {
-        transform: translateY(-5px) scale(1.05);
-    }
-}
-
-@keyframes pulse {
-    0%, 100% {
-        opacity: 1;
-    }
-    50% {
-        opacity: 0.6;
-    }
-}
-
-@keyframes bounce {
-    0%, 20%, 60%, 100% {
-        transform: translateY(0);
-    }
-    40% {
-        transform: translateY(-5px);
-    }
-    80% {
-        transform: translateY(-2px);
-    }
-}
-
-@keyframes spin360 {
-    from {
-        transform: rotate(0deg);
-    }
-    to {
-        transform: rotate(360deg);
-    }
-}
-
-/* Responsive Anpassungen */
-@media (max-width: 768px) {
-    .footer-stats {
-        flex-direction: column;
-        gap: var(--space-sm, 8px);
+    /* Erweiterte Footer Styles für DVD Profiler Liste */
+    .footer-logo {
+        display: flex;
         align-items: center;
+        gap: var(--space-sm, 8px);
+        font-weight: 700;
+        font-size: 1.1rem;
+        margin-bottom: var(--space-xs, 4px);
     }
-    
-    .stat-item {
-        justify-content: center;
+
+    .footer-logo i {
+        font-size: 1.3rem;
+        background: var(--gradient-primary, linear-gradient(135deg, #667eea 0%, #764ba2 100%));
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
     }
-    
-    .footer-extended {
-        cursor: pointer;
-    }
-    
-    .footer-extended::before {
-        content: "💡 Tippen für technische Details";
-        display: block;
-        text-align: center;
-        font-size: 0.7rem;
-        opacity: 0.6;
-        padding-bottom: var(--space-xs, 4px);
-        border-bottom: 1px solid var(--glass-border, rgba(255, 255, 255, 0.1));
+
+    .footer-tagline {
+        font-size: 0.85rem;
+        opacity: 0.8;
+        color: var(--text-glass, rgba(255, 255, 255, 0.8));
         margin-bottom: var(--space-sm, 8px);
     }
-    
-    .footer-extended.show::before {
-        display: none;
-    }
-    
-    .tech-info {
-        grid-template-columns: 1fr;
-    }
-    
-    .admin-shortcuts {
+
+    .footer-stats {
+        display: flex;
+        gap: var(--space-md, 12px);
+        margin-bottom: var(--space-md, 12px);
+        flex-wrap: wrap;
         justify-content: center;
     }
-}
 
-@media (max-width: 480px) {
-    .footer-stats {
-        grid-template-columns: 1fr 1fr;
-        gap: var(--space-xs, 4px);
-    }
-    
     .stat-item {
-        font-size: 0.8rem;
+        display: flex;
+        align-items: center;
+        gap: var(--space-xs, 4px);
+        font-size: 0.85rem;
+        color: var(--text-glass, rgba(255, 255, 255, 0.8));
+        transition: all var(--transition-fast, 0.3s);
+        opacity: 0;
+        transform: translateY(10px);
+        cursor: help;
     }
-    
+
+    .stat-item.animate-in {
+        opacity: 1;
+        transform: translateY(0);
+    }
+
+    .stat-item:hover {
+        color: var(--text-white, #ffffff);
+        transform: translateY(-2px);
+    }
+
+    .stat-item i {
+        font-size: 1rem;
+        color: var(--text-white, #ffffff);
+        transition: transform 0.3s ease;
+    }
+
     .version-badge {
-        font-size: 0.8rem;
-        padding: 2px 8px;
+        background: var(--gradient-accent, linear-gradient(135deg, #667eea 0%, #764ba2 100%));
+        color: var(--text-white, #ffffff);
+        padding: 3px 10px;
+        border-radius: var(--radius-sm, 6px);
+        font-size: 0.85rem;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all var(--transition-fast, 0.3s);
+        display: inline-block;
+        user-select: none;
     }
-}
+
+    .version-badge:hover {
+        transform: scale(1.05);
+        box-shadow: var(--shadow-md, 0 4px 12px rgba(0, 0, 0, 0.2));
+    }
+
+    .codename {
+        font-style: italic;
+        font-size: 0.8rem;
+        opacity: 0.9;
+        margin-left: var(--space-xs, 4px);
+        color: var(--text-glass, rgba(255, 255, 255, 0.8));
+    }
+
+    .build-info {
+        font-size: 0.75rem;
+        opacity: 0.7;
+        margin: var(--space-xs, 4px) 0;
+        font-family: 'Courier New', monospace;
+    }
+
+    .update-badge {
+        background: #ef4444;
+        color: white;
+        font-size: 0.7rem;
+        padding: 2px 6px;
+        border-radius: 50%;
+        margin-left: var(--space-xs, 4px);
+        animation: bounce 1s ease-in-out infinite;
+    }
+
+    .footer-extended {
+        background: var(--glass-bg-strong, rgba(255, 255, 255, 0.1));
+        backdrop-filter: blur(20px);
+        border-top: 1px solid var(--glass-border, rgba(255, 255, 255, 0.2));
+        padding: var(--space-md, 12px) var(--space-xl, 24px);
+        margin-top: var(--space-md, 12px);
+        border-radius: 0 0 var(--radius-xl, 20px) var(--radius-xl, 20px);
+        opacity: 0;
+        max-height: 0;
+        overflow: hidden;
+        transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .footer-extended.show {
+        opacity: 1;
+        max-height: 300px;
+    }
+
+    .tech-info {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: var(--space-sm, 8px);
+        font-size: 0.8rem;
+        margin-bottom: var(--space-md, 12px);
+    }
+
+    .tech-item {
+        color: var(--text-glass, rgba(255, 255, 255, 0.8));
+        transition: color 0.3s ease;
+    }
+
+    .tech-item:hover {
+        color: var(--text-white, #ffffff);
+    }
+
+    .admin-shortcuts {
+        display: flex;
+        gap: var(--space-sm, 8px);
+        padding-top: var(--space-sm, 8px);
+        border-top: 1px solid var(--glass-border, rgba(255, 255, 255, 0.2));
+        flex-wrap: wrap;
+    }
+
+    .admin-link {
+        display: flex;
+        align-items: center;
+        gap: var(--space-xs, 4px);
+        padding: var(--space-xs, 4px) var(--space-sm, 8px);
+        background: var(--glass-bg, rgba(255, 255, 255, 0.1));
+        border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.2));
+        border-radius: var(--radius-sm, 6px);
+        color: var(--text-glass, rgba(255, 255, 255, 0.8));
+        font-size: 0.75rem;
+        transition: all 0.3s ease;
+    }
+
+    .admin-link:hover {
+        background: var(--gradient-accent, linear-gradient(135deg, #667eea 0%, #764ba2 100%));
+        color: var(--text-white, #ffffff);
+        transform: translateY(-2px);
+    }
+
+    .update-link {
+        background: rgba(74, 222, 128, 0.2) !important;
+        border-color: rgba(74, 222, 128, 0.4) !important;
+        color: #4ade80 !important;
+    }
+
+    .scroll-indicator {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        height: 3px;
+        width: 0%;
+        background: var(--gradient-primary, linear-gradient(135deg, #667eea 0%, #764ba2 100%));
+        border-radius: 0 2px 0 0;
+        transition: width 0.1s ease-out;
+    }
+
+    .konami-active {
+        animation: dvdBounce 0.8s ease-in-out;
+    }
+
+    /* Animations */
+    @keyframes slideInRight {
+        from {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+
+    @keyframes slideOutRight {
+        from {
+            transform: translateX(0);
+            opacity: 1;
+        }
+
+        to {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+    }
+
+    @keyframes dvdBounce {
+
+        0%,
+        20%,
+        60%,
+        100% {
+            transform: translateY(0) scale(1);
+        }
+
+        40% {
+            transform: translateY(-15px) scale(1.1);
+        }
+
+        80% {
+            transform: translateY(-5px) scale(1.05);
+        }
+    }
+
+    @keyframes pulse {
+
+        0%,
+        100% {
+            opacity: 1;
+        }
+
+        50% {
+            opacity: 0.6;
+        }
+    }
+
+    @keyframes bounce {
+
+        0%,
+        20%,
+        60%,
+        100% {
+            transform: translateY(0);
+        }
+
+        40% {
+            transform: translateY(-5px);
+        }
+
+        80% {
+            transform: translateY(-2px);
+        }
+    }
+
+    @keyframes spin360 {
+        from {
+            transform: rotate(0deg);
+        }
+
+        to {
+            transform: rotate(360deg);
+        }
+    }
+
+    /* Responsive Anpassungen */
+    @media (max-width: 768px) {
+        .footer-stats {
+            flex-direction: column;
+            gap: var(--space-sm, 8px);
+            align-items: center;
+        }
+
+        .stat-item {
+            justify-content: center;
+        }
+
+        .footer-extended {
+            cursor: pointer;
+        }
+
+        .footer-extended::before {
+            content: "💡 Tippen für technische Details";
+            display: block;
+            text-align: center;
+            font-size: 0.7rem;
+            opacity: 0.6;
+            padding-bottom: var(--space-xs, 4px);
+            border-bottom: 1px solid var(--glass-border, rgba(255, 255, 255, 0.1));
+            margin-bottom: var(--space-sm, 8px);
+        }
+
+        .footer-extended.show::before {
+            display: none;
+        }
+
+        .tech-info {
+            grid-template-columns: 1fr;
+        }
+
+        .admin-shortcuts {
+            justify-content: center;
+        }
+    }
+
+    @media (max-width: 480px) {
+        .footer-stats {
+            grid-template-columns: 1fr 1fr;
+            gap: var(--space-xs, 4px);
+        }
+
+        .stat-item {
+            font-size: 0.8rem;
+        }
+
+        .version-badge {
+            font-size: 0.8rem;
+            padding: 2px 8px;
+        }
+    }
 </style>
