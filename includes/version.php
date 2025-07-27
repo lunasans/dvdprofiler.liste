@@ -151,8 +151,8 @@ define('DVDPROFILER_CHANGELOG', [
             'Fancybox lightbox integration for covers',
             'Enhanced search with filter options',
             'Visitor counter implementation',
-            'Performance optimizations',
-            'Bug fixes in pagination system'
+            'Performance optimizations for large databases',
+            'Improved error handling and logging'
         ]
     ],
 
@@ -160,65 +160,59 @@ define('DVDPROFILER_CHANGELOG', [
         'date' => '2025-07-08',
         'type' => 'patch',
         'changes' => [
-            'Chart.js integration for statistics page',
-            'Improved admin panel functionality',
-            'GDPR compliance features',
-            'Content Security Policy implementation',
-            'Enhanced error handling and logging',
-            'UI/UX improvements across all pages'
+            'Bug fixes in BoxSet display logic',
+            'Enhanced mobile navigation',
+            'Improved CSV export functionality',
+            'Better handling of special characters in film titles',
+            'Fixed pagination edge cases',
+            'Updated security headers'
         ]
     ],
 
     '1.3.4' => [
-        'date' => '2025-07-15',
+        'date' => '2025-07-12',
         'type' => 'minor',
         'changes' => [
-            'Advanced admin panel with system management',
-            'Automatic update system implementation',
-            'User authentication and session management',
-            'Database maintenance tools',
-            'Backup and restore functionality',
-            'Improved security measures'
+            'Added comprehensive statistics page',
+            'Chart.js integration for visual analytics',
+            'Enhanced admin dashboard',
+            'Improved user session management',
+            'Better error messaging for end users',
+            'Updated documentation and inline comments'
         ]
     ],
 
     '1.3.5' => [
-        'date' => '2025-07-20',
+        'date' => '2025-07-18',
         'type' => 'minor',
         'changes' => [
-            'Enhanced update system with GitHub integration',
-            'Improved backup functionality',
-            'Advanced user management',
-            'System health monitoring',
-            'Performance optimizations',
-            'Bug fixes and stability improvements',
-            'Enhanced admin dashboard',
-            'Better error reporting'
+            'Administrative panel implementation',
+            'User authentication system',
+            'Batch import functionality',
+            'System maintenance tools',
+            'Enhanced security measures',
+            'Improved backup and restore capabilities'
+        ]
+    ],
+
+    '1.4.0' => [
+        'date' => '2025-07-20',
+        'type' => 'major',
+        'changes' => [
+            'Complete admin interface redesign',
+            'Advanced user management system',
+            'Comprehensive import/export tools',
+            'Enhanced security framework',
+            'Improved performance monitoring',
+            'Modern responsive admin dashboard'
         ]
     ],
 
     '1.4.5' => [
-        'date' => '2025-07-23',
+        'date' => '2025-07-22',
         'type' => 'minor',
         'changes' => [
-            'Comprehensive version management system',
-            'Enhanced footer with extended functionality',
-            'System statistics and monitoring',
-            'Feature flags implementation',
-            'Technology stack documentation',
-            'Improved changelog management',
-            'Build information tracking',
-            'System requirements validation',
-            'Enhanced GitHub integration',
-            'Performance monitoring tools'
-        ]
-    ],
-
-    '1.4.6' => [
-        'date' => '2025-07-24',
-        'type'=> 'patch',
-        'changes' => [
-            'Bug fixes in 2FA implementation',
+            'Enhanced GitHub integration for updates',
             'Improved security measures for user authentication',
             'Enhanced session management',
             'Performance optimizations for large collections',
@@ -326,13 +320,13 @@ function checkDVDProfilerSystemRequirements()
 
 /**
  * Update-Konfiguration abrufen
- * Zukunftssicher: Kann später um API-Keys erweitert werden
+ * FINAL: Ohne GitHub Fallback, nur eigene API
  */
 function getDVDProfilerUpdateConfig(): array
 {
     return [
-        'api_url' => getSetting('update_api_url', 'https://update.neuhaus.or.at/update-api.php'),
-        'base_url' => getSetting('update_base_url', 'https://update.neuhaus.or.at/packages/'),
+        'api_url' => getSetting('update_api_url', 'https://update.neuhaus.or.at/update.json'),
+        'base_url' => getSetting('update_base_url', 'https://update.neuhaus.or.at/updates/'),
         'timeout' => 30,
         'user_agent' => 'DVD-Profiler-Updater/' . DVDPROFILER_VERSION,
         'verify_ssl' => true
@@ -349,28 +343,7 @@ function getDVDProfilerUpdateUrl(string $version): string
 }
 
 /**
- * Prüfen ob Update-System verfügbar ist
- */
-function isDVDProfilerUpdateAvailable(): bool
-{
-    $config = getDVDProfilerUpdateConfig();
-    
-    $context = stream_context_create([
-        'http' => [
-            'method' => 'HEAD',
-            'header' => "User-Agent: {$config['user_agent']}",
-            'timeout' => 10,
-            'ignore_errors' => true
-        ]
-    ]);
-    
-    $headers = @get_headers($config['api_url'], 1, $context);
-    return $headers && strpos($headers[0], '200') !== false;
-}
-
-/**
- * Eigene Update-API aufrufen (ersetzt GitHub API)
- * EINFACH - ohne API-Key Komplexität
+ * FINAL: Nur eigene Update-API, kein Fallback
  */
 function getDVDProfilerLatestVersion(): ?array
 {
@@ -387,14 +360,16 @@ function getDVDProfilerLatestVersion(): ?array
     
     try {
         $json = @file_get_contents($config['api_url'], false, $context);
-        if (!$json) {
-            error_log('Update API request failed');
+        
+        if ($json === false) {
+            $error = error_get_last();
+            error_log('Update API failed: ' . ($error['message'] ?? 'Unknown error'));
             return null;
         }
         
         $data = json_decode($json, true);
         if (!$data || !isset($data['tag_name'])) {
-            error_log('Invalid update API response');
+            error_log('Invalid update API response. Raw response: ' . substr($json, 0, 200));
             return null;
         }
         
@@ -403,12 +378,79 @@ function getDVDProfilerLatestVersion(): ?array
             'name' => $data['name'] ?? null,
             'description' => $data['body'] ?? null,
             'published_at' => $data['published_at'] ?? null,
-            'download_url' => $data['zipball_url'] ?? null
+            'download_url' => $data['download_url'] ?? $data['zipball_url'] ?? null
         ];
+        
     } catch (Exception $e) {
-        error_log('Update API error: ' . $e->getMessage());
+        error_log('Update API exception: ' . $e->getMessage());
         return null;
     }
+}
+
+/**
+ * ZENTRALISIERTE UPDATE-LOGIK - Alle Teile verwenden diese Funktionen
+ */
+
+/**
+ * Zentrale Funktion: Ist Update verfügbar?
+ * Verwendet immer DVDPROFILER_VERSION als Basis
+ */
+function isDVDProfilerUpdateAvailable(): bool
+{
+    $latestVersion = getDVDProfilerLatestVersion();
+    
+    if (!$latestVersion || empty($latestVersion['version'])) {
+        return false; // Keine Server-Antwort = kein Update
+    }
+    
+    $latest = ltrim($latestVersion['version'], 'v');
+    $current = ltrim(DVDPROFILER_VERSION, 'v');
+    
+    return version_compare($latest, $current, '>');
+}
+
+/**
+ * Zentrale Funktion: Update-Informationen für UI
+ * Alle UI-Teile verwenden diese Funktion
+ */
+function getDVDProfilerUpdateInfo(): array
+{
+    $current = DVDPROFILER_VERSION;
+    $latestData = getDVDProfilerLatestVersion();
+    $latest = $latestData['version'] ?? null;
+    
+    $isAvailable = false;
+    if ($latestData && $latest) {
+        $isAvailable = version_compare(ltrim($latest, 'v'), ltrim($current, 'v'), '>');
+    }
+    
+    return [
+        'current_version' => $current,
+        'latest_version' => $latest,
+        'is_update_available' => $isAvailable,
+        'latest_data' => $latestData,
+        'server_reachable' => $latestData !== null
+    ];
+}
+
+/**
+ * Zentrale Funktion: Update-Status für Sidebar/Dashboard
+ */
+function getDVDProfilerUpdateStatus(): array
+{
+    $updateInfo = getDVDProfilerUpdateInfo();
+    
+    return [
+        'version' => DVDPROFILER_VERSION,
+        'codename' => DVDPROFILER_CODENAME,
+        'build_date' => DVDPROFILER_BUILD_DATE,
+        'build_type' => DVDPROFILER_BUILD_TYPE,
+        'has_update' => $updateInfo['is_update_available'],
+        'latest_version' => $updateInfo['latest_version'],
+        'update_message' => $updateInfo['is_update_available'] 
+            ? "Update auf {$updateInfo['latest_version']} verfügbar"
+            : "Aktuelle Version"
+    ];
 }
 
 // Legacy GitHub Integration Functions (für Kompatibilität beibehalten)
@@ -432,6 +474,7 @@ function getDVDProfilerStatistics(): array
         'total_boxsets' => 0,
         'total_genres' => 0,
         'total_actors' => 0,
+        'total_visits' => 0,
         'newest_film' => null,
         'storage_size' => 0,
         'last_updated' => date('Y-m-d H:i:s')
@@ -444,8 +487,8 @@ function getDVDProfilerStatistics(): array
             $result = $stmt->fetch(PDO::FETCH_ASSOC);
             $stats['total_films'] = (int)($result['count'] ?? 0);
             
-            // Total boxsets
-            $stmt = $pdo->query("SELECT COUNT(*) as count FROM dvds WHERE is_boxset = 1");
+            // GEÄNDERT: Total boxsets - Filme, die als Parent für andere Filme dienen
+            $stmt = $pdo->query("SELECT COUNT(DISTINCT boxset_parent) as count FROM dvds WHERE boxset_parent IS NOT NULL");
             $result = $stmt->fetch(PDO::FETCH_ASSOC);
             $stats['total_boxsets'] = (int)($result['count'] ?? 0);
             
@@ -454,10 +497,28 @@ function getDVDProfilerStatistics(): array
             $result = $stmt->fetch(PDO::FETCH_ASSOC);
             $stats['total_genres'] = (int)($result['count'] ?? 0);
             
-            // Unique actors
-            $stmt = $pdo->query("SELECT COUNT(DISTINCT actors) as count FROM dvds WHERE actors IS NOT NULL AND actors != ''");
-            $result = $stmt->fetch(PDO::FETCH_ASSOC);
-            $stats['total_actors'] = (int)($result['count'] ?? 0);
+            // GEÄNDERT: Total actors - Verwende actors Tabelle falls vorhanden, sonst Fallback
+            try {
+                $stmt = $pdo->query("SELECT COUNT(*) as count FROM actors");
+                $result = $stmt->fetch(PDO::FETCH_ASSOC);
+                $stats['total_actors'] = (int)($result['count'] ?? 0);
+            } catch (PDOException $e) {
+                // Fallback: Verwende DISTINCT auf actors-Feld falls actors-Tabelle nicht existiert
+                try {
+                    $stmt = $pdo->query("SELECT COUNT(DISTINCT actors) as count FROM dvds WHERE actors IS NOT NULL AND actors != ''");
+                    $result = $stmt->fetch(PDO::FETCH_ASSOC);
+                    $stats['total_actors'] = (int)($result['count'] ?? 0);
+                } catch (PDOException $e2) {
+                    // Wenn auch das fehlschlägt, setze auf 0
+                    $stats['total_actors'] = 0;
+                }
+            }
+            
+            // Visitor count (falls counter.txt existiert)
+            $counterFile = dirname(__DIR__) . '/counter.txt';
+            if (file_exists($counterFile)) {
+                $stats['total_visits'] = (int)file_get_contents($counterFile);
+            }
             
             // Newest film
             $stmt = $pdo->query("SELECT title, created_at FROM dvds ORDER BY created_at DESC LIMIT 1");
@@ -480,14 +541,92 @@ function getDVDProfilerSystemInfo()
         'php_version' => PHP_VERSION,
         'php_sapi' => PHP_SAPI,
         'server_software' => $_SERVER['SERVER_SOFTWARE'] ?? 'Unknown',
-        'document_root' => $_SERVER['DOCUMENT_ROOT'] ?? '',
+        'document_root' => $_SERVER['DOCUMENT_ROOT'] ?? 'Unknown',
+        'loaded_extensions' => get_loaded_extensions(),
         'memory_limit' => ini_get('memory_limit'),
         'max_execution_time' => ini_get('max_execution_time'),
-        'post_max_size' => ini_get('post_max_size'),
         'upload_max_filesize' => ini_get('upload_max_filesize'),
-        'timezone' => date_default_timezone_get(),
-        'extensions' => get_loaded_extensions()
+        'post_max_size' => ini_get('post_max_size'),
+        'mysql_version' => 'Unknown', // Wird zur Laufzeit ermittelt
+        'disk_free_space' => disk_free_space(__DIR__),
+        'disk_total_space' => disk_total_space(__DIR__)
     ];
+}
+
+// Statistik-Hilfsfunktionen
+function getDVDProfilerYearStatistics(): array
+{
+    global $pdo;
+    
+    try {
+        $stmt = $pdo->query("
+            SELECT 
+                MIN(year) as oldest_year,
+                MAX(year) as newest_year,
+                AVG(year) as avg_year,
+                COUNT(DISTINCT year) as unique_years
+            FROM dvds 
+            WHERE year IS NOT NULL AND year > 0
+        ");
+        
+        return $stmt->fetch(PDO::FETCH_ASSOC) ?: [
+            'oldest_year' => date('Y'),
+            'newest_year' => date('Y'),
+            'avg_year' => date('Y'),
+            'unique_years' => 0
+        ];
+    } catch (Exception $e) {
+        error_log('Year statistics error: ' . $e->getMessage());
+        return [
+            'oldest_year' => date('Y'),
+            'newest_year' => date('Y'),
+            'avg_year' => date('Y'),
+            'unique_years' => 0
+        ];
+    }
+}
+
+function getDVDProfilerRuntimeStatistics(): array
+{
+    global $pdo;
+    
+    try {
+        $stmt = $pdo->query("
+            SELECT 
+                SUM(runtime) as total_runtime,
+                AVG(runtime) as avg_runtime,
+                MIN(runtime) as min_runtime,
+                MAX(runtime) as max_runtime
+            FROM dvds 
+            WHERE runtime IS NOT NULL AND runtime > 0
+        ");
+        
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if ($result) {
+            $result['total_hours'] = round($result['total_runtime'] / 60, 1);
+            $result['total_days'] = round($result['total_runtime'] / (60 * 24), 1);
+        }
+        
+        return $result ?: [
+            'total_runtime' => 0,
+            'avg_runtime' => 0,
+            'min_runtime' => 0,
+            'max_runtime' => 0,
+            'total_hours' => 0,
+            'total_days' => 0
+        ];
+    } catch (Exception $e) {
+        error_log('Runtime statistics error: ' . $e->getMessage());
+        return [
+            'total_runtime' => 0,
+            'avg_runtime' => 0,
+            'min_runtime' => 0,
+            'max_runtime' => 0,
+            'total_hours' => 0,
+            'total_days' => 0
+        ];
+    }
 }
 
 // Export important variables for templates

@@ -1,7 +1,7 @@
 <?php
 /**
  * DVD Profiler Liste - Update System
- * Modifiziert für eigenes Update-System (ohne GitHub)
+ * GEÄNDERT: Verwendet zentralisierte Version-Logik aus version.php
  */
 declare(strict_types=1);
 
@@ -17,74 +17,25 @@ if (!isset($_SESSION['user_id'])) {
 // CSRF-Token generieren
 $csrfToken = generateCSRFToken();
 
-// Variablen initialisieren
-$updateApiUrl = getDVDProfilerUpdateConfig()['api_url']; // GEÄNDERT: Eigene API verwenden
-$localVersion = DVDPROFILER_VERSION;
+// GEÄNDERT: Verwende zentralisierte Update-Logik
+$updateInfo = getDVDProfilerUpdateInfo();
+$localVersion = $updateInfo['current_version'];
+$latestVersion = $updateInfo['latest_version'] ?? 'Unbekannt';
+$latestRelease = $updateInfo['latest_data'];
+$isUpdateAvailable = $updateInfo['is_update_available'];
+
 $error = '';
 $success = '';
 $warning = '';
-
-/**
- * Update-API aufrufen (ersetzt GitHub API)
- */
-function getLatestReleaseSecure(string $apiUrl): ?array 
-{
-    $config = getDVDProfilerUpdateConfig();
-    
-    $context = stream_context_create([
-        'http' => [
-            'method' => 'GET',
-            'header' => "User-Agent: {$config['user_agent']}",
-            'timeout' => $config['timeout'],
-            'ignore_errors' => true
-        ]
-    ]);
-    
-    try {
-        $json = @file_get_contents($apiUrl, false, $context);
-        
-        if ($json === false) {
-            $error = error_get_last();
-            error_log("Update API failed: " . ($error['message'] ?? 'Unknown'));
-            return null;
-        }
-        
-        // HTTP Status prüfen
-        if (isset($http_response_header)) {
-            foreach ($http_response_header as $header) {
-                if (strpos($header, 'HTTP/1.1 404') !== false) {
-                    error_log("Update API: Endpoint not found");
-                    return null;
-                }
-                if (strpos($header, 'HTTP/1.1 500') !== false) {
-                    error_log("Update API: Server error");
-                    return null;
-                }
-            }
-        }
-        
-        $data = json_decode($json, true);
-        
-        if (!$data || !isset($data['tag_name'])) {
-            error_log("Invalid Update API response");
-            return null;
-        }
-        
-        return $data;
-        
-    } catch (Exception $e) {
-        error_log("Update API Exception: " . $e->getMessage());
-        return null;
-    }
-}
 
 /**
  * Update-Download und -Installation mit verbesserter Sicherheit
  */
 function downloadAndUpdateSecure(array $release): array 
 {
-    $zipUrl = $release['zipball_url'] ?? '';
-    $version = $release['tag_name'] ?? '';
+    // GEÄNDERT: Verwende download_url statt zipball_url für eigenes System
+    $zipUrl = $release['download_url'] ?? $release['zipball_url'] ?? '';
+    $version = $release['version'] ?? '';
     
     if (empty($zipUrl) || empty($version)) {
         return ['success' => false, 'message' => 'Ungültige Release-Daten'];
@@ -122,11 +73,7 @@ function downloadAndUpdateSecure(array $release): array
         // 5. Cache leeren
         clearUpdateCache();
         
-        // 6. Version in Datenbank aktualisieren
-        setSetting('version', ltrim($version, 'v'));
-        setSetting('last_update', date('Y-m-d H:i:s'));
-        
-        // 7. Temporäre Datei löschen
+        // 6. Temporäre Datei löschen
         @unlink($tmpZip);
         
         return [
@@ -244,6 +191,7 @@ function downloadUpdateFile(string $url, string $tmpFile): array
 
 /**
  * Update extrahieren und installieren
+ * GEÄNDERT: Unterstützt sowohl GitHub-Format als auch eigenes ZIP-Format
  */
 function extractAndInstallUpdate(string $zipFile, string $version): array 
 {
@@ -253,19 +201,33 @@ function extractAndInstallUpdate(string $zipFile, string $version): array
         return ['success' => false, 'message' => 'ZIP-Datei konnte nicht geöffnet werden'];
     }
     
-    // Repository-Prefix finden
+    // GEÄNDERT: Flexiblere Erkennung des ZIP-Formats
     $repoPrefix = null;
+    $hasRepoPrefix = false;
+    
+    // Prüfe ersten paar Einträge auf Repository-Prefix (GitHub-Format)
     for ($i = 0; $i < min($zip->numFiles, 10); $i++) {
         $filename = $zip->getNameIndex($i);
         if (strpos($filename, '/') !== false) {
-            $repoPrefix = explode('/', $filename)[0];
-            break;
+            $parts = explode('/', $filename);
+            $possiblePrefix = $parts[0];
+            
+            // Prüfe ob alle Dateien mit diesem Prefix beginnen
+            $allWithPrefix = true;
+            for ($j = 0; $j < min($zip->numFiles, 20); $j++) {
+                $testFilename = $zip->getNameIndex($j);
+                if (!str_starts_with($testFilename, $possiblePrefix . '/') && $testFilename !== $possiblePrefix) {
+                    $allWithPrefix = false;
+                    break;
+                }
+            }
+            
+            if ($allWithPrefix) {
+                $repoPrefix = $possiblePrefix;
+                $hasRepoPrefix = true;
+                break;
+            }
         }
-    }
-    
-    if (!$repoPrefix) {
-        $zip->close();
-        return ['success' => false, 'message' => 'Ungültiges ZIP-Format'];
     }
     
     // Dateien ausschließen, die nicht überschrieben werden sollen
@@ -284,11 +246,24 @@ function extractAndInstallUpdate(string $zipFile, string $version): array
     
     for ($i = 0; $i < $zip->numFiles; $i++) {
         $filename = $zip->getNameIndex($i);
-        $relativePath = preg_replace("#^{$repoPrefix}/#", '', $filename);
         
-        // Leer oder identisch? Überspringen
-        if (empty($relativePath) || $relativePath === $filename) {
-            continue;
+        // GEÄNDERT: Flexiblere Pfad-Behandlung
+        if ($hasRepoPrefix && $repoPrefix) {
+            // GitHub-Format: Entferne Repository-Prefix
+            $relativePath = preg_replace("#^{$repoPrefix}/#", '', $filename);
+            
+            // Leer oder identisch? Überspringen
+            if (empty($relativePath) || $relativePath === $filename) {
+                continue;
+            }
+        } else {
+            // Eigenes Format: Verwende Dateinamen direkt
+            $relativePath = $filename;
+            
+            // Leere oder Root-Verzeichnisse überspringen
+            if (empty($relativePath) || $relativePath === '/') {
+                continue;
+            }
         }
         
         // Ausgeschlossene Dateien prüfen
@@ -392,16 +367,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         // Update starten
         if (isset($_POST['start_update'])) {
-            $latestRelease = getLatestReleaseSecure($updateApiUrl); // GEÄNDERT: Eigene API
-            
             if (!$latestRelease) {
-                $error = '❌ Update-Informationen konnten nicht geladen werden. Update-Server nicht erreichbar.'; // GEÄNDERT: Text
+                $error = '❌ Update-Informationen konnten nicht geladen werden. Update-Server nicht erreichbar.';
             } else {
                 $updateResult = downloadAndUpdateSecure($latestRelease);
                 
                 if ($updateResult['success']) {
                     $success = $updateResult['message'];
-                    $localVersion = $updateResult['version']; // Version aktualisieren
+                    // Nach erfolgreichem Update Info neu laden
+                    $updateInfo = getDVDProfilerUpdateInfo();
+                    $localVersion = $updateInfo['current_version'];
+                    $isUpdateAvailable = $updateInfo['is_update_available'];
                 } else {
                     $error = '❌ ' . $updateResult['message'];
                 }
@@ -410,21 +386,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// Aktuelle Update-Informationen laden
-$latestRelease = getLatestReleaseSecure($updateApiUrl); // GEÄNDERT: Eigene API
-$latestVersion = $latestRelease['tag_name'] ?? 'Unbekannt';
-
-// Version-Vergleich
-$isUpdateAvailable = false;
-if ($latestRelease && !empty($latestVersion)) {
-    $latest = ltrim($latestVersion, 'v');
-    $current = ltrim($localVersion, 'v');
-    $isUpdateAvailable = version_compare($latest, $current, '>');
-}
-
-// Rate Limit Warnung
-if (!$latestRelease) {
-    $warning = '⚠️ Update-Server nicht erreichbar. Bitte versuchen Sie es später erneut.'; // GEÄNDERT: Text
+// Warnung wenn Server nicht erreichbar
+if (!$updateInfo['server_reachable']) {
+    $warning = '⚠️ Update-Server nicht erreichbar. Bitte versuchen Sie es später erneut.';
 }
 ?>
 
@@ -502,12 +466,12 @@ if (!$latestRelease) {
                                 Update verfügbar: <?= htmlspecialchars($latestVersion) ?>
                             </h6>
                             
-                            <?php if (!empty($latestRelease['body'])): ?>
+                            <?php if (!empty($latestRelease['description'])): ?>
                                 <div class="changelog mt-3">
                                     <h6>Changelog:</h6>
                                     <div class="changelog-content">
-                                        <?= nl2br(htmlspecialchars(substr($latestRelease['body'], 0, 500))) ?>
-                                        <?php if (strlen($latestRelease['body']) > 500): ?>
+                                        <?= nl2br(htmlspecialchars(substr($latestRelease['description'], 0, 500))) ?>
+                                        <?php if (strlen($latestRelease['description']) > 500): ?>
                                             <p><em>... (gekürzt)</em></p>
                                         <?php endif; ?>
                                     </div>
@@ -553,12 +517,30 @@ if (!$latestRelease) {
                 </div>
                 <div class="card-body">
                     <small>
+                        <strong>Aktuelle Version:</strong><br>
+                        <?= DVDPROFILER_VERSION ?> "<?= DVDPROFILER_CODENAME ?>"<br>
+                        Build: <?= DVDPROFILER_BUILD_DATE ?><br><br>
+                        
                         <strong>Update-Server:</strong><br>
                         <a href="<?= htmlspecialchars(getDVDProfilerUpdateConfig()['base_url']) ?>" target="_blank">
                             <?= htmlspecialchars(parse_url(getDVDProfilerUpdateConfig()['api_url'], PHP_URL_HOST)) ?>
                         </a>
                         <br><br>
                         
+                        <strong>Status:</strong><br>
+                        <?php if ($updateInfo['server_reachable']): ?>
+                            ✅ Server erreichbar<br>
+                        <?php else: ?>
+                            ❌ Server nicht erreichbar<br>
+                        <?php endif; ?>
+                        
+                        <?php if ($isUpdateAvailable): ?>
+                            ⚠️ Update verfügbar<br>
+                        <?php else: ?>
+                            ✅ Aktuelle Version<br>
+                        <?php endif; ?>
+                        
+                        <br>
                         <strong>Update-Prozess:</strong><br>
                         1. Verbindung zum Update-Server<br>
                         2. Automatisches Backup<br>
