@@ -1,18 +1,108 @@
 <?php
-// inc/footer.php - Erweiterte Footer für DVD Profiler Liste
-require_once __DIR__ . '/version.php';
+/**
+ * Footer für DVD Profiler Liste - Kompatibel mit neuem Core-System
+ * Fixed: $baseUrl und andere Variablen für Core-System
+ */
 
-// Hole Statistiken für Footer
-$dvdProfilerStats = getDVDProfilerStatistics();
-$totalFilms = $dvdProfilerStats['total_films'] ?? 0;
-$totalBoxsets = $dvdProfilerStats['total_boxsets'] ?? 0;
-$totalVisits = $dvdProfilerStats['total_visits'] ?? $visits ?? 0;
-$totalGenres = $dvdProfilerStats['total_genres'] ?? 0;
-$storageSize = $dvdProfilerStats['storage_size'] ?? 0;
-
-//  Update Check
-$updateAvailable = isDVDProfilerUpdateAvailable();
-$latestVersion = getDVDProfilerLatestVersion();
+try {
+    // Core-System verwenden falls verfügbar
+    if (class_exists('DVDProfiler\\Core\\Application')) {
+        $app = \DVDProfiler\Core\Application::getInstance();
+        $settings = $app->getSettings();
+        
+        // Variablen aus Core-System
+        $baseUrl = $settings->get('base_url', '');
+        $siteTitle = $settings->get('site_title', 'DVD Profiler Liste');
+        $environment = $settings->get('environment', 'production');
+        
+        // Legacy-Variablen falls nicht gesetzt
+        if (!isset($version)) {
+            $version = defined('DVDPROFILER_VERSION') ? DVDPROFILER_VERSION : '1.4.7';
+        }
+        if (!isset($codename)) {
+            $codename = defined('DVDPROFILER_CODENAME') ? DVDPROFILER_CODENAME : 'Cinephile';
+        }
+        if (!isset($buildDate)) {
+            $buildDate = defined('DVDPROFILER_BUILD_DATE') ? DVDPROFILER_BUILD_DATE : date('Y.m.d');
+        }
+        
+    } else {
+        // Fallback für Legacy-System
+        $baseUrl = defined('BASE_URL') ? BASE_URL : '';
+        $siteTitle = $siteTitle ?? 'DVD Profiler Liste';
+        $version = $version ?? '1.4.7';
+        $codename = $codename ?? 'Cinephile';
+        $buildDate = $buildDate ?? date('Y.m.d');
+        $environment = 'production';
+    }
+    
+    // Base URL normalisieren
+    $baseUrl = rtrim($baseUrl, '/');
+    if (!empty($baseUrl)) {
+        $baseUrl .= '/';
+    }
+    
+    // Statistiken abrufen (mit Fehlerbehandlung)
+    $totalFilms = 0;
+    $totalBoxsets = 0;
+    $totalVisits = 0;
+    $totalGenres = 0;
+    
+    try {
+        if (isset($app)) {
+            $database = $app->getDatabase();
+            $totalFilms = (int) $database->fetchValue("SELECT COUNT(*) FROM dvds WHERE boxset_parent IS NULL OR boxset_parent = 0");
+            $totalBoxsets = (int) $database->fetchValue("SELECT COUNT(*) FROM dvds WHERE (SELECT COUNT(*) FROM dvds d2 WHERE d2.boxset_parent = dvds.id) > 0");
+            $totalGenres = (int) $database->fetchValue("SELECT COUNT(DISTINCT genre) FROM dvds WHERE genre IS NOT NULL AND genre != ''");
+        }
+        
+        // Besucherzähler (falls vorhanden)
+        if (isset($visits)) {
+            $totalVisits = (int) $visits;
+        } else {
+            $counterFile = __DIR__ . '/../counter.txt';
+            if (file_exists($counterFile)) {
+                $totalVisits = (int) file_get_contents($counterFile);
+            }
+        }
+        
+    } catch (Exception $e) {
+        error_log('Footer stats error: ' . $e->getMessage());
+        // Bei Fehlern Standard-Werte verwenden
+    }
+    
+    // Update-Check (simplified)
+    $updateAvailable = false;
+    $latestVersion = null;
+    
+    // Nur prüfen wenn Admin eingeloggt
+    if (isset($_SESSION['user_id'])) {
+        try {
+            if (function_exists('isDVDProfilerUpdateAvailable')) {
+                $updateAvailable = isDVDProfilerUpdateAvailable();
+                if (function_exists('getDVDProfilerLatestVersion')) {
+                    $latestVersion = getDVDProfilerLatestVersion();
+                }
+            }
+        } catch (Exception $e) {
+            // Update-Check fehlgeschlagen - ignorieren
+        }
+    }
+    
+} catch (Exception $e) {
+    // Kompletter Fallback bei schweren Fehlern
+    error_log('Footer initialization error: ' . $e->getMessage());
+    $baseUrl = '';
+    $siteTitle = 'DVD Profiler Liste';
+    $version = '1.4.7';
+    $codename = 'Cinephile';
+    $buildDate = date('Y.m.d');
+    $totalFilms = 0;
+    $totalBoxsets = 0;
+    $totalVisits = 0;
+    $totalGenres = 0;
+    $updateAvailable = false;
+}
 ?>
 
 <footer class="site-footer" role="contentinfo">
@@ -20,12 +110,12 @@ $latestVersion = getDVDProfilerLatestVersion();
         <div class="footer-left">
             <div class="footer-logo">
                 <i class="bi bi-film"></i>
-                <span>DVD Profiler Liste</span>
+                <span><?= htmlspecialchars($siteTitle) ?></span>
             </div>
             <div class="footer-tagline">
                 Moderne Filmsammlung verwalten
             </div>
-            <?php if ($updateAvailable): ?>
+            <?php if ($updateAvailable && isset($_SESSION['user_id'])): ?>
                 <div class="update-notification">
                     <i class="bi bi-arrow-up-circle"></i>
                     <span>Update verfügbar: <?= htmlspecialchars($latestVersion['version'] ?? 'Unbekannt') ?></span>
@@ -45,41 +135,40 @@ $latestVersion = getDVDProfilerLatestVersion();
                         <?= number_format($totalBoxsets) ?> BoxSets
                     </span>
                 <?php endif; ?>
-                <span class="stat-item" title="Website Besucher">
-                    <i class="bi bi-eye"></i>
-                    <?= number_format($totalVisits) ?> Besucher
-                </span>
-                <span class="stat-item" title="Verschiedene Genres">
-                    <i class="bi bi-tags"></i>
-                    <?= number_format($totalGenres) ?> Genres
-                </span>
-                <?php if ($storageSize > 0): ?>
-                    <span class="stat-item" title="Geschätzte Speichergröße">
-                        <i class="bi bi-hdd"></i>
-                        <?= number_format($storageSize, 1) ?> GB
+                <?php if ($totalVisits > 0): ?>
+                    <span class="stat-item" title="Website Besucher">
+                        <i class="bi bi-eye"></i>
+                        <?= number_format($totalVisits) ?> Besucher
+                    </span>
+                <?php endif; ?>
+                <?php if ($totalGenres > 0): ?>
+                    <span class="stat-item" title="Verschiedene Genres">
+                        <i class="bi bi-tags"></i>
+                        <?= number_format($totalGenres) ?> Genres
                     </span>
                 <?php endif; ?>
             </div>
 
             <div class="version-info">
                 <div class="version-link">
-                    <span class="version-badge" title="<?= getDVDProfilerVersionFull() ?>"
-                        data-clipboard="<?= htmlspecialchars(json_encode(getDVDProfilerBuildInfo())) ?>">
-                        v<?= $version ?>
+                    <span class="version-badge" title="<?= htmlspecialchars($version . ' ' . $codename) ?>">
+                        v<?= htmlspecialchars($version) ?>
                     </span>
-                    <span class="codename"><?= $codename ?></span>
-                    <a href="<?= DVDPROFILER_GITHUB_URL ?>" target="_blank" rel="noopener noreferrer"
-                        aria-label="GitHub Repository öffnen" title="Auf GitHub ansehen">
-                        <i class="bi bi-github" aria-hidden="true"></i>
-                    </a>
+                    <span class="codename"><?= htmlspecialchars($codename) ?></span>
+                    <?php if (defined('DVDPROFILER_GITHUB_URL')): ?>
+                        <a href="<?= DVDPROFILER_GITHUB_URL ?>" target="_blank" rel="noopener noreferrer"
+                            aria-label="GitHub Repository öffnen" title="Auf GitHub ansehen">
+                            <i class="bi bi-github" aria-hidden="true"></i>
+                        </a>
+                    <?php endif; ?>
                 </div>
 
                 <div class="build-info">
-                    Build <?= $buildDate ?> | PHP <?= PHP_VERSION ?>
+                    Build <?= htmlspecialchars($buildDate) ?> | PHP <?= PHP_VERSION ?>
                 </div>
 
                 <div class="copyright">
-                    &copy; <?= date('Y') ?> <?= DVDPROFILER_AUTHOR ?>
+                    &copy; <?= date('Y') ?> <?= defined('DVDPROFILER_AUTHOR') ? htmlspecialchars(DVDPROFILER_AUTHOR) : 'René Neuhaus' ?>
                 </div>
             </div>
         </div>
@@ -103,600 +192,151 @@ $latestVersion = getDVDProfilerLatestVersion();
         </nav>
     </div>
 
-    <!-- Erweiterte Info beim Hover/Klick -->
-    <div class="footer-extended" id="footerExtended">
-        <div class="tech-info">
-            <div class="tech-item">
-                <strong>Frontend:</strong> HTML5, CSS3 (Glass-Morphism), Vanilla JavaScript
-            </div>
-            <div class="tech-item">
-                <strong>Backend:</strong> PHP <?= PHP_VERSION ?> | MySQL/MariaDB
-            </div>
-            <div class="tech-item">
-                <strong>Features:</strong>
-                <?php
-                $enabledFeatures = array_keys(array_filter(DVDPROFILER_FEATURES));
-                echo count($enabledFeatures) . ' aktiv (' . count(DVDPROFILER_FEATURES) . ' gesamt)';
-                ?>
-            </div>
-            <div class="tech-item">
-                <strong>Libraries:</strong> Bootstrap Icons, Fancybox, Chart.js
-            </div>
-            <div class="tech-item">
-                <strong>Repository:</strong>
-                <a href="<?= DVDPROFILER_GITHUB_URL ?>" target="_blank" rel="noopener">
-                    <?= DVDPROFILER_REPOSITORY ?>
-                </a>
-            </div>
-            <div class="tech-item">
-                <strong>Letzter Commit:</strong> <?= DVDPROFILER_COMMIT ?>
-            </div>
+    <!-- Erweiterte Info für Entwickler -->
+    <?php if ($environment === 'development'): ?>
+        <div class="footer-debug">
+            <small>
+                <strong>Debug:</strong> 
+                Core: <?= class_exists('DVDProfiler\\Core\\Application') ? '✅' : '❌' ?> |
+                Memory: <?= \DVDProfiler\Core\Utils::formatBytes(memory_get_usage(true)) ?> |
+                Time: <?= number_format((microtime(true) - $_SERVER['REQUEST_TIME_FLOAT']) * 1000, 1) ?>ms
+            </small>
         </div>
-
-        <?php if (isDVDProfilerFeatureEnabled('system_updates') && isset($_SESSION['user_id'])): ?>
-            <div class="admin-shortcuts">
-                <a href="<?= $baseUrl ?>admin/?page=settings" class="admin-link">
-                    <i class="bi bi-gear"></i> System
-                </a>
-                <a href="<?= $baseUrl ?>admin/?page=import" class="admin-link">
-                    <i class="bi bi-upload"></i> Import
-                </a>
-                <?php if ($updateAvailable): ?>
-                    <a href="<?= $baseUrl ?>admin/?page=settings&action=update" class="admin-link update-link">
-                        <i class="bi bi-arrow-up-circle"></i> Update
-                    </a>
-                <?php endif; ?>
-            </div>
-        <?php endif; ?>
-    </div>
+    <?php endif; ?>
 
     <!-- Scroll Progress Indicator -->
     <div class="scroll-indicator" title="Scroll-Fortschritt"></div>
 </footer>
 
 <script>
-    // Footer JavaScript für DVD Profiler Liste
-    document.addEventListener('DOMContentLoaded', function () {
-        const footer = document.querySelector('.site-footer');
-        const footerExtended = document.getElementById('footerExtended');
-
-        // Scroll Progress Indicator
-        const scrollIndicator = document.querySelector('.scroll-indicator');
-
-        if (scrollIndicator) {
-            window.addEventListener('scroll', function () {
-                const scrollPercent = (window.scrollY / (document.documentElement.scrollHeight - window.innerHeight)) * 100;
-                scrollIndicator.style.width = Math.min(Math.max(scrollPercent, 0), 100) + '%';
-            });
-        }
-
-        // Footer Extended Info Toggle
-        if (footerExtended) {
-            let extendedVisible = false;
-
-            // Desktop: Hover effect
-            if (window.innerWidth > 768) {
-                footer.addEventListener('mouseenter', function () {
-                    footerExtended.classList.add('show');
-                    extendedVisible = true;
-                });
-
-                footer.addEventListener('mouseleave', function () {
-                    footerExtended.classList.remove('show');
-                    extendedVisible = false;
-                });
-            } else {
-                // Mobile: Click to toggle
-                footer.addEventListener('click', function (e) {
-                    if (!e.target.closest('a') && !e.target.closest('button')) {
-                        footerExtended.classList.toggle('show');
-                        extendedVisible = !extendedVisible;
-                    }
-                });
-            }
-        }
-
-        // Konami Code Easter Egg für Film-Sammler
-        let konamiCode = [];
-        const konamiSequence = [
-            'ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown',
-            'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight',
-            'KeyB', 'KeyA'
-        ];
-
-        document.addEventListener('keydown', function (e) {
-            konamiCode.push(e.code);
-
-            if (konamiCode.length > konamiSequence.length) {
-                konamiCode.shift();
-            }
-
-            if (konamiCode.join(',') === konamiSequence.join(',')) {
-                const footerLogo = document.querySelector('.footer-logo');
-                if (footerLogo) {
-                    footerLogo.classList.add('konami-active');
-                    showDVDProfilerToast('🎬 DVD Profiler Konami Code aktiviert! Hail to the Cinephile!', 'success');
-
-                    // Special effect: make all stat icons spin
-                    document.querySelectorAll('.stat-item i').forEach(icon => {
-                        icon.style.animation = 'spin360 1s ease-in-out';
-                    });
-
-                    setTimeout(() => {
-                        footerLogo.classList.remove('konami-active');
-                        document.querySelectorAll('.stat-item i').forEach(icon => {
-                            icon.style.animation = '';
-                        });
-                    }, 2000);
-                }
-
-                konamiCode = [];
-            }
-        });
-
-        // Version Badge Click Event - Erweiterte System-Infos
-        const versionBadge = document.querySelector('.version-badge');
-        if (versionBadge) {
-            versionBadge.addEventListener('click', function () {
-                const buildInfo = <?= json_encode(getDVDProfilerBuildInfo()) ?>;
-                const versionInfo = `DVD Profiler Liste v${buildInfo.version} "${buildInfo.codename}"
-Build: ${buildInfo.build_date} (${buildInfo.build_type})
-Branch: ${buildInfo.branch} | Commit: ${buildInfo.commit}
-Author: ${buildInfo.author}
-Repository: ${buildInfo.repository}
-PHP: ${buildInfo.php_version}
-Features: ${Object.keys(buildInfo.features).filter(key => buildInfo.features[key]).length} aktiv
-User Agent: ${navigator.userAgent.substring(0, 50)}...
-
-GitHub: ${buildInfo.github_url}`;
-
-                if (navigator.clipboard) {
-                    navigator.clipboard.writeText(versionInfo).then(() => {
-                        showDVDProfilerToast('📋 System-Informationen kopiert!', 'success');
-                    }).catch(() => {
-                        showDVDProfilerToast('ℹ️ System-Info: ' + versionInfo.split('\n')[0], 'info');
-                    });
-                } else {
-                    showDVDProfilerToast('ℹ️ ' + versionInfo.replace(/\n/g, ' | '), 'info');
-                }
-            });
-        }
-
-        // GitHub Link Click Tracking
-        const githubLinks = document.querySelectorAll('a[href*="github.com"]');
-        githubLinks.forEach(link => {
-            link.addEventListener('click', function () {
-                showDVDProfilerToast('🔗 GitHub Repository wird geöffnet...', 'info');
-            });
-        });
-
-
-        // Stats Animation beim Scrollen ins Bild
-        const statsItems = document.querySelectorAll('.stat-item');
-        if (statsItems.length > 0) {
-            const observer = new IntersectionObserver((entries) => {
-                entries.forEach((entry, index) => {
-                    if (entry.isIntersecting) {
-                        setTimeout(() => {
-                            entry.target.classList.add('animate-in');
-                        }, index * 100); // Staggered animation
-                    }
-                });
-            }, {
-                threshold: 0.5
-            });
-
-            statsItems.forEach(item => {
-                observer.observe(item);
-            });
-        }
-
-        // Feature Count Animation
-        const featuresText = document.querySelector('.tech-item:nth-child(3)');
-        if (featuresText) {
-            const enabledCount = <?= count(array_filter(DVDPROFILER_FEATURES)) ?>;
-            const totalCount = <?= count(DVDPROFILER_FEATURES) ?>;
-
-            featuresText.addEventListener('mouseenter', function () {
-                this.innerHTML = `<strong>Features:</strong> ${enabledCount} aktiv, ${totalCount - enabledCount} geplant (${Math.round((enabledCount / totalCount) * 100)}%)`;
-            });
-
-            featuresText.addEventListener('mouseleave', function () {
-                this.innerHTML = `<strong>Features:</strong> ${enabledCount} aktiv (${totalCount} gesamt)`;
-            });
-        }
-    });
-
-    // Enhanced Toast Notification für DVD Profiler
-    function showDVDProfilerToast(message, type = 'info', duration = 4000) {
-        const toastContainer = document.getElementById('toast-container') || createToastContainer();
-
-        const toast = document.createElement('div');
-        toast.className = `dvd-toast toast-${type}`;
-
-        const iconMap = {
-            'success': 'bi-check-circle',
-            'error': 'bi-x-circle',
-            'warning': 'bi-exclamation-triangle',
-            'info': 'bi-info-circle'
+document.addEventListener('DOMContentLoaded', function() {
+    // Scroll Progress Indicator
+    const scrollIndicator = document.querySelector('.scroll-indicator');
+    if (scrollIndicator) {
+        const updateProgress = () => {
+            const scrollPercent = (window.scrollY / (document.documentElement.scrollHeight - window.innerHeight)) * 100;
+            scrollIndicator.style.width = Math.min(Math.max(scrollPercent, 0), 100) + '%';
         };
-
-        toast.innerHTML = `
-            <div class="toast-content">
-                <i class="bi ${iconMap[type] || iconMap.info}"></i>
-                <span class="toast-message">${message}</span>
-                <button class="toast-close" onclick="this.parentElement.parentElement.remove()">
-                    <i class="bi bi-x"></i>
-                </button>
-            </div>
-        `;
-
-        // Toast Styling
-        toast.style.cssText = `
-            background: var(--glass-bg-strong, rgba(0, 0, 0, 0.8));
-            backdrop-filter: blur(15px);
-            border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.2));
-            border-radius: var(--radius-md, 12px);
-            padding: 1rem;
-            margin-bottom: 0.5rem;
-            color: var(--text-white, #ffffff);
-            animation: slideInRight 0.3s ease-out;
-            box-shadow: var(--shadow-lg, 0 10px 25px rgba(0, 0, 0, 0.3));
-            min-width: 300px;
-            max-width: 400px;
-        `;
-
-        toastContainer.appendChild(toast);
-
-        // Auto-remove
+        
+        window.addEventListener('scroll', updateProgress);
+        updateProgress(); // Initial call
+    }
+    
+    // Stats Animation
+    const statItems = document.querySelectorAll('.stat-item');
+    statItems.forEach((item, index) => {
         setTimeout(() => {
-            if (toast.parentNode) {
-                toast.style.animation = 'slideOutRight 0.3s ease-in';
-                setTimeout(() => toast.remove(), 300);
+            item.classList.add('animate-in');
+        }, index * 150);
+    });
+    
+    // Tooltip for version badge
+    const versionBadge = document.querySelector('.version-badge');
+    if (versionBadge) {
+        versionBadge.addEventListener('click', function() {
+            if (navigator.clipboard) {
+                const buildInfo = {
+                    version: '<?= htmlspecialchars($version) ?>',
+                    codename: '<?= htmlspecialchars($codename) ?>',
+                    build: '<?= htmlspecialchars($buildDate) ?>',
+                    php: '<?= PHP_VERSION ?>'
+                };
+                
+                navigator.clipboard.writeText(JSON.stringify(buildInfo, null, 2))
+                    .then(() => {
+                        this.title = 'Build-Info kopiert!';
+                        setTimeout(() => {
+                            this.title = '<?= htmlspecialchars($version . ' ' . $codename) ?>';
+                        }, 2000);
+                    });
             }
-        }, duration);
+        });
     }
-
-    function createToastContainer() {
-        const container = document.createElement('div');
-        container.id = 'toast-container';
-        container.style.cssText = `
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            z-index: 10000;
-            display: flex;
-            flex-direction: column;
-        `;
-        document.body.appendChild(container);
-        return container;
-    }
+});
 </script>
 
 <style>
-    /* Erweiterte Footer Styles für DVD Profiler Liste */
-    .footer-logo {
-        display: flex;
-        align-items: center;
-        gap: var(--space-sm, 8px);
-        font-weight: 700;
-        font-size: 1.1rem;
-        margin-bottom: var(--space-xs, 4px);
-    }
+/* Footer Styles für Core-System */
+.footer-debug {
+    text-align: center;
+    padding: 0.5rem;
+    background: rgba(255, 255, 255, 0.1);
+    border-top: 1px solid var(--glass-border, rgba(255, 255, 255, 0.2));
+    font-family: 'Courier New', monospace;
+}
 
-    .footer-logo i {
-        font-size: 1.3rem;
-        background: var(--gradient-primary, linear-gradient(135deg, #667eea 0%, #764ba2 100%));
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
-    }
+.footer-stats {
+    display: flex;
+    gap: var(--space-md, 12px);
+    margin-bottom: var(--space-md, 12px);
+    flex-wrap: wrap;
+    justify-content: center;
+}
 
-    .footer-tagline {
-        font-size: 0.85rem;
-        opacity: 0.8;
-        color: var(--text-glass, rgba(255, 255, 255, 0.8));
-        margin-bottom: var(--space-sm, 8px);
-    }
+.stat-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs, 4px);
+    font-size: 0.85rem;
+    color: var(--text-glass, rgba(255, 255, 255, 0.8));
+    transition: all 0.3s ease;
+    opacity: 0;
+    transform: translateY(10px);
+    cursor: help;
+}
 
-    .footer-stats {
-        display: flex;
-        gap: var(--space-md, 12px);
-        margin-bottom: var(--space-md, 12px);
-        flex-wrap: wrap;
-        justify-content: center;
-    }
+.stat-item.animate-in {
+    opacity: 1;
+    transform: translateY(0);
+}
 
-    .stat-item {
-        display: flex;
-        align-items: center;
-        gap: var(--space-xs, 4px);
-        font-size: 0.85rem;
-        color: var(--text-glass, rgba(255, 255, 255, 0.8));
-        transition: all var(--transition-fast, 0.3s);
-        opacity: 0;
-        transform: translateY(10px);
-        cursor: help;
-    }
+.stat-item:hover {
+    color: var(--text-white, #ffffff);
+    transform: translateY(-2px);
+}
 
-    .stat-item.animate-in {
-        opacity: 1;
-        transform: translateY(0);
-    }
+.version-badge {
+    background: var(--gradient-accent, linear-gradient(135deg, #4facfe 0%, #00f2fe 100%));
+    color: white;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
 
-    .stat-item:hover {
-        color: var(--text-white, #ffffff);
-        transform: translateY(-2px);
-    }
+.version-badge:hover {
+    transform: scale(1.05);
+    box-shadow: 0 2px 8px rgba(79, 172, 254, 0.3);
+}
 
-    .stat-item i {
-        font-size: 1rem;
-        color: var(--text-white, #ffffff);
-        transition: transform 0.3s ease;
-    }
+.scroll-indicator {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    height: 3px;
+    background: var(--gradient-accent, #4facfe);
+    transition: width 0.1s ease;
+    z-index: 100;
+    width: 0;
+}
 
-    .version-badge {
-        background: var(--gradient-accent, linear-gradient(135deg, #667eea 0%, #764ba2 100%));
-        color: var(--text-white, #ffffff);
-        padding: 3px 10px;
-        border-radius: var(--radius-sm, 6px);
-        font-size: 0.85rem;
-        font-weight: 700;
-        cursor: pointer;
-        transition: all var(--transition-fast, 0.3s);
-        display: inline-block;
-        user-select: none;
-    }
+.update-notification {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: var(--gradient-accent, #4facfe);
+    color: white;
+    padding: 0.5rem 1rem;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    animation: pulse 2s infinite;
+}
 
-    .version-badge:hover {
-        transform: scale(1.05);
-        box-shadow: var(--shadow-md, 0 4px 12px rgba(0, 0, 0, 0.2));
-    }
-
-    .codename {
-        font-style: italic;
-        font-size: 0.8rem;
-        opacity: 0.9;
-        margin-left: var(--space-xs, 4px);
-        color: var(--text-glass, rgba(255, 255, 255, 0.8));
-    }
-
-    .build-info {
-        font-size: 0.75rem;
-        opacity: 0.7;
-        margin: var(--space-xs, 4px) 0;
-        font-family: 'Courier New', monospace;
-    }
-
-    .update-badge {
-        background: #ef4444;
-        color: white;
-        font-size: 0.7rem;
-        padding: 2px 6px;
-        border-radius: 50%;
-        margin-left: var(--space-xs, 4px);
-        animation: bounce 1s ease-in-out infinite;
-    }
-
-    .footer-extended {
-        background: var(--glass-bg-strong, rgba(255, 255, 255, 0.1));
-        backdrop-filter: blur(20px);
-        border-top: 1px solid var(--glass-border, rgba(255, 255, 255, 0.2));
-        padding: var(--space-md, 12px) var(--space-xl, 24px);
-        margin-top: var(--space-md, 12px);
-        border-radius: 0 0 var(--radius-xl, 20px) var(--radius-xl, 20px);
-        opacity: 0;
-        max-height: 0;
-        overflow: hidden;
-        transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-    }
-
-    .footer-extended.show {
-        opacity: 1;
-        max-height: 300px;
-    }
-
-    .tech-info {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-        gap: var(--space-sm, 8px);
-        font-size: 0.8rem;
-        margin-bottom: var(--space-md, 12px);
-    }
-
-    .tech-item {
-        color: var(--text-glass, rgba(255, 255, 255, 0.8));
-        transition: color 0.3s ease;
-    }
-
-    .tech-item:hover {
-        color: var(--text-white, #ffffff);
-    }
-
-    .admin-shortcuts {
-        display: flex;
-        gap: var(--space-sm, 8px);
-        padding-top: var(--space-sm, 8px);
-        border-top: 1px solid var(--glass-border, rgba(255, 255, 255, 0.2));
-        flex-wrap: wrap;
-    }
-
-    .admin-link {
-        display: flex;
-        align-items: center;
-        gap: var(--space-xs, 4px);
-        padding: var(--space-xs, 4px) var(--space-sm, 8px);
-        background: var(--glass-bg, rgba(255, 255, 255, 0.1));
-        border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.2));
-        border-radius: var(--radius-sm, 6px);
-        color: var(--text-glass, rgba(255, 255, 255, 0.8));
-        font-size: 0.75rem;
-        transition: all 0.3s ease;
-    }
-
-    .admin-link:hover {
-        background: var(--gradient-accent, linear-gradient(135deg, #667eea 0%, #764ba2 100%));
-        color: var(--text-white, #ffffff);
-        transform: translateY(-2px);
-    }
-
-    .update-link {
-        background: rgba(74, 222, 128, 0.2) !important;
-        border-color: rgba(74, 222, 128, 0.4) !important;
-        color: #4ade80 !important;
-    }
-
-    .scroll-indicator {
-        position: absolute;
-        bottom: 0;
-        left: 0;
-        height: 3px;
-        width: 0%;
-        background: var(--gradient-primary, linear-gradient(135deg, #667eea 0%, #764ba2 100%));
-        border-radius: 0 2px 0 0;
-        transition: width 0.1s ease-out;
-    }
-
-    .konami-active {
-        animation: dvdBounce 0.8s ease-in-out;
-    }
-
-    /* Animations */
-    @keyframes slideInRight {
-        from {
-            transform: translateX(100%);
-            opacity: 0;
-        }
-
-        to {
-            transform: translateX(0);
-            opacity: 1;
-        }
-    }
-
-    @keyframes slideOutRight {
-        from {
-            transform: translateX(0);
-            opacity: 1;
-        }
-
-        to {
-            transform: translateX(100%);
-            opacity: 0;
-        }
-    }
-
-    @keyframes dvdBounce {
-
-        0%,
-        20%,
-        60%,
-        100% {
-            transform: translateY(0) scale(1);
-        }
-
-        40% {
-            transform: translateY(-15px) scale(1.1);
-        }
-
-        80% {
-            transform: translateY(-5px) scale(1.05);
-        }
-    }
-
-    @keyframes pulse {
-
-        0%,
-        100% {
-            opacity: 1;
-        }
-
-        50% {
-            opacity: 0.6;
-        }
-    }
-
-    @keyframes bounce {
-
-        0%,
-        20%,
-        60%,
-        100% {
-            transform: translateY(0);
-        }
-
-        40% {
-            transform: translateY(-5px);
-        }
-
-        80% {
-            transform: translateY(-2px);
-        }
-    }
-
-    @keyframes spin360 {
-        from {
-            transform: rotate(0deg);
-        }
-
-        to {
-            transform: rotate(360deg);
-        }
-    }
-
-    /* Responsive Anpassungen */
-    @media (max-width: 768px) {
-        .footer-stats {
-            flex-direction: column;
-            gap: var(--space-sm, 8px);
-            align-items: center;
-        }
-
-        .stat-item {
-            justify-content: center;
-        }
-
-        .footer-extended {
-            cursor: pointer;
-        }
-
-        .footer-extended::before {
-            content: "💡 Tippen für technische Details";
-            display: block;
-            text-align: center;
-            font-size: 0.7rem;
-            opacity: 0.6;
-            padding-bottom: var(--space-xs, 4px);
-            border-bottom: 1px solid var(--glass-border, rgba(255, 255, 255, 0.1));
-            margin-bottom: var(--space-sm, 8px);
-        }
-
-        .footer-extended.show::before {
-            display: none;
-        }
-
-        .tech-info {
-            grid-template-columns: 1fr;
-        }
-
-        .admin-shortcuts {
-            justify-content: center;
-        }
-    }
-
-    @media (max-width: 480px) {
-        .footer-stats {
-            grid-template-columns: 1fr 1fr;
-            gap: var(--space-xs, 4px);
-        }
-
-        .stat-item {
-            font-size: 0.8rem;
-        }
-
-        .version-badge {
-            font-size: 0.8rem;
-            padding: 2px 8px;
-        }
-    }
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+}
 </style>

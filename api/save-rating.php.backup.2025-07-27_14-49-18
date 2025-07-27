@@ -1,0 +1,159 @@
+<?php
+declare(strict_types=1);
+
+/**
+ * Film Rating API - Fixed für Core-System
+ * 
+ * @package    dvdprofiler.liste
+ * @author     René Neuhaus
+ * @version    1.4.7+
+ */
+
+header('Content-Type: application/json; charset=utf-8');
+
+try {
+    // Core-System laden
+    require_once __DIR__ . '/../includes/bootstrap.php';
+    
+    // Application-Instance abrufen
+    $app = \DVDProfiler\Core\Application::getInstance();
+    $database = $app->getDatabase();
+    $session = $app->getSession();
+    
+    // Debug-Modus prüfen
+    $debugMode = $app->getSettings()->get('environment') === 'development';
+    
+    if ($debugMode) {
+        error_log("=== save-rating.php (Core-System) ===");
+        error_log("Request Method: " . $_SERVER['REQUEST_METHOD']);
+        error_log("User logged in: " . ($session->isLoggedIn() ? 'YES' : 'NO'));
+    }
+    
+    // Authentifizierung prüfen
+    if (!$session->isLoggedIn()) {
+        http_response_code(401);
+        echo json_encode(['error' => 'Nicht angemeldet']);
+        exit;
+    }
+    
+    // Input validieren
+    $rawInput = file_get_contents('php://input');
+    $input = json_decode($rawInput, true);
+    
+    if (json_last_error() !== JSON_ERROR_NONE) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Ungültiges JSON']);
+        exit;
+    }
+    
+    // Parameter validieren
+    $filmId = filter_var($input['film_id'] ?? 0, FILTER_VALIDATE_INT);
+    $rating = filter_var($input['rating'] ?? 0, FILTER_VALIDATE_FLOAT);
+    
+    if (!$filmId || $filmId <= 0) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Ungültige Film-ID']);
+        exit;
+    }
+    
+    if (!$rating || $rating < 1 || $rating > 5) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Bewertung muss zwischen 1 und 5 liegen']);
+        exit;
+    }
+    
+    // CSRF-Token prüfen (falls gesendet)
+    if (isset($input['csrf_token'])) {
+        if (!\DVDProfiler\Core\Security::validateCSRFToken($input['csrf_token'])) {
+            http_response_code(403);
+            echo json_encode(['error' => 'Ungültiges CSRF-Token']);
+            exit;
+        }
+    }
+    
+    // Rate-Limiting
+    $clientIP = \DVDProfiler\Core\Security::getClientIP();
+    if (!$app->checkRateLimit("rating_{$clientIP}", 10, 60)) { // 10 pro Minute
+        http_response_code(429);
+        echo json_encode(['error' => 'Zu viele Bewertungen. Bitte warten Sie.']);
+        exit;
+    }
+    
+    // Film existiert prüfen
+    $filmExists = $database->fetchValue("SELECT COUNT(*) FROM dvds WHERE id = ?", [$filmId]);
+    if (!$filmExists) {
+        http_response_code(404);
+        echo json_encode(['error' => 'Film nicht gefunden']);
+        exit;
+    }
+    
+    // User-Rating-Tabelle prüfen/erstellen
+    if (!$database->tableExists('user_ratings')) {
+        if ($debugMode) {
+            error_log("Creating user_ratings table...");
+        }
+        
+        $database->query("
+            CREATE TABLE user_ratings (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                film_id BIGINT NOT NULL,
+                user_id INT NOT NULL,
+                rating DECIMAL(2,1) NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY unique_user_film (user_id, film_id),
+                INDEX idx_film_id (film_id),
+                INDEX idx_user_id (user_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+        ");
+    }
+    
+    // Rating speichern/aktualisieren mit Core-Database-Methode
+    $userId = $session->getUserId();
+    
+    $affectedRows = $database->execute("
+        INSERT INTO user_ratings (film_id, user_id, rating) 
+        VALUES (?, ?, ?) 
+        ON DUPLICATE KEY UPDATE 
+            rating = VALUES(rating), 
+            updated_at = NOW()
+    ", [$filmId, $userId, $rating])->rowCount();
+    
+    if ($debugMode) {
+        error_log("Rating saved: Film=$filmId, User=$userId, Rating=$rating, Affected=$affectedRows");
+    }
+    
+    // Durchschnittsbewertung berechnen
+    $avgRating = $database->fetchValue("
+        SELECT AVG(rating) 
+        FROM user_ratings 
+        WHERE film_id = ?
+    ", [$filmId]);
+    
+    $ratingCount = $database->fetchValue("
+        SELECT COUNT(*) 
+        FROM user_ratings 
+        WHERE film_id = ?
+    ", [$filmId]);
+    
+    // Erfolg zurückgeben
+    echo json_encode([
+        'success' => true,
+        'message' => 'Bewertung gespeichert',
+        'data' => [
+            'film_id' => $filmId,
+            'user_rating' => (float) $rating,
+            'average_rating' => $avgRating ? round((float) $avgRating, 1) : null,
+            'rating_count' => (int) $ratingCount
+        ]
+    ]);
+    
+} catch (Exception $e) {
+    error_log('Rating API error: ' . $e->getMessage());
+    
+    http_response_code(500);
+    echo json_encode([
+        'error' => 'Interner Server-Fehler',
+        'debug' => $app->getSettings()->get('environment') === 'development' ? $e->getMessage() : null
+    ]);
+}
