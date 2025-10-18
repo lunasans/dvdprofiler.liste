@@ -1,767 +1,405 @@
 <?php
 /**
- * Film-Fragment - VOLLSTÄNDIG repariert für Core-System
- * Version: 1.4.7+ - WORKING VERSION
- * 
- * @package    dvdprofiler.liste
- * @author     René Neuhaus
- * @version    1.4.7+
+ * Film-Fragment mit verbesserter Fehlerbehandlung und Sicherheit
+ * Fixes: Output Buffer Management, ID-Validierung, Memory-Leaks
  */
-
-declare(strict_types=1);
 
 // Sicherheitsheader setzen
 header('X-Content-Type-Options: nosniff');
 header('X-Frame-Options: DENY');
 
 try {
-    // ID-Validierung ZUERST
+    // Bessere ID-Validierung am Anfang
     $id = filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT);
     if (!$id || $id <= 0) {
         http_response_code(400);
         throw new InvalidArgumentException('Ungültige Film-ID: ' . ($_GET['id'] ?? 'keine'));
     }
 
-    // Output Buffer Management
+    // Memory-optimiertes Output Buffering
     while (ob_get_level()) {
         ob_end_clean();
     }
     ob_start();
 
-    // Core-System laden
-    require_once __DIR__ . '/includes/bootstrap.php';
+    // Database connection mit verbesserter Fehlerbehandlung
+    try {
+        require_once __DIR__ . '/includes/bootstrap.php';
+        
+        if (!isset($pdo) || !($pdo instanceof PDO)) {
+            throw new Exception('Datenbankverbindung nicht verfügbar');
+        }
+        
+        // Test der Verbindung
+        $pdo->query('SELECT 1');
+        
+        // Benötigte Funktionen definieren falls nicht vorhanden
+        if (!function_exists('findCoverImage')) {
+            function findCoverImage(string $coverId, string $suffix = 'f', string $folder = 'cover', string $fallback = 'cover/placeholder.png'): string {
+                if (empty($coverId)) return $fallback;
+                $extensions = ['.jpg', '.jpeg', '.png'];
+                foreach ($extensions as $ext) {
+                    $file = "{$folder}/{$coverId}{$suffix}{$ext}";
+                    if (file_exists($file)) {
+                        return $file;
+                    }
+                }
+                return $fallback;
+            }
+        }
+        
+        if (!function_exists('getActorsByDvdId')) {
+            function getActorsByDvdId(PDO $pdo, int $dvdId): array {
+                try {
+                    $stmt = $pdo->prepare("SELECT first_name, last_name, role FROM film_actor fa JOIN actors a ON fa.actor_id = a.id WHERE fa.film_id = ?");
+                    $stmt->execute([$dvdId]);
+                    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+                } catch (PDOException $e) {
+                    error_log("Actor query error: " . $e->getMessage());
+                    return [];
+                }
+            }
+        }
+        
+        if (!function_exists('formatRuntime')) {
+            function formatRuntime(?int $minutes): string {
+                if (!$minutes) return '';
+                $h = intdiv($minutes, 60);
+                $m = $minutes % 60;
+                return $h > 0 ? "{$h}h {$m}min" : "{$m}min";
+            }
+        }
+        
+    } catch (PDOException $e) {
+        throw new Exception('Datenbankfehler: ' . $e->getMessage());
+    }
+
+    // Film-Daten laden mit prepared statement
+    try {
+        $stmt = $pdo->prepare("
+            SELECT d.*, 
+                   u.email as added_by_user,
+                   d.genre as genres_list,
+                   (SELECT COUNT(*) FROM dvds WHERE boxset_parent = d.id) as boxset_children_count
+            FROM dvds d 
+            LEFT JOIN users u ON d.user_id = u.id 
+            WHERE d.id = ?
+        ");
+        
+        if (!$stmt) {
+            throw new Exception('SQL-Statement konnte nicht vorbereitet werden');
+        }
+        
+        $stmt->execute([$id]);
+        $dvd = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if (!$dvd) {
+            http_response_code(404);
+            throw new Exception("Film mit ID $id nicht gefunden");
+        }
+        
+        // Debug: Film gefunden
+        error_log("Film-Fragment: Film geladen - ID: $id, Titel: " . $dvd['title']);
+        error_log("Film-Fragment: DVD-Daten: " . json_encode(array_keys($dvd)));
+        error_log("Film-Fragment: DVD-ID Feld: " . var_export($dvd['id'] ?? 'NICHT_GESETZT', true));
+        
+    } catch (PDOException $e) {
+        throw new Exception('Fehler beim Laden der Film-Daten: ' . $e->getMessage());
+    }
+
+    // BoxSet-Kinder laden falls vorhanden
+    $boxsetChildren = [];
+    if ($dvd['boxset_children_count'] > 0) {
+        try {
+            $childStmt = $pdo->prepare("
+                SELECT id, title, year, poster_url 
+                FROM dvds 
+                WHERE boxset_parent = ? 
+                ORDER BY title ASC
+            ");
+            $childStmt->execute([$id]);
+            $boxsetChildren = $childStmt->fetchAll(PDO::FETCH_ASSOC);
+            
+            error_log("Film-Fragment: " . count($boxsetChildren) . " BoxSet-Kinder geladen");
+            
+        } catch (PDOException $e) {
+            error_log("Warnung: BoxSet-Kinder konnten nicht geladen werden: " . $e->getMessage());
+            // Nicht kritisch - weiter machen
+        }
+    }
+
+    // Debug: Vor film-view.php include
+    error_log("Film-Fragment: Lade film-view.php für Film: " . $dvd['title']);
+
+    // film-view.php laden - mit Fehlerbehandlung
+    $filmViewPath = __DIR__ . '/partials/film-view.php';
     
-    // Application-Instance abrufen
-    $app = \DVDProfiler\Core\Application::getInstance();
-    $database = $app->getDatabase();
+    if (!file_exists($filmViewPath)) {
+        throw new Exception('film-view.php nicht gefunden: ' . $filmViewPath);
+    }
     
-    // Legacy-Kompatibilität: $pdo für bestehende Funktionen
-    $pdo = $database->getPDO();
+    if (!is_readable($filmViewPath)) {
+        throw new Exception('film-view.php nicht lesbar: ' . $filmViewPath);
+    }
+
+    // Neuer Output Buffer für film-view.php
+    ob_start();
     
-    // Test der Verbindung
-    $database->query('SELECT 1');
-    
-} catch (Exception $e) {
-    // Buffer leeren bei Fehler
+    try {
+        // Direktes Include - $dvd und $boxsetChildren sind im Scope verfügbar
+        include $filmViewPath;
+        $filmViewOutput = ob_get_clean();
+        
+        if (empty($filmViewOutput)) {
+            throw new Exception('film-view.php hat keinen Output produziert');
+        }
+        
+        // XSS-Schutz für Film-ID
+        $safeFilmId = htmlspecialchars($id, ENT_QUOTES, 'UTF-8');
+        
+        // Wrapper für AJAX-Content mit verbesserter Struktur
+        echo '<div class="film-detail-content fade-in" data-film-id="' . $safeFilmId . '" data-loaded="' . time() . '">';
+        echo $filmViewOutput;
+        echo '</div>';
+        
+    } catch (Throwable $e) {
+        ob_end_clean();
+        throw new Exception('Fehler beim Laden von film-view.php: ' . $e->getMessage());
+    }
+
+    // Debug: Erfolgreich geladen
+    error_log("Film-Fragment: Erfolgreich geladen für Film-ID: $id, Output-Größe: " . strlen($filmViewOutput) . " Bytes");
+
+} catch (Throwable $e) {
+    // Buffer komplett leeren bei Fehler
     while (ob_get_level()) {
         ob_end_clean();
     }
     
-    http_response_code($e instanceof InvalidArgumentException ? 400 : 500);
+    // Fehler loggen mit mehr Kontext
+    error_log("Film-Fragment FATAL ERROR: " . $e->getMessage());
+    error_log("Film-Fragment Error Type: " . get_class($e));
+    error_log("Film-Fragment File: " . $e->getFile() . ":" . $e->getLine());
+    error_log("Film-Fragment Stack: " . $e->getTraceAsString());
+    error_log("Film-Fragment Request: " . json_encode($_GET));
+    error_log("Film-Fragment Memory: " . memory_get_usage(true) . " bytes");
+    
+    // HTTP Status setzen basierend auf Fehlertyp
+    if ($e instanceof InvalidArgumentException) {
+        http_response_code(400);
+    } elseif (strpos($e->getMessage(), 'nicht gefunden') !== false) {
+        http_response_code(404);
+    } else {
+        http_response_code(500);
+    }
+    
+    // Benutzerfreundliche Fehlermeldung mit verbesserter UX
     $errorClass = $e instanceof InvalidArgumentException ? 'client-error' : 'server-error';
     $errorIcon = $e instanceof InvalidArgumentException ? 'bi-exclamation-circle' : 'bi-exclamation-triangle';
     $safeErrorMsg = htmlspecialchars($e->getMessage(), ENT_QUOTES, 'UTF-8');
+    $safeFilmId = htmlspecialchars($_GET['id'] ?? 'keine', ENT_QUOTES, 'UTF-8');
+    $safeIP = htmlspecialchars($_SERVER['REMOTE_ADDR'] ?? 'unbekannt', ENT_QUOTES, 'UTF-8');
     
-    echo '<div class="error-container ' . $errorClass . '" style="
-        padding: 2rem;
-        text-align: center;
-        background: rgba(0, 0, 0, 0.8);
-        border: 1px solid rgba(255, 255, 255, 0.2);
-        border-radius: 12px;
-        color: #fff;
-        margin: 2rem;
-    ">
-        <div class="error-content">
-            <i class="' . $errorIcon . '" style="font-size: 3rem; margin-bottom: 1rem; color: #dc3545;"></i>
-            <h2>Fehler beim Laden des Films</h2>
-            <p><strong>Fehler:</strong> ' . $safeErrorMsg . '</p>
-        </div>
-    </div>';
-    exit;
+    echo '<div class="error-message ' . $errorClass . '">
+            <i class="' . $errorIcon . '"></i>
+            <h3>' . ($e instanceof InvalidArgumentException ? 'Ungültige Anfrage' : 'Serverfehler') . '</h3>
+            <p>Die Film-Details konnten nicht geladen werden.</p>
+            <details class="error-details">
+                <summary>Technische Details (für Entwickler)</summary>
+                <p><strong>Fehlertyp:</strong> ' . htmlspecialchars(get_class($e), ENT_QUOTES, 'UTF-8') . '</p>
+                <p><strong>Fehler:</strong> ' . $safeErrorMsg . '</p>
+                <p><strong>Film-ID:</strong> ' . $safeFilmId . '</p>
+                <p><strong>Zeit:</strong> ' . date('Y-m-d H:i:s') . '</p>
+                <p><strong>IP:</strong> ' . $safeIP . '</p>
+                <p><strong>Memory:</strong> ' . memory_get_usage(true) . ' bytes</p>
+                <p><strong>User-Agent:</strong> ' . htmlspecialchars($_SERVER['HTTP_USER_AGENT'] ?? 'unbekannt', ENT_QUOTES, 'UTF-8') . '</p>
+            </details>
+            <div class="error-actions">
+                <button onclick="location.reload()" class="btn btn-primary">
+                    <i class="bi bi-arrow-clockwise"></i> Seite neu laden
+                </button>
+                <button onclick="closeDetail()" class="btn btn-secondary">
+                    <i class="bi bi-x"></i> Schließen
+                </button>
+                <button onclick="goBack()" class="btn btn-outline">
+                    <i class="bi bi-arrow-left"></i> Zurück zur Liste
+                </button>
+            </div>
+          </div>';
 }
 
-// ===== HELPER FUNCTIONS =====
-
-function findCoverImage(?string $coverId, string $suffix = 'f', string $folder = 'cover', string $fallback = 'cover/placeholder.png'): string {
-    if (empty($coverId)) return $fallback;
-    $extensions = ['.jpg', '.jpeg', '.png', '.webp'];
-    foreach ($extensions as $ext) {
-        $file = "{$folder}/{$coverId}{$suffix}{$ext}";
-        if (file_exists($file)) {
-            return $file;
-        }
-    }
-    return $fallback;
-}
-
-function formatRuntime(?int $minutes): string {
-    if (!$minutes || $minutes <= 0) return '';
-    $h = intdiv($minutes, 60);
-    $m = $minutes % 60;
-    return $h > 0 ? "{$h}h {$m}min" : "{$m}min";
-}
-
-function formatDate(?string $date): string {
-    if (!$date) return '';
-    try {
-        return (new DateTime($date))->format('d.m.Y');
-    } catch (Exception $e) {
-        return $date;
-    }
-}
-
-function generateStarRating(float $rating, int $maxStars = 5): string {
-    $stars = '';
-    for ($i = 1; $i <= $maxStars; $i++) {
-        if ($i <= $rating) {
-            $stars .= '<i class="bi bi-star-fill star-filled"></i>';
-        } elseif ($i - 0.5 <= $rating) {
-            $stars .= '<i class="bi bi-star-half star-half"></i>';
-        } else {
-            $stars .= '<i class="bi bi-star star-empty"></i>';
-        }
-    }
-    return $stars;
-}
-
-try {
-    // ===== FILM DATEN LADEN =====
-    
-    // Film-Daten laden
-    $dvd = $database->fetchRow("
-        SELECT d.*, 
-               u.email as added_by_user,
-               (SELECT COUNT(*) FROM dvds WHERE boxset_parent = d.id) as boxset_children_count
-        FROM dvds d 
-        LEFT JOIN users u ON d.user_id = u.id 
-        WHERE d.id = ?
-    ", [$id]);
-    
-    if (!$dvd) {
-        http_response_code(404);
-        throw new Exception("Film mit ID {$id} nicht gefunden");
-    }
-    
-    // Schauspieler laden
-    $actors = [];
-    try {
-        $actors = $database->fetchAll("
-            SELECT a.first_name, a.last_name, fa.role 
-            FROM film_actor fa 
-            JOIN actors a ON fa.actor_id = a.id 
-            WHERE fa.film_id = ?
-            ORDER BY fa.sort_order ASC, a.last_name ASC
-        ", [$id]);
-    } catch (Exception $e) {
-        // Fallback für alte Struktur
-        try {
-            $actors = $database->fetchAll("
-                SELECT firstname as first_name, lastname as last_name, role 
-                FROM actors 
-                WHERE dvd_id = ?
-                ORDER BY lastname ASC
-            ", [$id]);
-        } catch (Exception $e2) {
-            error_log('Actor query failed: ' . $e2->getMessage());
-            $actors = [];
-        }
-    }
-    
-    // BoxSet-Kinder laden
-    $boxsetChildren = [];
-    if (!empty($dvd['boxset_children_count']) && (int)$dvd['boxset_children_count'] > 0) {
-        $boxsetChildren = $database->fetchAll("
-            SELECT id, title, year, genre, cover_id, runtime, rating_age
-            FROM dvds 
-            WHERE boxset_parent = ? 
-            ORDER BY year ASC, title ASC
-        ", [$id]);
-    }
-    
-    // BoxSet-Parent laden
-    $boxsetParent = null;
-    if (!empty($dvd['boxset_parent'])) {
-        $boxsetParent = $database->fetchRow("
-            SELECT id, title, year 
-            FROM dvds 
-            WHERE id = ?
-        ", [$dvd['boxset_parent']]);
-    }
-    
-    // Bewertungen laden (falls Tabelle existiert)
-    $averageRating = 0;
-    $ratingCount = 0;
-    $userRating = 0;
-    $userHasRated = false;
+// JavaScript für Enhanced UX mit besserer Fehlerbehandlung
+?>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('Film-Fragment JavaScript geladen');
     
     try {
-        // Prüfen ob user_ratings Tabelle existiert
-        $database->query("SELECT 1 FROM user_ratings LIMIT 1");
-        
-        // Durchschnittsbewertung
-        $ratingData = $database->fetchRow("
-            SELECT AVG(rating) as avg_rating, COUNT(*) as count 
-            FROM user_ratings 
-            WHERE film_id = ?
-        ", [$id]);
-        
-        if ($ratingData) {
-            $averageRating = round((float)($ratingData['avg_rating'] ?? 0), 1);
-            $ratingCount = (int)($ratingData['count'] ?? 0);
+        // Smooth scroll to top of detail panel
+        const detailPanel = document.getElementById('detail-container');
+        if (detailPanel) {
+            detailPanel.scrollTop = 0;
         }
         
-        // User-Bewertung (falls eingeloggt)
-        if (isset($_SESSION['user_id'])) {
-            $userRatingData = $database->fetchRow("
-                SELECT rating FROM user_ratings 
-                WHERE film_id = ? AND user_id = ?
-            ", [$id, $_SESSION['user_id']]);
+        // Focus management für Accessibility
+        const firstHeading = document.querySelector('.film-detail-content h2');
+        if (firstHeading) {
+            firstHeading.setAttribute('tabindex', '-1');
+            firstHeading.focus();
+        }
+        
+        // Performance monitoring
+        const loadTime = performance.now();
+        console.log(`Film-Fragment loaded in ${loadTime.toFixed(2)}ms`);
+        
+        // Memory cleanup für alte Film-Details
+        const oldDetails = document.querySelectorAll('.film-detail-content[data-loaded]');
+        oldDetails.forEach(detail => {
+            const loadedTime = parseInt(detail.dataset.loaded);
+            const now = Math.floor(Date.now() / 1000);
+            if (now - loadedTime > 300) { // 5 Minuten alt
+                detail.remove();
+            }
+        });
+        
+    } catch (error) {
+        console.error('Film-Fragment JavaScript Error:', error);
+    }
+});
+
+function closeDetail() {
+    try {
+        const detailContainer = document.getElementById('detail-container');
+        if (detailContainer) {
+            // Fade out animation
+            detailContainer.style.opacity = '0';
             
-            if ($userRatingData) {
-                $userRating = (float)$userRatingData['rating'];
-                $userHasRated = true;
+            setTimeout(() => {
+                detailContainer.innerHTML = `
+                    <div class="detail-placeholder">
+                        <i class="bi bi-film"></i>
+                        <p>Wählen Sie einen Film aus der Liste, um Details anzuzeigen.</p>
+                    </div>
+                `;
+                detailContainer.style.opacity = '1';
+            }, 200);
+            
+            // URL cleanup
+            if (history.replaceState) {
+                history.replaceState(null, '', window.location.pathname);
             }
         }
-    } catch (Exception $e) {
-        // Tabelle existiert nicht - ignorieren
+    } catch (error) {
+        console.error('Error closing detail:', error);
+        // Fallback ohne Animation
+        location.reload();
     }
-    
-    // User-Watch-Status
-    $isWatched = false;
+}
+
+function goBack() {
     try {
-        if (isset($_SESSION['user_id'])) {
-            $database->query("SELECT 1 FROM user_watched LIMIT 1");
-            $watchedData = $database->fetchRow("
-                SELECT 1 FROM user_watched 
-                WHERE user_id = ? AND film_id = ?
-            ", [$_SESSION['user_id'], $id]);
-            $isWatched = !empty($watchedData);
+        if (history.length > 1) {
+            history.back();
+        } else {
+            window.location.href = '/';
         }
-    } catch (Exception $e) {
-        // Tabelle existiert nicht - ignorieren
+    } catch (error) {
+        console.error('Error going back:', error);
+        window.location.href = '/';
     }
-    
-    // ===== HTML OUTPUT =====
-    
-    // Cover-Pfade
-    $frontCover = findCoverImage($dvd['cover_id'] ?? '', 'f');
-    $backCover = findCoverImage($dvd['cover_id'] ?? '', 'b');
-    
-    // Sichere Werte extrahieren
-    $title = htmlspecialchars($dvd['title'] ?? 'Unbekannt');
-    $year = $dvd['year'] ? (int)$dvd['year'] : 0;
-    $genre = htmlspecialchars($dvd['genre'] ?? '');
-    $runtime = $dvd['runtime'] ? (int)$dvd['runtime'] : 0;
-    $ratingAge = $dvd['rating_age'] ? (int)$dvd['rating_age'] : 0;
-    $overview = htmlspecialchars($dvd['overview'] ?? '');
-    $collectionType = htmlspecialchars($dvd['collection_type'] ?? '');
-    $createdAt = formatDate($dvd['created_at'] ?? '');
-    
-    ob_end_clean(); // Buffer leeren für saubere Ausgabe
-    
-    ?>
-    
-<article class="film-detail" data-film-id="<?= $id ?>" itemscope itemtype="https://schema.org/Movie">
-    <!-- Header -->
-    <header class="film-header">
-        <div class="film-title-section">
-            <h1 class="film-title" itemprop="name"><?= $title ?></h1>
-            
-            <div class="film-meta-header">
-                <?php if ($year > 0): ?>
-                    <span class="film-year" itemprop="datePublished"><?= $year ?></span>
-                <?php endif; ?>
-                
-                <?php if ($runtime > 0): ?>
-                    <span class="film-runtime" itemprop="duration"><?= formatRuntime($runtime) ?></span>
-                <?php endif; ?>
-                
-                <?php if ($ratingAge > 0): ?>
-                    <span class="film-rating-age">FSK <?= $ratingAge ?></span>
-                <?php endif; ?>
-            </div>
-        </div>
-        
-        <!-- Bewertungen -->
-        <?php if ($averageRating > 0 || $userHasRated): ?>
-            <div class="rating-section">
-                <?php if ($averageRating > 0): ?>
-                    <div class="community-rating">
-                        <span class="rating-label">Community:</span>
-                        <div class="stars">
-                            <?= generateStarRating($averageRating) ?>
-                        </div>
-                        <span class="rating-text"><?= $averageRating ?>/5 (<?= $ratingCount ?> Bewertung<?= $ratingCount !== 1 ? 'en' : '' ?>)</span>
-                    </div>
-                <?php endif; ?>
-                
-                <?php if ($userHasRated): ?>
-                    <div class="user-rating">
-                        <span class="rating-label">Ihre Bewertung:</span>
-                        <div class="stars">
-                            <?= generateStarRating($userRating) ?>
-                        </div>
-                        <span class="rating-text"><?= $userRating ?>/5</span>
-                    </div>
-                <?php endif; ?>
-            </div>
-        <?php endif; ?>
-    </header>
+}
 
-    <!-- Cover Gallery -->
-    <section class="cover-gallery">
-        <div class="cover-pair">
-            <?php if ($frontCover !== 'cover/placeholder.png'): ?>
-                <a href="<?= htmlspecialchars($frontCover) ?>" 
-                   data-fancybox="gallery" 
-                   data-caption="<?= $title ?> - Frontcover">
-                    <img class="thumb" 
-                         src="<?= htmlspecialchars($frontCover) ?>" 
-                         alt="<?= $title ?> Frontcover"
-                         itemprop="image"
-                         loading="lazy">
-                </a>
-            <?php else: ?>
-                <div class="no-cover">
-                    <i class="bi bi-film"></i>
-                    <span>Kein Cover</span>
-                </div>
-            <?php endif; ?>
-            
-            <?php if ($backCover !== 'cover/placeholder.png'): ?>
-                <a href="<?= htmlspecialchars($backCover) ?>" 
-                   data-fancybox="gallery" 
-                   data-caption="<?= $title ?> - Backcover">
-                    <img class="thumb" 
-                         src="<?= htmlspecialchars($backCover) ?>" 
-                         alt="<?= $title ?> Backcover"
-                         loading="lazy">
-                </a>
-            <?php endif; ?>
-        </div>
-    </section>
-
-    <!-- Film-Informationen -->
-    <section class="film-info-grid">
-        <div class="film-info-item">
-            <span class="label">Genre</span>
-            <span class="value" itemprop="genre"><?= $genre ?: 'Unbekannt' ?></span>
-        </div>
-        
-        <?php if ($collectionType): ?>
-            <div class="film-info-item">
-                <span class="label">Typ</span>
-                <span class="value"><?= $collectionType ?></span>
-            </div>
-        <?php endif; ?>
-        
-        <?php if ($runtime > 0): ?>
-            <div class="film-info-item">
-                <span class="label">Laufzeit</span>
-                <span class="value"><?= formatRuntime($runtime) ?></span>
-            </div>
-        <?php endif; ?>
-        
-        <?php if ($ratingAge > 0): ?>
-            <div class="film-info-item">
-                <span class="label">Altersfreigabe</span>
-                <span class="value">FSK <?= $ratingAge ?></span>
-            </div>
-        <?php endif; ?>
-        
-        <?php if ($createdAt): ?>
-            <div class="film-info-item">
-                <span class="label">Hinzugefügt</span>
-                <span class="value"><?= $createdAt ?></span>
-            </div>
-        <?php endif; ?>
-    </section>
-
-    <!-- Handlung -->
-    <?php if ($overview): ?>
-        <section class="film-overview">
-            <h3><i class="bi bi-card-text"></i> Handlung</h3>
-            <div class="overview-text" itemprop="description">
-                <?= nl2br($overview) ?>
-            </div>
-        </section>
-    <?php endif; ?>
-
-    <!-- Schauspieler -->
-    <?php if (!empty($actors)): ?>
-        <section class="cast-section">
-            <h3><i class="bi bi-people"></i> Besetzung <span class="count-badge"><?= count($actors) ?></span></h3>
-            <div class="actor-list" itemprop="actor" itemscope itemtype="https://schema.org/Person">
-                <?php foreach ($actors as $actor): ?>
-                    <div class="actor-item">
-                        <span class="actor-name" itemprop="name">
-                            <?= htmlspecialchars(trim(($actor['first_name'] ?? '') . ' ' . ($actor['last_name'] ?? ''))) ?>
-                        </span>
-                        <?php if (!empty($actor['role'])): ?>
-                            <span class="actor-role" itemprop="characterName">
-                                als <?= htmlspecialchars($actor['role']) ?>
-                            </span>
-                        <?php endif; ?>
-                    </div>
-                <?php endforeach; ?>
-            </div>
-        </section>
-    <?php endif; ?>
-
-    <!-- BoxSet-Informationen -->
-    <?php if ($boxsetParent): ?>
-        <section class="boxset-info">
-            <h3><i class="bi bi-collection"></i> Teil einer BoxSet</h3>
-            <div class="boxset-parent">
-                <a href="film-fragment.php?id=<?= $boxsetParent['id'] ?>" class="boxset-link">
-                    <?= htmlspecialchars($boxsetParent['title']) ?> (<?= $boxsetParent['year'] ?>)
-                </a>
-            </div>
-        </section>
-    <?php endif; ?>
-
-    <!-- BoxSet-Inhalte -->
-    <?php if (!empty($boxsetChildren)): ?>
-        <section class="boxset-contents">
-            <h3><i class="bi bi-collection"></i> BoxSet-Inhalte <span class="count-badge"><?= count($boxsetChildren) ?></span></h3>
-            <div class="boxset-grid">
-                <?php foreach ($boxsetChildren as $child): ?>
-                    <div class="boxset-item">
-                        <a href="film-fragment.php?id=<?= $child['id'] ?>" class="boxset-child-link">
-                            <div class="boxset-cover">
-                                <img src="<?= findCoverImage($child['cover_id'] ?? '') ?>" 
-                                     alt="<?= htmlspecialchars($child['title']) ?> Cover" 
-                                     loading="lazy">
-                            </div>
-                            <div class="boxset-info">
-                                <h4 class="boxset-title"><?= htmlspecialchars($child['title']) ?></h4>
-                                <?php if ($child['year']): ?>
-                                    <span class="boxset-year">(<?= $child['year'] ?>)</span>
-                                <?php endif; ?>
-                                <?php if ($child['runtime']): ?>
-                                    <span class="boxset-runtime"><?= formatRuntime($child['runtime']) ?></span>
-                                <?php endif; ?>
-                            </div>
-                        </a>
-                    </div>
-                <?php endforeach; ?>
-            </div>
-        </section>
-    <?php endif; ?>
-</article>
+// Global error handler für AJAX
+window.addEventListener('unhandledrejection', function(event) {
+    console.error('Unhandled Promise Rejection:', event.reason);
+    event.preventDefault();
+});
+</script>
 
 <style>
-/* FILM DETAIL STYLES */
-.film-detail {
-    max-width: 800px;
-    margin: 0 auto;
-    padding: 1rem;
-    color: #fff;
-}
-
-.film-header {
-    margin-bottom: 2rem;
+.error-message {
+    background: var(--glass-bg-strong);
+    border-radius: var(--radius-lg);
+    padding: var(--space-xl);
     text-align: center;
+    color: var(--text-glass);
+    backdrop-filter: blur(10px);
+    max-width: 500px;
+    margin: var(--space-xl) auto;
+    animation: fadeIn 0.3s ease-out;
 }
 
-.film-title {
-    font-size: 2rem;
-    margin: 0 0 1rem 0;
-    color: #fff;
+.error-message.server-error {
+    border: 1px solid rgba(239, 68, 68, 0.3);
 }
 
-.film-meta-header {
-    display: flex;
-    justify-content: center;
-    gap: 1rem;
-    flex-wrap: wrap;
-    margin-bottom: 1rem;
+.error-message.client-error {
+    border: 1px solid rgba(245, 158, 11, 0.3);
 }
 
-.film-meta-header > span {
-    background: rgba(255, 255, 255, 0.1);
-    padding: 0.25rem 0.75rem;
-    border-radius: 16px;
-    font-size: 0.9rem;
+.error-message i {
+    font-size: 3rem;
+    margin-bottom: var(--space-lg);
+    display: block;
 }
 
-.rating-section {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-    align-items: center;
+.error-message.server-error i {
+    color: #ef4444;
 }
 
-.community-rating, .user-rating {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
+.error-message.client-error i {
+    color: #f59e0b;
 }
 
-.stars {
-    display: flex;
-    gap: 0.2rem;
+.error-details {
+    margin: var(--space-lg) 0;
+    text-align: left;
+    background: var(--glass-bg);
+    padding: var(--space-md);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--glass-border);
 }
 
-.star-filled { color: #ffd700; }
-.star-half { color: #ffd700; }
-.star-empty { color: rgba(255, 255, 255, 0.3); }
-
-.cover-gallery {
-    margin-bottom: 2rem;
-}
-
-.cover-pair {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 1rem;
-    max-width: 400px;
-    margin: 0 auto;
-}
-
-.cover-pair img {
-    width: 100%;
-    height: auto;
-    border-radius: 8px;
+.error-details summary {
     cursor: pointer;
-    transition: transform 0.3s;
+    font-weight: 600;
+    color: var(--text-white);
+    margin-bottom: var(--space-sm);
+    user-select: none;
 }
 
-.cover-pair img:hover {
-    transform: scale(1.05);
+.error-details summary:hover {
+    color: var(--primary-color);
 }
 
-.no-cover {
-    aspect-ratio: 2/3;
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 8px;
+.error-details p {
+    margin: var(--space-xs) 0;
+    font-size: 0.85rem;
+    font-family: 'Courier New', monospace;
+    word-break: break-all;
+}
+
+.error-actions {
     display: flex;
-    flex-direction: column;
-    align-items: center;
+    gap: var(--space-md);
     justify-content: center;
-    color: rgba(255, 255, 255, 0.6);
+    margin-top: var(--space-lg);
+    flex-wrap: wrap;
 }
 
-.film-info-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 1rem;
-    margin-bottom: 2rem;
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 
-.film-info-item {
-    background: rgba(255, 255, 255, 0.1);
-    padding: 1rem;
-    border-radius: 8px;
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-}
-
-.film-info-item .label {
-    font-weight: bold;
-    color: rgba(255, 255, 255, 0.8);
-    font-size: 0.9rem;
-}
-
-.film-info-item .value {
-    color: #fff;
-}
-
-.film-overview {
-    background: rgba(255, 255, 255, 0.1);
-    padding: 1.5rem;
-    border-radius: 12px;
-    margin-bottom: 2rem;
-}
-
-.film-overview h3 {
-    margin: 0 0 1rem 0;
-    color: #fff;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-
-.overview-text {
-    line-height: 1.6;
-    color: rgba(255, 255, 255, 0.9);
-}
-
-.cast-section, .boxset-info, .boxset-contents {
-    background: rgba(255, 255, 255, 0.1);
-    padding: 1.5rem;
-    border-radius: 12px;
-    margin-bottom: 2rem;
-}
-
-.cast-section h3, .boxset-info h3, .boxset-contents h3 {
-    margin: 0 0 1rem 0;
-    color: #fff;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-
-.count-badge {
-    background: rgba(52, 152, 219, 0.3);
-    color: #3498db;
-    padding: 0.2rem 0.5rem;
-    border-radius: 12px;
-    font-size: 0.8rem;
-    margin-left: 0.5rem;
-}
-
-.actor-list {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-    gap: 0.75rem;
-}
-
-.actor-item {
-    background: rgba(255, 255, 255, 0.05);
-    padding: 0.75rem;
-    border-radius: 8px;
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-}
-
-.actor-name {
-    font-weight: 500;
-    color: #fff;
-}
-
-.actor-role {
-    font-size: 0.9rem;
-    color: rgba(255, 255, 255, 0.7);
-    font-style: italic;
-}
-
-.boxset-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-    gap: 1rem;
-}
-
-.boxset-item {
-    background: rgba(255, 255, 255, 0.05);
-    border-radius: 8px;
-    overflow: hidden;
-    transition: transform 0.3s;
-}
-
-.boxset-item:hover {
-    transform: translateY(-5px);
-}
-
-.boxset-child-link {
-    color: inherit;
-    text-decoration: none;
-}
-
-.boxset-cover {
-    aspect-ratio: 2/3;
-    overflow: hidden;
-}
-
-.boxset-cover img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-}
-
-.boxset-info {
-    padding: 0.75rem;
-}
-
-.boxset-title {
-    margin: 0 0 0.25rem 0;
-    font-size: 0.9rem;
-    color: #fff;
-}
-
-.boxset-year, .boxset-runtime {
-    font-size: 0.8rem;
-    color: rgba(255, 255, 255, 0.7);
-    margin-right: 0.5rem;
-}
-
-.error-container {
-    max-width: 600px;
-    margin: 2rem auto;
-}
-
-/* Responsive */
 @media (max-width: 768px) {
-    .film-detail {
-        padding: 1rem 0.5rem;
+    .error-actions {
+        flex-direction: column;
     }
     
-    .film-title {
-        font-size: 1.5rem;
-    }
-    
-    .cover-pair {
-        grid-template-columns: 1fr;
-        max-width: 200px;
-    }
-    
-    .film-info-grid {
-        grid-template-columns: 1fr;
-    }
-    
-    .boxset-grid {
-        grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-    }
-    
-    .actor-list {
-        grid-template-columns: 1fr;
+    .error-message {
+        margin: var(--space-md);
+        padding: var(--space-lg);
     }
 }
 </style>
-
-<script>
-// Fancybox für Cover-Bilder (falls verfügbar)
-if (typeof Fancybox !== 'undefined') {
-    Fancybox.bind('[data-fancybox="gallery"]', {
-        animated: true,
-        showClass: "fancybox-fadeIn",
-        hideClass: "fancybox-fadeOut"
-    });
-}
-
-console.log('🎬 Film-Detail geladen:', <?= json_encode($title) ?>);
-</script>
-
-<?php
-
-} catch (Exception $e) {
-    // Buffer leeren bei Fehler
-    while (ob_get_level()) {
-        ob_end_clean();
-    }
-    
-    error_log('Film-fragment error: ' . $e->getMessage());
-    
-    $errorClass = strpos($e->getMessage(), 'nicht gefunden') !== false ? 'not-found' : 'server-error';
-    $errorIcon = $errorClass === 'not-found' ? 'bi-search' : 'bi-exclamation-triangle';
-    $safeErrorMsg = htmlspecialchars($e->getMessage(), ENT_QUOTES, 'UTF-8');
-    
-    echo '<div class="error-container ' . $errorClass . '" style="
-        padding: 2rem;
-        text-align: center;
-        background: rgba(0, 0, 0, 0.8);
-        border: 1px solid rgba(255, 255, 255, 0.2);
-        border-radius: 12px;
-        color: #fff;
-        margin: 2rem;
-    ">
-        <div class="error-content">
-            <i class="' . $errorIcon . '" style="font-size: 3rem; margin-bottom: 1rem; color: #dc3545;"></i>
-            <h2>Film konnte nicht geladen werden</h2>
-            <p><strong>Fehler:</strong> ' . $safeErrorMsg . '</p>
-            <a href="javascript:history.back()" style="
-                display: inline-block;
-                margin-top: 1rem;
-                padding: 0.75rem 1.5rem;
-                background: #3498db;
-                color: white;
-                text-decoration: none;
-                border-radius: 8px;
-                transition: background-color 0.3s;
-            ">← Zurück</a>
-        </div>
-    </div>';
-}
-?>

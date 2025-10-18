@@ -1,79 +1,14 @@
 <?php
-declare(strict_types=1);
+require_once __DIR__ . '/../../includes/bootstrap.php';
 
-header('Content-Type: text/plain; charset=utf-8');
-
-try {
-    require_once __DIR__ . '/../../includes/bootstrap.php';
-    $app = \DVDProfiler\Core\Application::getInstance();
-    $database = $app->getDatabase();
-    $session = $app->getSession();
-    
-    if (!$session->isLoggedIn()) {
-        http_response_code(401);
-        echo "❌ Nicht angemeldet";
-        exit;
-    }
-    
-    $csrfToken = $_POST['csrf_token'] ?? $_GET['csrf_token'] ?? '';
-    if (!empty($csrfToken)) {
-        if (!\DVDProfiler\Core\Security::validateCSRFToken($csrfToken)) {
-            http_response_code(403);
-            echo "❌ Ungültiges CSRF-Token";
-            exit;
-        }
-    }
-    
-    $clientIP = \DVDProfiler\Core\Security::getClientIP();
-    if (!$app->checkRateLimit("delete_user_{$clientIP}", 5, 300)) {
-        http_response_code(429);
-        echo "❌ Zu viele Lösch-Anfragen. Bitte warten Sie.";
-        exit;
-    }
-    
-    $id = filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT);
-    if (!$id || $id <= 0) {
-        http_response_code(400);
-        echo "❌ Ungültige Benutzer-ID";
-        exit;
-    }
-    
-    $user = $database->fetchRow("SELECT id, email FROM users WHERE id = ?", [$id]);
-    if (!$user) {
-        http_response_code(404);
-        echo "❌ Benutzer nicht gefunden";
-        exit;
-    }
-    
-    if ($id === $session->getUserId()) {
-        http_response_code(400);
-        echo "❌ Sie können sich nicht selbst löschen";
-        exit;
-    }
-    
-    $database->transaction(function($db) use ($id, $user, $session) {
-        $db->delete('user_backup_codes', 'user_id = ?', [$id]);
-        $db->delete('audit_log', 'user_id = ?', [$id]);
-        $db->update('activity_log', ['user_id' => null], 'user_id = ?', [$id]);
-        
-        $deleted = $db->delete('users', 'id = ?', [$id]);
-        if ($deleted === 0) {
-            throw new Exception('Benutzer konnte nicht gelöscht werden');
-        }
-        
-        \DVDProfiler\Core\Security::logSecurityEvent('user_deleted', [
-            'deleted_user_id' => $id,
-            'deleted_user_email' => $user['email'],
-            'admin_user_id' => $session->getUserId()
-        ]);
-        
-        return $deleted;
-    });
-    
-    echo "✅ Benutzer wurde erfolgreich gelöscht.";
-    
-} catch (Exception $e) {
-    error_log('User deletion error: ' . $e->getMessage());
-    http_response_code(500);
-    echo "❌ Fehler beim Löschen: " . htmlspecialchars($e->getMessage());
+if (!isset($_GET['id'])) {
+    http_response_code(400);
+    echo "❌ Ungültige Anfrage";
+    exit;
 }
+
+$id = (int) $_GET['id'];
+$stmt = $pdo->prepare("DELETE FROM users WHERE id = ?");
+$stmt->execute([$id]);
+
+echo "✅ Benutzer wurde gelöscht.";

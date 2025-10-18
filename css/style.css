@@ -89,14 +89,6 @@ body {
   overflow-x: hidden;
 }
 
-.container {
-  max-width: none;
-  width: 100%;
-  margin: 0 auto;
-  /* Kein zusätzliches Padding - wird vom Body übernommen */
-  padding: 0;
-}
-
 /* Typography */
 h1, h2, h3, h4, h5, h6 {
   font-weight: 600;
