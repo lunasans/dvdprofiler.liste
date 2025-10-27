@@ -11,7 +11,7 @@ if (!isset($_SESSION['user_id'])) {
 
 $uploadDir = __DIR__ . '/../xml/';
 if (!is_dir($uploadDir)) {
-    mkdir($uploadDir, 0777, true);
+    mkdir($uploadDir, 0750, true);
 }
 
 if (!isset($_FILES['xml_file']) || $_FILES['xml_file']['error'] !== UPLOAD_ERR_OK) {
