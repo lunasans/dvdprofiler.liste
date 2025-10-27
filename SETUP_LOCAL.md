@@ -1,58 +1,33 @@
 # Lokale Umgebung Setup - DVD Profiler Liste
 
-## Problem behoben!
+## Korrekte Installation
 
-Die fehlenden Konfigurationsdateien wurden erstellt. Sie können jetzt Ihre lokale Umgebung einrichten.
+Die Anwendung verfügt über einen vollständigen Installationsassistenten. Dieser erstellt automatisch:
+- Die Datenbank-Tabellen (9 Tabellen)
+- Die config/config.php mit Ihren Einstellungen
+- Die install.lock zur Installationssperre
+- Einen Admin-Benutzer
+- Alle notwendigen Standardeinstellungen
 
-## Schnellstart
+## Installationsschritte
 
-### 1. Datenbank einrichten
+### 1. Datenbank vorbereiten
 
-Erstellen Sie eine MySQL/MariaDB Datenbank:
+Erstellen Sie eine leere MySQL/MariaDB Datenbank:
 
 ```sql
 CREATE DATABASE dvdprofiler CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 ```
 
-### 2. Datenbank-Schema importieren
-
-Importieren Sie das SQL-Schema:
-
-```bash
-mysql -u root -p dvdprofiler < install/sqldump/sqldump.sql
-```
-
-**ODER** die komplette Installation mit allen Tabellen aus install/index.php durchführen.
-
-### 3. Konfiguration anpassen
-
-Bearbeiten Sie die Datei `config/config.php` und passen Sie Ihre Datenbankzugangsdaten an:
-
-```php
-return [
-    'db_host' => 'localhost',        // Ihr MySQL Host
-    'db_name' => 'dvdprofiler',      // Ihr Datenbankname
-    'db_user' => 'root',             // Ihr Datenbankbenutzer
-    'db_pass' => 'IhrPasswort',      // Ihr Datenbankpasswort
-    'db_charset' => 'utf8mb4',
-    'version' => '1.4.6',
-    'environment' => 'development',
-];
-```
-
-### 4. Admin-Benutzer erstellen (falls noch nicht vorhanden)
-
-Erstellen Sie einen Admin-Benutzer in der Datenbank:
+**Optional:** Erstellen Sie einen dedizierten Datenbankbenutzer:
 
 ```sql
-INSERT INTO users (email, password, is_active)
-VALUES ('admin@localhost', '$2y$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5aeUjRLKzNtQ6', 1);
--- Passwort ist: admin123 (BITTE ÄNDERN!)
+CREATE USER 'dvdprofiler'@'localhost' IDENTIFIED BY 'IhrSicheresPasswort';
+GRANT ALL PRIVILEGES ON dvdprofiler.* TO 'dvdprofiler'@'localhost';
+FLUSH PRIVILEGES;
 ```
 
-**WICHTIG:** Ändern Sie das Passwort nach dem ersten Login!
-
-### 5. Webserver konfigurieren
+### 2. Webserver starten
 
 #### Option A: PHP Built-in Server (Entwicklung)
 
@@ -61,32 +36,58 @@ cd /home/user/dvdprofiler.liste
 php -S localhost:8000
 ```
 
-Dann öffnen Sie: http://localhost:8000
-
 #### Option B: Apache/Nginx
 
 Konfigurieren Sie einen VirtualHost für das Projekt.
 
-### 6. Installation neu durchführen (Alternative)
+### 3. Installation durchführen
 
-Wenn Sie die Installation komplett neu durchführen möchten:
+Öffnen Sie im Browser:
 
-1. Löschen Sie die install.lock Datei:
-   ```bash
-   rm install/install.lock
-   ```
+```
+http://localhost:8000/install/index.php
+```
 
-2. Löschen Sie die config/config.php (optional):
-   ```bash
-   rm config/config.php
-   ```
+Der Installationsassistent führt Sie durch folgende Schritte:
 
-3. Rufen Sie die Installation auf:
-   ```
-   http://localhost:8000/install/index.php
-   ```
+**a) Systemanforderungen-Check**
+- PHP-Version ≥ 8.0.0
+- PDO MySQL Extension
+- OpenSSL Extension
+- JSON Extension
+- mbstring Extension
+- Schreibrechte für config-Verzeichnis
 
-4. Folgen Sie den Anweisungen im Installationsassistenten
+**b) Installationsformular ausfüllen:**
+
+- **Website-Titel**: z.B. "Meine DVD-Sammlung"
+- **Basis-URL**: z.B. "http://localhost:8000/"
+- **Administrator E-Mail**: Ihre E-Mail
+- **Administrator Passwort**: Min. 8 Zeichen mit Groß-, Kleinbuchstaben und Zahlen
+- **DB-Host**: localhost
+- **DB-Name**: dvdprofiler
+- **DB-Benutzer**: root (oder Ihr DB-User)
+- **DB-Passwort**: Ihr Datenbankpasswort
+
+**c) Installation ausführen**
+
+Der Assistent erstellt automatisch:
+- ✅ Alle 9 Datenbank-Tabellen (users, dvds, actors, film_actor, settings, etc.)
+- ✅ config/config.php mit Ihren Einstellungen
+- ✅ install.lock zur Sperrung der Neuinstallation
+- ✅ Admin-Benutzer mit Ihrem Passwort
+- ✅ Standard-Einstellungen (2FA, Session, SMTP, etc.)
+- ✅ Audit-Log Einträge
+
+### 4. Nach der Installation
+
+Nach erfolgreicher Installation werden Sie zum Admin-Login weitergeleitet:
+
+```
+http://localhost:8000/admin/login.php
+```
+
+Melden Sie sich mit der E-Mail und dem Passwort an, die Sie während der Installation angegeben haben
 
 ## Troubleshooting
 
