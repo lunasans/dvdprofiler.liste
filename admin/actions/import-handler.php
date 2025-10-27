@@ -48,7 +48,7 @@ libxml_use_internal_errors(true);
 $xml = simplexml_load_string(
     $xmlContent,
     'SimpleXMLElement',
-    LIBXML_NOCDATA | LIBXML_NOENT | LIBXML_NONET
+    LIBXML_NOCDATA | LIBXML_NONET
 );
 
 if ($xml === false) {
