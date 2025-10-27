@@ -4,11 +4,9 @@
  * 
  * @package    dvdprofiler.liste
  * @author     René Neuhaus
- * @version    1.4.5
+ * @version    1.4.8
  */
 
-// Versionsinformationen laden
-require_once __DIR__ . '/../includes/version.php';
 ?>
 
 <div class="static-page">

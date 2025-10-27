@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 // Bootstrap (startet bereits die Session)
 require_once __DIR__ . '/../includes/bootstrap.php';
-require_once __DIR__ . '/../includes/version.php';
 
 // Zugriffsschutz
 if (!isset($_SESSION['user_id'])) {

@@ -4,7 +4,7 @@
  * 
  * @package    dvdprofiler.liste
  * @author     René Neuhaus
- * @version    1.4.5
+ * @version    1.4.8
  */
 
 // Sicherheitscheck
@@ -12,9 +12,6 @@ if (!isset($_SESSION['user_id'])) {
     header('Location: login.php');
     exit;
 }
-
-// Versionsinformationen und Statistiken laden
-require_once dirname(__DIR__, 2) . '/includes/version.php';
 
 // Dashboard-Statistiken sammeln
 $dashboardStats = [

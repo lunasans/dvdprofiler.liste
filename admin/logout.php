@@ -8,12 +8,11 @@ declare(strict_types=1);
  * 
  * @package    dvdprofiler.liste
  * @author     René Neuhaus
- * @version    1.3.6
+ * @version    1.4.8
  */
 
 // Bootstrap lädt $pdo, BASE_URL usw. und startet bereits die Session
 require_once __DIR__ . '/../includes/bootstrap.php';
-require_once __DIR__ . '/../includes/version.php';
 
 // Logout-Protokollierung (nur wenn eingeloggt)
 if (isset($_SESSION['user_id'])) {

@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 // Bootstrap laden
 require_once __DIR__ . '/../includes/bootstrap.php';
-require_once __DIR__ . '/../includes/version.php';
+
 
 // Simple2FA Klasse für echte TOTP-Verifikation
 class Simple2FA {

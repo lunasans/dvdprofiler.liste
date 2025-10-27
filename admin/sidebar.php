@@ -1,6 +1,6 @@
 <?php
 // admin/sidebar.php - Vereinfachte Sidebar mit zentralisierter Versionsverwaltung
-require_once dirname(__DIR__) . '/includes/version.php';
+
 
 // GEÄNDERT: Verwende zentralisierte Update-Logik
 $updateStatus = getDVDProfilerUpdateStatus();

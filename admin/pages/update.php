@@ -6,7 +6,6 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../../includes/bootstrap.php';
-require_once __DIR__ . '/../../includes/version.php';
 
 // Sicherheitsprüfung
 if (!isset($_SESSION['user_id'])) {
