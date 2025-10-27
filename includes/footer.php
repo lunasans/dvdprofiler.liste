@@ -1,6 +1,6 @@
 <?php
 // inc/footer.php - Erweiterte Footer für DVD Profiler Liste
-require_once __DIR__ . '/version.php';
+
 
 // Hole Statistiken für Footer
 $dvdProfilerStats = getDVDProfilerStatistics();
