@@ -1,0 +1,9 @@
+# Zugriff auf alle Dateien in diesem Verzeichnis verbieten
+<Files "*">
+    Require all denied
+</Files>
+
+# PHP-Dateien dürfen nicht direkt aufgerufen werden
+<FilesMatch "\.php$">
+    Require all denied
+</FilesMatch>

@@ -1,4 +1,6 @@
-/config/
+/config/config.php
+!/config/.htaccess
+!/config/README.md
 /cover/
 /admin/xml/*.xml
 counter.txt
