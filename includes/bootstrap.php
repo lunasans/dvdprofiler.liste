@@ -21,7 +21,7 @@ function setSecurityHeaders(): void {
 setSecurityHeaders();
 
 // Weiterleitung bei fehlender Installation
-$lockFile = dirname(__DIR__) . '/install/install.lock';
+$lockFile = dirname(__DIR__) . '/admin/.install.lock';
 $installScript = dirname($_SERVER['SCRIPT_NAME']) . '/install/index.php';
 
 if (!file_exists($lockFile)) {
