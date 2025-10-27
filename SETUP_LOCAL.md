@@ -74,20 +74,41 @@ Der Installationsassistent führt Sie durch folgende Schritte:
 Der Assistent erstellt automatisch:
 - ✅ Alle 9 Datenbank-Tabellen (users, dvds, actors, film_actor, settings, etc.)
 - ✅ config/config.php mit Ihren Einstellungen
-- ✅ install.lock zur Sperrung der Neuinstallation
+- ✅ admin/.install.lock zur Sperrung der Neuinstallation
 - ✅ Admin-Benutzer mit Ihrem Passwort
 - ✅ Standard-Einstellungen (2FA, Session, SMTP, etc.)
 - ✅ Audit-Log Einträge
 
+**Hinweis:** Die Lock-Datei wird in `/admin/.install.lock` gespeichert, nicht in `/install/install.lock`.
+Das ist eine Sicherheitsmaßnahme - der `/install` Ordner sollte nach erfolgreicher Installation gelöscht werden.
+
 ### 4. Nach der Installation
 
-Nach erfolgreicher Installation werden Sie zum Admin-Login weitergeleitet:
+**Wichtig - Sicherheitsmaßnahmen:**
 
-```
-http://localhost:8000/admin/login.php
-```
+1. **Löschen Sie den install-Ordner:**
+   ```bash
+   rm -rf install/
+   ```
+   Dies verhindert, dass jemand die Installation erneut durchführen kann.
 
-Melden Sie sich mit der E-Mail und dem Passwort an, die Sie während der Installation angegeben haben
+2. **Setzen Sie Dateiberechtigungen:**
+   ```bash
+   chmod 600 config/config.php
+   chmod 600 admin/.install.lock
+   ```
+
+3. **Login:**
+   Nach erfolgreicher Installation werden Sie zum Admin-Login weitergeleitet:
+   ```
+   http://localhost:8000/admin/login.php
+   ```
+   Melden Sie sich mit der E-Mail und dem Passwort an, die Sie während der Installation angegeben haben.
+
+**Neuinstallation:**
+Um die Installation erneut durchzuführen, löschen Sie:
+- `config/config.php`
+- `admin/.install.lock`
 
 ## Troubleshooting
 
