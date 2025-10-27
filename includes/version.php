@@ -2,11 +2,17 @@
 /**
  * DVD Profiler Liste - Versionsverwaltung
  * Zentrale Stelle für alle Versionsinformationen
- * 
+ *
  * @package    dvdprofiler.liste
  * @author     René Neuhaus
  * @repository https://github.com/lunasans/dvdprofiler.liste
  */
+
+// Include Guard - Verhindert doppeltes Laden dieser Datei
+if (defined('DVDPROFILER_VERSION_LOADED')) {
+    return;
+}
+define('DVDPROFILER_VERSION_LOADED', true);
 
 // Version Information
 define('DVDPROFILER_VERSION', '1.4.6');
