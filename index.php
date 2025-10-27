@@ -12,9 +12,8 @@ declare(strict_types=1);
 
 // Zentrale Initialisierung ZUERST laden
 try {
-    require_once __DIR__ . '/includes/bootstrap.php';
+    require_once __DIR__ . '/includes/bootstrap.php'; // Lädt auch version.php
     require_once __DIR__ . '/includes/counter.php';
-    require_once __DIR__ . '/includes/version.php'; // Neue Versionsverwaltung laden
 } catch (Exception $e) {
     error_log('Bootstrap error: ' . $e->getMessage());
     http_response_code(500);
@@ -145,7 +144,8 @@ $schema = [
     </script>
 </head>
 <body>
-    
+    <!-- Skip Link für Accessibility -->
+    <a href="#main-content" class="skip-link">Zum Hauptinhalt springen</a>
 
     <?php
     // Header laden

@@ -11,7 +11,7 @@ header('Referrer-Policy: strict-origin-when-cross-origin');
 const MIN_PHP_VERSION = '8.0.0';
 const MIN_PASSWORD_LENGTH = 8;
 const MAX_INPUT_LENGTH = 255;
-const DB_VERSION = '1.4.1'; // Aktuelle Version
+const DB_VERSION = '1.4.8'; // Aktuelle Version
 
 // Pfade definieren
 // Lock-Datei wird in /admin gespeichert (sicher, auch wenn /install Ordner gelöscht wird)

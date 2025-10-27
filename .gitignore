@@ -38,3 +38,6 @@ sync_config.jsonc
 release-notes-v1.4.7.html
 debug-update.php
 debug-500.php
+debug-index.php
+debug.php
+admin/.install.lock
