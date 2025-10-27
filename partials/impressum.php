@@ -1,14 +1,13 @@
 <?php
 /**
  * DVD Profiler Liste - Impressum
- * 
+ *
  * @package    dvdprofiler.liste
  * @author     René Neuhaus
  * @version    1.4.5
  */
 
-// Versionsinformationen laden
-require_once __DIR__ . '/../includes/version.php';
+// version.php wird bereits in bootstrap.php geladen (von index.php)
 ?>
 
 <div class="static-page">

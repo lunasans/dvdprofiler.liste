@@ -12,8 +12,7 @@ if (!function_exists('getSetting')) {
     require_once __DIR__ . '/../includes/bootstrap.php';
 }
 
-// Versionsinformationen laden
-require_once __DIR__ . '/../includes/version.php';
+// version.php wird bereits in bootstrap.php geladen
 
 // Fallback-Funktion falls getSetting immer noch nicht verfügbar
 if (!function_exists('getSetting')) {

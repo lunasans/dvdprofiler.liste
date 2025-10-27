@@ -11,9 +11,8 @@ declare(strict_types=1);
  * @version    1.3.6
  */
 
-// Bootstrap lädt $pdo, BASE_URL usw. und startet bereits die Session
+// Bootstrap lädt $pdo, BASE_URL, version.php usw. und startet bereits die Session
 require_once __DIR__ . '/../includes/bootstrap.php';
-require_once __DIR__ . '/../includes/version.php';
 
 // Logout-Protokollierung (nur wenn eingeloggt)
 if (isset($_SESSION['user_id'])) {

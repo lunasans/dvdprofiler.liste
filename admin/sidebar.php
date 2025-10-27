@@ -1,6 +1,6 @@
 <?php
 // admin/sidebar.php - Aktualisierte Sidebar mit neuer Versionsverwaltung
-require_once dirname(__DIR__) . '/includes/version.php';
+// version.php wird bereits in bootstrap.php geladen (von admin/index.php)
 
 // Aktuelle Version aus der neuen Versionsverwaltung
 $currentVersion = DVDPROFILER_VERSION;

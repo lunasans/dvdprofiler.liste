@@ -1,9 +1,8 @@
 <?php
 declare(strict_types=1);
 
-// Bootstrap (startet bereits die Session)
+// Bootstrap (startet bereits die Session und lädt version.php)
 require_once __DIR__ . '/../includes/bootstrap.php';
-require_once __DIR__ . '/../includes/version.php'; // Neue Versionsverwaltung laden
 
 // Zugriffsschutz
 if (!isset($_SESSION['user_id'])) {

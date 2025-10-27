@@ -13,8 +13,7 @@ if (!isset($_SESSION['user_id'])) {
     exit;
 }
 
-// Versionsinformationen und Statistiken laden
-require_once dirname(__DIR__, 2) . '/includes/version.php';
+// version.php wird bereits in bootstrap.php geladen (von admin/index.php)
 
 // Dashboard-Statistiken sammeln
 $dashboardStats = [
