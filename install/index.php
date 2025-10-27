@@ -14,7 +14,8 @@ const MAX_INPUT_LENGTH = 255;
 const DB_VERSION = '1.4.1'; // Aktuelle Version
 
 // Pfade definieren
-$lockFile = __DIR__ . '/install.lock';
+// WICHTIG: Lock-Datei muss hier sein, da bootstrap.php danach sucht!
+$lockFile = __DIR__ . '/install.lock';  // /install/install.lock
 $configDir = dirname(__DIR__) . '/config';
 $configFile = $configDir . '/config.php';
 
