@@ -5,14 +5,14 @@
  * 
  * @package    dvdprofiler.liste
  * @author     René Neuhaus
- * @repository https://update.neuhaus.or.at/dvdprofiler-liste (eigenes Update-System)
+ * @repository https://github.com/lunasans/dvdprofiler.liste (eigenes Update-System)
  */
 
 // Version Information
-define('DVDPROFILER_VERSION', '1.4.7');
+define('DVDPROFILER_VERSION', '1.4.8');
 define('DVDPROFILER_CODENAME', 'Cinephile');
-define('DVDPROFILER_BUILD_DATE', '2025.07.25');
-define('DVDPROFILER_RELEASE_DATE', '25. Juli 2025');
+define('DVDPROFILER_BUILD_DATE', '2025.10.27');
+define('DVDPROFILER_RELEASE_DATE', '27. Oktober 2025');
 
 // Build Information
 define('DVDPROFILER_BUILD_TYPE', 'Release'); // Release, Beta, Alpha, Development
