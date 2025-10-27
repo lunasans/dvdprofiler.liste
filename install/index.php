@@ -412,6 +412,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ready) {
             $installationSteps[] = '✅ Datenbankverbindung erfolgreich';
             $installationSteps[] = '📝 Konfigurationsdatei erstellen...';
 
+            // Config-Verzeichnis erstellen, falls es nicht existiert
+            if (!file_exists($configDir)) {
+                if (!mkdir($configDir, 0755, true)) {
+                    throw new RuntimeException('Konnte Config-Verzeichnis nicht erstellen');
+                }
+                $installationSteps[] = '✅ Config-Verzeichnis erstellt';
+            }
+
             // Config-Datei erstellen
             $configContent = "<?php\n// Generiert am " . date('Y-m-d H:i:s') . "\nreturn " . var_export([
                 'db_host' => $dbHost,
@@ -481,6 +489,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ready) {
             $installationSteps[] = '🔒 Installation abschließen...';
 
             // Lock-Datei erstellen (nach erfolgreichem Commit)
+            $lockDir = dirname($lockFile);
+            if (!file_exists($lockDir)) {
+                if (!mkdir($lockDir, 0755, true)) {
+                    throw new RuntimeException('Konnte Lock-Verzeichnis nicht erstellen');
+                }
+            }
+
             $lockContent = json_encode([
                 'installed_at' => date('Y-m-d H:i:s'),
                 'version' => DB_VERSION,
