@@ -6,6 +6,61 @@ define('DB_VERSION', '1.4.7');
 define('MIN_PHP_VERSION', '7.4.0');
 define('RECOMMENDED_PHP_VERSION', '8.0.0');
 
+// Installation Lock Check - WICHTIG für Sicherheit!
+$lockFile = __DIR__ . '/../admin/.install.lock';
+if (file_exists($lockFile)) {
+    ?>
+    <!DOCTYPE html>
+    <html lang="de">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>Installation bereits abgeschlossen</title>
+        <style>
+            body { 
+                font-family: Arial, sans-serif; 
+                background: #1a1a2e; 
+                color: white; 
+                text-align: center; 
+                padding: 50px; 
+            }
+            .message {
+                background: rgba(255,255,255,0.1);
+                padding: 30px;
+                border-radius: 10px;
+                max-width: 500px;
+                margin: 0 auto;
+            }
+            .btn {
+                background: #0f3460;
+                color: white;
+                padding: 10px 20px;
+                text-decoration: none;
+                border-radius: 5px;
+                display: inline-block;
+                margin-top: 20px;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="message">
+            <h1>🔒 Installation bereits abgeschlossen</h1>
+            <p>Die DVD-Verwaltung wurde bereits installiert.</p>
+            <p><strong>Installationsdatum:</strong> <?= date('d.m.Y H:i:s', filemtime($lockFile)) ?></p>
+            <a href="../index.php" class="btn">🚀 Zur Anwendung</a>
+            <br><br>
+            <small>
+                <strong>Sicherheitshinweis:</strong><br>
+                Zum Schutz vor unbefugter Neuinstallation wurde eine Lock-Datei erstellt.<br>
+                Löschen Sie <code>/admin/.install.lock</code> um eine Neuinstallation zu ermöglichen.
+            </small>
+        </div>
+    </body>
+    </html>
+    <?php
+    exit;
+}
+
 // Session für CSRF-Schutz
 session_start();
 if (!isset($_SESSION['csrf_token'])) {
@@ -64,11 +119,15 @@ if ($_POST && $ready) {
             // Datenbankverbindung testen
             $dsn = "mysql:host={$dbHost};port={$dbPort};charset=utf8mb4";
             
+            $pdo = null;
+            $transactionStarted = false;
+            
             try {
                 $pdo = new PDO($dsn, $dbUser, $dbPass, [
                     PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
                     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-                    PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES utf8mb4"
+                    PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES utf8mb4",
+                    PDO::ATTR_AUTOCOMMIT => false
                 ]);
                 $installationSteps[] = '✅ Datenbankverbindung hergestellt';
             } catch (PDOException $e) {
@@ -86,246 +145,361 @@ if ($_POST && $ready) {
                 throw new Exception('Datenbank-Erstellung fehlgeschlagen: ' . $e->getMessage());
             }
 
-            // Tabellen erstellen
-            $tables = [
-                // 1. Users-Tabelle
-                "CREATE TABLE IF NOT EXISTS users (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    email VARCHAR(255) UNIQUE NOT NULL,
-                    password VARCHAR(255) NOT NULL,
-                    totp_secret VARCHAR(32) NULL,
-                    is_totp_enabled TINYINT(1) DEFAULT 0,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                    last_login TIMESTAMP NULL,
-                    login_attempts INT DEFAULT 0,
-                    locked_until TIMESTAMP NULL,
-                    INDEX idx_email (email),
-                    INDEX idx_totp (is_totp_enabled)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+            // Transaktion starten
+            try {
+                $pdo->beginTransaction();
+                $transactionStarted = true;
+                $installationSteps[] = '✅ Transaktion gestartet';
 
-                // 2. DVDs-Tabelle
-                "CREATE TABLE IF NOT EXISTS dvds (
-                    id BIGINT PRIMARY KEY,
-                    title VARCHAR(255) NOT NULL,
-                    year INT DEFAULT NULL,
-                    genre TEXT DEFAULT NULL,
-                    runtime INT DEFAULT NULL,
-                    rating_age INT DEFAULT NULL,
-                    overview TEXT DEFAULT NULL,
-                    cover_id VARCHAR(100) DEFAULT NULL,
-                    collection_type VARCHAR(50) DEFAULT NULL,
-                    boxset_parent BIGINT DEFAULT NULL,
-                    trailer_url VARCHAR(500) DEFAULT NULL,
-                    user_id INT DEFAULT NULL,
-                    view_count INT DEFAULT 0,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                    INDEX idx_title (title),
-                    INDEX idx_year (year),
-                    INDEX idx_genre (genre(100)),
-                    INDEX idx_boxset_parent (boxset_parent),
-                    INDEX idx_user_id (user_id),
-                    INDEX idx_view_count (view_count),
-                    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+                // Tabellen erstellen
+                $tables = [
+                    // 1. Users-Tabelle
+                    "CREATE TABLE IF NOT EXISTS users (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        email VARCHAR(255) UNIQUE NOT NULL,
+                        password VARCHAR(255) NOT NULL,
+                        totp_secret VARCHAR(32) NULL,
+                        is_totp_enabled TINYINT(1) DEFAULT 0,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                        last_login TIMESTAMP NULL,
+                        login_attempts INT DEFAULT 0,
+                        locked_until TIMESTAMP NULL,
+                        INDEX idx_email (email),
+                        INDEX idx_totp (is_totp_enabled)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 
-                // 3. Actors-Tabelle
-                "CREATE TABLE IF NOT EXISTS actors (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    first_name VARCHAR(100) NOT NULL,
-                    last_name VARCHAR(100) NOT NULL,
-                    birth_year INT DEFAULT NULL,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    INDEX idx_name (last_name, first_name),
-                    INDEX idx_birth_year (birth_year)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+                    // 2. DVDs-Tabelle
+                    "CREATE TABLE IF NOT EXISTS dvds (
+                        id BIGINT PRIMARY KEY,
+                        title VARCHAR(255) NOT NULL,
+                        year INT DEFAULT NULL,
+                        genre TEXT DEFAULT NULL,
+                        runtime INT DEFAULT NULL,
+                        rating_age INT DEFAULT NULL,
+                        overview TEXT DEFAULT NULL,
+                        cover_id VARCHAR(100) DEFAULT NULL,
+                        collection_type VARCHAR(50) DEFAULT NULL,
+                        boxset_parent BIGINT DEFAULT NULL,
+                        trailer_url VARCHAR(500) DEFAULT NULL,
+                        user_id INT DEFAULT NULL,
+                        view_count INT DEFAULT 0,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                        INDEX idx_title (title),
+                        INDEX idx_year (year),
+                        INDEX idx_genre (genre(100)),
+                        INDEX idx_boxset_parent (boxset_parent),
+                        INDEX idx_user_id (user_id),
+                        INDEX idx_view_count (view_count),
+                        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 
-                // 4. Film-Actor Junction-Tabelle
-                "CREATE TABLE IF NOT EXISTS film_actor (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    film_id BIGINT NOT NULL,
-                    actor_id INT NOT NULL,
-                    role VARCHAR(255) DEFAULT NULL,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    UNIQUE KEY unique_film_actor (film_id, actor_id),
-                    FOREIGN KEY (film_id) REFERENCES dvds(id) ON DELETE CASCADE,
-                    FOREIGN KEY (actor_id) REFERENCES actors(id) ON DELETE CASCADE
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+                    // 3. Actors-Tabelle
+                    "CREATE TABLE IF NOT EXISTS actors (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        first_name VARCHAR(100) NOT NULL,
+                        last_name VARCHAR(100) NOT NULL,
+                        birth_year INT DEFAULT NULL,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        INDEX idx_name (last_name, first_name),
+                        INDEX idx_birth_year (birth_year)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 
-                // 5. Settings-Tabelle
-                "CREATE TABLE IF NOT EXISTS settings (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    `key` VARCHAR(100) UNIQUE NOT NULL,
-                    `value` TEXT NOT NULL,
-                    description TEXT NULL,
-                    is_public TINYINT(1) DEFAULT 0,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                    INDEX idx_key (`key`),
-                    INDEX idx_public (is_public)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+                    // 4. Film-Actor Junction-Tabelle
+                    "CREATE TABLE IF NOT EXISTS film_actor (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        film_id BIGINT NOT NULL,
+                        actor_id INT NOT NULL,
+                        role VARCHAR(255) DEFAULT NULL,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        UNIQUE KEY unique_film_actor (film_id, actor_id),
+                        FOREIGN KEY (film_id) REFERENCES dvds(id) ON DELETE CASCADE,
+                        FOREIGN KEY (actor_id) REFERENCES actors(id) ON DELETE CASCADE
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 
-                // 6. Backup-Codes Tabelle
-                "CREATE TABLE IF NOT EXISTS user_backup_codes (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    user_id INT NOT NULL,
-                    code VARCHAR(255) NOT NULL,
-                    used_at TIMESTAMP NULL,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    INDEX idx_user_id (user_id),
-                    INDEX idx_code (code),
-                    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+                    // 5. Settings-Tabelle
+                    "CREATE TABLE IF NOT EXISTS settings (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        `key` VARCHAR(100) UNIQUE NOT NULL,
+                        `value` TEXT NOT NULL,
+                        description TEXT NULL,
+                        is_public TINYINT(1) DEFAULT 0,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                        INDEX idx_key (`key`),
+                        INDEX idx_public (is_public)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 
-                // 7. GitHub-Cache Tabelle
-                "CREATE TABLE IF NOT EXISTS github_cache (
-                    cache_key VARCHAR(50) PRIMARY KEY,
-                    data JSON NOT NULL,
-                    timestamp INT NOT NULL,
-                    INDEX idx_timestamp (timestamp)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+                    // 6. Backup-Codes Tabelle
+                    "CREATE TABLE IF NOT EXISTS user_backup_codes (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        user_id INT NOT NULL,
+                        code VARCHAR(255) NOT NULL,
+                        used_at TIMESTAMP NULL,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        INDEX idx_user_id (user_id),
+                        INDEX idx_code (code),
+                        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 
-                // 8. Activity-Log Tabelle
-                "CREATE TABLE IF NOT EXISTS activity_log (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    user_id INT NULL,
-                    action VARCHAR(100) NOT NULL,
-                    details JSON NULL,
-                    ip_address VARCHAR(45) NULL,
-                    user_agent TEXT NULL,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    INDEX idx_user_id (user_id),
-                    INDEX idx_action (action),
-                    INDEX idx_created_at (created_at),
-                    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+                    // 7. GitHub-Cache Tabelle
+                    "CREATE TABLE IF NOT EXISTS github_cache (
+                        cache_key VARCHAR(50) PRIMARY KEY,
+                        data JSON NOT NULL,
+                        timestamp INT NOT NULL,
+                        INDEX idx_timestamp (timestamp)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 
-                // 9. User Ratings Tabelle
-                "CREATE TABLE IF NOT EXISTS user_ratings (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    film_id BIGINT NOT NULL,
-                    user_id INT NOT NULL,
-                    rating DECIMAL(2,1) NOT NULL,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                    UNIQUE KEY unique_user_film (user_id, film_id),
-                    FOREIGN KEY (film_id) REFERENCES dvds(id) ON DELETE CASCADE,
-                    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+                    // 8. Activity-Log Tabelle
+                    "CREATE TABLE IF NOT EXISTS activity_log (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        user_id INT NULL,
+                        action VARCHAR(100) NOT NULL,
+                        details JSON NULL,
+                        ip_address VARCHAR(45) NULL,
+                        user_agent TEXT NULL,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        INDEX idx_user_id (user_id),
+                        INDEX idx_action (action),
+                        INDEX idx_created_at (created_at),
+                        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 
-                // 10. User Wishlist Tabelle
-                "CREATE TABLE IF NOT EXISTS user_wishlist (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    user_id INT NOT NULL,
-                    film_id BIGINT NOT NULL,
-                    added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    UNIQUE KEY unique_user_film_wish (user_id, film_id),
-                    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-                    FOREIGN KEY (film_id) REFERENCES dvds(id) ON DELETE CASCADE
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+                    // 9. User Ratings Tabelle
+                    "CREATE TABLE IF NOT EXISTS user_ratings (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        film_id BIGINT NOT NULL,
+                        user_id INT NOT NULL,
+                        rating DECIMAL(2,1) NOT NULL,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                        UNIQUE KEY unique_user_film (user_id, film_id),
+                        FOREIGN KEY (film_id) REFERENCES dvds(id) ON DELETE CASCADE,
+                        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 
-                // 11. User Watched Tabelle
-                "CREATE TABLE IF NOT EXISTS user_watched (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    user_id INT NOT NULL,
-                    film_id BIGINT NOT NULL,
-                    watched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    UNIQUE KEY unique_user_film_watched (user_id, film_id),
-                    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-                    FOREIGN KEY (film_id) REFERENCES dvds(id) ON DELETE CASCADE
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
-            ];
+                    // 10. User Wishlist Tabelle
+                    "CREATE TABLE IF NOT EXISTS user_wishlist (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        user_id INT NOT NULL,
+                        film_id BIGINT NOT NULL,
+                        added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        UNIQUE KEY unique_user_film_wish (user_id, film_id),
+                        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                        FOREIGN KEY (film_id) REFERENCES dvds(id) ON DELETE CASCADE
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 
-            $pdo->beginTransaction();
+                    // 11. User Watched Tabelle
+                    "CREATE TABLE IF NOT EXISTS user_watched (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        user_id INT NOT NULL,
+                        film_id BIGINT NOT NULL,
+                        watched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        UNIQUE KEY unique_user_film_watched (user_id, film_id),
+                        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                        FOREIGN KEY (film_id) REFERENCES dvds(id) ON DELETE CASCADE
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+                ];
 
-            foreach ($tables as $index => $sql) {
-                try {
-                    $pdo->exec($sql);
-                    $installationSteps[] = '✅ Tabelle ' . ($index + 1) . ' erstellt';
-                } catch (PDOException $e) {
-                    throw new Exception('Tabellen-Erstellung fehlgeschlagen bei Tabelle ' . ($index + 1) . ': ' . $e->getMessage());
+                foreach ($tables as $index => $sql) {
+                    try {
+                        $pdo->exec($sql);
+                        $installationSteps[] = '✅ Tabelle ' . ($index + 1) . ' erstellt';
+                    } catch (PDOException $e) {
+                        throw new Exception('Tabellen-Erstellung fehlgeschlagen bei Tabelle ' . ($index + 1) . ': ' . $e->getMessage());
+                    }
                 }
-            }
 
-            // Standard-Einstellungen erstellen
-            $defaultSettings = [
-                ['site_title', $siteTitle, 'Website-Titel', 1],
-                ['base_url', $baseUrl, 'Basis-URL der Website', 0],
-                ['theme', 'default', 'Standard-Theme', 1],
-                ['environment', 'production', 'Umgebung (development/production)', 0],
-                ['max_upload_size', '50', 'Maximale Upload-Größe in MB', 0],
-                ['session_timeout', '3600', 'Session-Timeout in Sekunden', 0],
-                ['pagination_limit', '20', 'Elemente pro Seite', 1],
-                ['enable_registration', '0', 'Registrierung aktiviert', 0],
-                ['maintenance_mode', '0', 'Wartungsmodus aktiviert', 0],
-                ['version', DB_VERSION, 'Installierte Version', 0]
-            ];
+                // Standard-Einstellungen erstellen
+                $defaultSettings = [
+                    ['site_title', $siteTitle, 'Website-Titel', 1],
+                    ['base_url', $baseUrl, 'Basis-URL der Website', 0],
+                    ['theme', 'default', 'Standard-Theme', 1],
+                    ['environment', 'production', 'Umgebung (development/production)', 0],
+                    ['max_upload_size', '50', 'Maximale Upload-Größe in MB', 0],
+                    ['session_timeout', '3600', 'Session-Timeout in Sekunden', 0],
+                    ['pagination_limit', '20', 'Elemente pro Seite', 1],
+                    ['enable_registration', '0', 'Registrierung aktiviert', 0],
+                    ['maintenance_mode', '0', 'Wartungsmodus aktiviert', 0],
+                    ['version', DB_VERSION, 'Installierte Version', 0]
+                ];
 
-            $settingsStmt = $pdo->prepare("
-                INSERT INTO settings (`key`, `value`, description, is_public) 
-                VALUES (?, ?, ?, ?) 
-                ON DUPLICATE KEY UPDATE `value` = VALUES(`value`)
-            ");
+                $settingsStmt = $pdo->prepare("
+                    INSERT INTO settings (`key`, `value`, description, is_public) 
+                    VALUES (?, ?, ?, ?) 
+                    ON DUPLICATE KEY UPDATE `value` = VALUES(`value`)
+                ");
 
-            foreach ($defaultSettings as $setting) {
-                $settingsStmt->execute($setting);
-            }
+                foreach ($defaultSettings as $setting) {
+                    $settingsStmt->execute($setting);
+                }
 
-            $installationSteps[] = '✅ Standard-Einstellungen erstellt';
+                $installationSteps[] = '✅ Standard-Einstellungen erstellt';
 
-            // Admin-Benutzer erstellen
-            $adminEmail = 'admin@localhost';
-            $adminPassword = password_hash('admin123', PASSWORD_DEFAULT);
+                // Admin-Benutzer erstellen
+                $adminEmail = 'admin@localhost';
+                $adminPassword = password_hash('admin123', PASSWORD_DEFAULT);
 
-            $userStmt = $pdo->prepare("
-                INSERT IGNORE INTO users (email, password, created_at) 
-                VALUES (?, ?, NOW())
-            ");
-            $userStmt->execute([$adminEmail, $adminPassword]);
+                $userStmt = $pdo->prepare("
+                    INSERT IGNORE INTO users (email, password, created_at) 
+                    VALUES (?, ?, NOW())
+                ");
+                $userStmt->execute([$adminEmail, $adminPassword]);
 
-            $installationSteps[] = '✅ Admin-Benutzer erstellt (admin@localhost / admin123)';
+                $installationSteps[] = '✅ Admin-Benutzer erstellt (admin@localhost / admin123)';
 
-            // Cover-Verzeichnis erstellen
-            $coverDir = __DIR__ . '/../cover';
-            if (!is_dir($coverDir)) {
-                if (!mkdir($coverDir, 0755, true)) {
-                    $installationSteps[] = '⚠️ Cover-Verzeichnis konnte nicht erstellt werden';
+                // Verzeichnisse erstellen
+                $adminDir = __DIR__ . '/../admin';
+                if (!is_dir($adminDir)) {
+                    if (!mkdir($adminDir, 0755, true)) {
+                        $installationSteps[] = '⚠️ Admin-Verzeichnis konnte nicht erstellt werden';
+                    } else {
+                        $installationSteps[] = '✅ Admin-Verzeichnis erstellt';
+                    }
                 } else {
-                    $installationSteps[] = '✅ Cover-Verzeichnis erstellt';
+                    $installationSteps[] = '✅ Admin-Verzeichnis bereits vorhanden';
                 }
-            } else {
-                $installationSteps[] = '✅ Cover-Verzeichnis bereits vorhanden';
-            }
 
-            // XML-Verzeichnis erstellen
-            $xmlDir = __DIR__ . '/../admin/xml';
-            if (!is_dir($xmlDir)) {
-                if (!mkdir($xmlDir, 0755, true)) {
-                    $installationSteps[] = '⚠️ XML-Verzeichnis konnte nicht erstellt werden';
+                // .htaccess für Admin-Verzeichnis erstellen
+                $htaccessFile = $adminDir . '/.htaccess';
+                $htaccessContent = '# DVD Profiler Liste - Admin Security
+# Schutz für Lock-Datei und andere sensitive Dateien
+
+# Deny access to lock file
+<Files ".install.lock">
+    Order allow,deny
+    Deny from all
+</Files>
+
+# Deny access to backup codes and logs
+<Files "*.log">
+    Order allow,deny
+    Deny from all
+</Files>
+
+<Files "*.bak">
+    Order allow,deny
+    Deny from all
+</Files>
+
+# Deny access to PHP config files
+<Files "config*.php">
+    Order allow,deny
+    Deny from all
+</Files>
+
+# Allow access to normal admin files
+<Files "*.php">
+    Order allow,deny
+    Allow from all
+</Files>
+
+<Files "*.css">
+    Order allow,deny
+    Allow from all
+</Files>
+
+<Files "*.js">
+    Order allow,deny
+    Allow from all
+</Files>
+
+# Security headers
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options nosniff
+    Header always set X-Frame-Options SAMEORIGIN
+    Header always set X-XSS-Protection "1; mode=block"
+</IfModule>';
+
+                if (!file_exists($htaccessFile)) {
+                    if (file_put_contents($htaccessFile, $htaccessContent)) {
+                        $installationSteps[] = '✅ Admin .htaccess erstellt (Lock-Datei geschützt)';
+                    } else {
+                        $installationSteps[] = '⚠️ Admin .htaccess konnte nicht erstellt werden';
+                    }
                 } else {
-                    $installationSteps[] = '✅ XML-Verzeichnis erstellt';
+                    $installationSteps[] = '✅ Admin .htaccess bereits vorhanden';
                 }
-            } else {
-                $installationSteps[] = '✅ XML-Verzeichnis bereits vorhanden';
+
+                // Cover-Verzeichnis erstellen
+                $coverDir = __DIR__ . '/../cover';
+                if (!is_dir($coverDir)) {
+                    if (!mkdir($coverDir, 0755, true)) {
+                        $installationSteps[] = '⚠️ Cover-Verzeichnis konnte nicht erstellt werden';
+                    } else {
+                        $installationSteps[] = '✅ Cover-Verzeichnis erstellt';
+                    }
+                } else {
+                    $installationSteps[] = '✅ Cover-Verzeichnis bereits vorhanden';
+                }
+
+                // XML-Verzeichnis erstellen
+                $xmlDir = __DIR__ . '/../admin/xml';
+                if (!is_dir($xmlDir)) {
+                    if (!mkdir($xmlDir, 0755, true)) {
+                        $installationSteps[] = '⚠️ XML-Verzeichnis konnte nicht erstellt werden';
+                    } else {
+                        $installationSteps[] = '✅ XML-Verzeichnis erstellt';
+                    }
+                } else {
+                    $installationSteps[] = '✅ XML-Verzeichnis bereits vorhanden';
+                }
+
+                // Lock-Datei im geschützten Admin-Verzeichnis erstellen
+                $lockContent = json_encode([
+                    'installed_at' => date('Y-m-d H:i:s'),
+                    'version' => DB_VERSION,
+                    'installer_ip' => $_SERVER['REMOTE_ADDR'] ?? 'unknown',
+                    'php_version' => PHP_VERSION,
+                    'database' => $dbName,
+                    'admin_email' => $adminEmail,
+                    'security' => [
+                        'htaccess_protection' => file_exists($htaccessFile),
+                        'lock_file_protected' => true,
+                        'admin_dir_permissions' => substr(sprintf('%o', fileperms($adminDir)), -4)
+                    ]
+                ], JSON_PRETTY_PRINT);
+                
+                if (file_put_contents($lockFile, $lockContent)) {
+                    $installationSteps[] = '✅ Installation gesichert (.install.lock in Admin-Verzeichnis)';
+                } else {
+                    $installationSteps[] = '⚠️ Lock-Datei konnte nicht erstellt werden';
+                }
+
+                // Transaktion committen
+                if ($transactionStarted && $pdo->inTransaction()) {
+                    $pdo->commit();
+                    $transactionStarted = false;
+                    $installationSteps[] = '✅ Alle Änderungen gespeichert';
+                }
+                
+            } catch (Exception $e) {
+                if ($transactionStarted && isset($pdo) && $pdo->inTransaction()) {
+                    $pdo->rollBack();
+                    $transactionStarted = false;
+                }
+                throw $e;
             }
 
-            $pdo->commit();
             $installationSteps[] = '🎉 Installation erfolgreich abgeschlossen!';
             
             $success = true;
 
         } catch (PDOException $e) {
-            if (isset($pdo) && $pdo->inTransaction()) {
+            if ($transactionStarted && isset($pdo) && $pdo->inTransaction()) {
                 $pdo->rollback();
             }
             $errors[] = 'Datenbankfehler: ' . $e->getMessage();
             $installationSteps[] = '❌ Datenbankfehler aufgetreten';
         } catch (InvalidArgumentException $e) {
+            if ($transactionStarted && isset($pdo) && $pdo->inTransaction()) {
+                $pdo->rollback();
+            }
             $errors[] = $e->getMessage();
             $installationSteps[] = '❌ Validierungsfehler: ' . $e->getMessage();
         } catch (Exception $e) {
-            if (isset($pdo) && $pdo->inTransaction()) {
+            if ($transactionStarted && isset($pdo) && $pdo->inTransaction()) {
                 $pdo->rollback();
             }
             $errors[] = 'Installationsfehler: ' . $e->getMessage();
@@ -625,6 +799,14 @@ if ($_POST && $ready) {
             margin-bottom: 2rem;
         }
 
+        .mt-3 {
+            margin-top: 1rem;
+        }
+
+        .text-center {
+            text-align: center;
+        }
+
         .section-title {
             font-size: 1.1rem;
             font-weight: 600;
@@ -811,7 +993,11 @@ if ($_POST && $ready) {
                         <small>
                             <strong>Standard-Login:</strong><br>
                             E-Mail: admin@localhost<br>
-                            Passwort: admin123
+                            Passwort: admin123<br><br>
+                            <strong>Sicherheitshinweis:</strong><br>
+                            Die Installation wurde mit einer Lock-Datei im geschützten Admin-Verzeichnis gesichert.<br>
+                            Löschen Sie <code>/admin/.install.lock</code> für eine Neuinstallation.<br>
+                            Die Lock-Datei ist zusätzlich per .htaccess geschützt.
                         </small>
                     </div>
                 </div>
