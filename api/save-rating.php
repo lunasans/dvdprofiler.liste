@@ -1,69 +1,79 @@
 <?php
-// api/save-rating.php - DEBUG VERSION
+/**
+ * api/save-rating.php - KORRIGIERTE VERSION
+ * Behebt Fehler in Version 1.4.7
+ */
 declare(strict_types=1);
 
-// Debug: Log alles
-error_log("=== save-rating.php DEBUG START ===");
-error_log("Request Method: " . $_SERVER['REQUEST_METHOD']);
-error_log("Request URI: " . $_SERVER['REQUEST_URI']);
-error_log("Raw Input: " . file_get_contents('php://input'));
+// Debug-Logging aktivieren
+error_reporting(E_ALL);
+ini_set('log_errors', '1');
 
 session_start();
 
-// Debug: Session info
-error_log("Session ID: " . session_id());
-error_log("User ID: " . ($_SESSION['user_id'] ?? 'NOT SET'));
-
 try {
     require_once __DIR__ . '/../includes/bootstrap.php';
-    error_log("Bootstrap loaded successfully");
 } catch (Exception $e) {
-    error_log("Bootstrap error: " . $e->getMessage());
-    die(json_encode(['error' => 'Bootstrap fehler: ' . $e->getMessage()]));
+    error_log("Bootstrap error in save-rating.php: " . $e->getMessage());
+    http_response_code(500);
+    echo json_encode(['error' => 'System nicht verfügbar']);
+    exit;
 }
 
 header('Content-Type: application/json');
 
+// Authentifizierung prüfen
 if (!isset($_SESSION['user_id'])) {
-    error_log("ERROR: User not logged in");
     http_response_code(401);
     echo json_encode(['error' => 'Nicht angemeldet']);
     exit;
 }
 
+// Input validieren
 $rawInput = file_get_contents('php://input');
 $input = json_decode($rawInput, true);
 
 if (json_last_error() !== JSON_ERROR_NONE) {
-    error_log("JSON decode error: " . json_last_error_msg());
+    error_log("JSON decode error in save-rating.php: " . json_last_error_msg());
     http_response_code(400);
-    echo json_encode(['error' => 'Invalid JSON']);
+    echo json_encode(['error' => 'Ungültige JSON-Daten']);
     exit;
 }
 
 $filmId = (int)($input['film_id'] ?? 0);
 $rating = (float)($input['rating'] ?? 0);
 
-error_log("Parsed data - Film ID: $filmId, Rating: $rating");
-
+// Parameter validieren
 if ($filmId <= 0 || $rating < 1 || $rating > 5) {
-    error_log("ERROR: Invalid parameters - filmId: $filmId, rating: $rating");
+    error_log("Invalid parameters in save-rating.php - filmId: $filmId, rating: $rating");
     http_response_code(400);
-    echo json_encode(['error' => 'Ungültige Parameter']);
+    echo json_encode(['error' => 'Ungültige Parameter (Film-ID oder Bewertung)']);
     exit;
 }
 
 try {
-    // Test Datenbankverbindung
-    $pdo->query("SELECT 1");
-    error_log("Database connection OK");
+    // Datenbankverbindung prüfen
+    if (!isset($pdo) || !($pdo instanceof PDO)) {
+        throw new Exception('Datenbankverbindung nicht verfügbar');
+    }
     
-    // Prüfen ob user_ratings Tabelle existiert
+    // Test der Verbindung
+    $pdo->query("SELECT 1");
+    
+    // Prüfen ob Film existiert
+    $filmCheck = $pdo->prepare("SELECT id FROM dvds WHERE id = ?");
+    $filmCheck->execute([$filmId]);
+    if (!$filmCheck->fetch()) {
+        http_response_code(404);
+        echo json_encode(['error' => 'Film nicht gefunden']);
+        exit;
+    }
+    
+    // Prüfen ob user_ratings Tabelle existiert, falls nicht erstellen
     $tableExists = $pdo->query("SHOW TABLES LIKE 'user_ratings'")->rowCount() > 0;
-    error_log("user_ratings table exists: " . ($tableExists ? 'YES' : 'NO'));
     
     if (!$tableExists) {
-        error_log("Creating user_ratings table...");
+        error_log("Creating user_ratings table in save-rating.php");
         $pdo->exec("
             CREATE TABLE user_ratings (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -72,27 +82,33 @@ try {
                 rating DECIMAL(2,1) NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                UNIQUE KEY unique_user_film (user_id, film_id)
-            )
+                UNIQUE KEY unique_user_film (user_id, film_id),
+                FOREIGN KEY (film_id) REFERENCES dvds(id) ON DELETE CASCADE,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
         ");
-        error_log("user_ratings table created successfully");
     }
     
     // Rating einfügen/updaten
     $stmt = $pdo->prepare("
         INSERT INTO user_ratings (film_id, user_id, rating) 
         VALUES (?, ?, ?) 
-        ON DUPLICATE KEY UPDATE rating = VALUES(rating), updated_at = NOW()
+        ON DUPLICATE KEY UPDATE 
+            rating = VALUES(rating), 
+            updated_at = CURRENT_TIMESTAMP
     ");
     
     $result = $stmt->execute([$filmId, $_SESSION['user_id'], $rating]);
-    error_log("SQL executed successfully. Result: " . ($result ? 'TRUE' : 'FALSE'));
-    error_log("Affected rows: " . $stmt->rowCount());
     
+    if (!$result) {
+        throw new Exception('Bewertung konnte nicht gespeichert werden');
+    }
+    
+    // Erfolgreiche Antwort
     echo json_encode([
         'success' => true, 
-        'message' => 'Bewertung gespeichert',
-        'debug' => [
+        'message' => 'Bewertung erfolgreich gespeichert',
+        'data' => [
             'film_id' => $filmId,
             'user_id' => $_SESSION['user_id'],
             'rating' => $rating,
@@ -100,26 +116,27 @@ try {
         ]
     ]);
     
-    error_log("SUCCESS: Rating saved successfully");
+    error_log("Rating saved successfully - Film: $filmId, User: {$_SESSION['user_id']}, Rating: $rating");
     
 } catch (PDOException $e) {
-    error_log("DATABASE ERROR: " . $e->getMessage());
+    error_log("Database error in save-rating.php: " . $e->getMessage());
     error_log("Error Code: " . $e->getCode());
-    error_log("SQL State: " . $e->errorInfo[0] ?? 'unknown');
     
     http_response_code(500);
     echo json_encode([
-        'error' => 'Datenbankfehler: ' . $e->getMessage(),
+        'error' => 'Datenbankfehler beim Speichern der Bewertung',
         'debug' => [
             'code' => $e->getCode(),
             'sqlstate' => $e->errorInfo[0] ?? 'unknown'
         ]
     ]);
+    
 } catch (Exception $e) {
-    error_log("GENERAL ERROR: " . $e->getMessage());
+    error_log("General error in save-rating.php: " . $e->getMessage());
+    
     http_response_code(500);
-    echo json_encode(['error' => 'Allgemeiner Fehler: ' . $e->getMessage()]);
+    echo json_encode([
+        'error' => 'Fehler beim Speichern der Bewertung: ' . $e->getMessage()
+    ]);
 }
-
-error_log("=== save-rating.php DEBUG END ===");
 ?>
