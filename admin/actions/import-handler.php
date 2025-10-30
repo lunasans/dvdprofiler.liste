@@ -11,7 +11,7 @@ if (!isset($_SESSION['user_id'])) {
 
 $uploadDir = __DIR__ . '/../xml/';
 if (!is_dir($uploadDir)) {
-    mkdir($uploadDir, 0750, true);
+    mkdir($uploadDir, 0777, true);
 }
 
 if (!isset($_FILES['xml_file']) || $_FILES['xml_file']['error'] !== UPLOAD_ERR_OK) {
@@ -21,7 +21,6 @@ if (!isset($_FILES['xml_file']) || $_FILES['xml_file']['error'] !== UPLOAD_ERR_O
 $filename = $_FILES['xml_file']['name'];
 $tmpPath = $_FILES['xml_file']['tmp_name'];
 
-// XML-Content extrahieren (ZIP oder direkte XML)
 $xmlContent = '';
 if (str_ends_with($filename, '.zip')) {
     $zip = new ZipArchive();
@@ -43,12 +42,11 @@ if (empty($xmlContent)) {
     exit('Keine XML-Daten gefunden.');
 }
 
-// XML validieren und parsen
 libxml_use_internal_errors(true);
 $xml = simplexml_load_string(
     $xmlContent,
     'SimpleXMLElement',
-    LIBXML_NOCDATA | LIBXML_NONET
+    LIBXML_NOCDATA | LIBXML_NOENT | LIBXML_NONET
 );
 
 if ($xml === false) {
@@ -60,11 +58,9 @@ if ($xml === false) {
     exit($errorMsg);
 }
 
-// XML-Datei zur Archivierung speichern
 $savedPath = $uploadDir . 'import_' . date('Ymd_His') . '.xml';
 file_put_contents($savedPath, $xmlContent);
 
-// Import-Statistiken initialisieren
 $imported = 0;
 $skipped = 0;
 $boxsetFixed = 0;
@@ -234,46 +230,46 @@ try {
                     $role = trim((string)($actorXml['Role'] ?? $actorXml->Role ?? ''));
                     $birthYear = (int)($actorXml['BirthYear'] ?? $actorXml->BirthYear ?? 0);
                     
+                    // Debug: XML-Struktur ausgeben
                     if (empty($firstName) && empty($lastName)) {
-                        continue; // Überspringen wenn kein Name
+                        error_log("DVD $id: Schauspieler-Element gefunden, aber keine Namen: " . 
+                                 json_encode([
+                                     'attributes' => (array)$actorXml->attributes(),
+                                     'children' => array_keys((array)$actorXml),
+                                     'content' => (string)$actorXml
+                                 ]));
+                        continue;
                     }
                     
-                    // Schauspieler in DB suchen oder erstellen
-                    $actorStmt = $pdo->prepare("
-                        SELECT id FROM actors 
-                        WHERE first_name = ? AND last_name = ?
-                    ");
-                    $actorStmt->execute([$firstName, $lastName]);
-                    $existingActor = $actorStmt->fetch();
-                    
-                    if ($existingActor) {
-                        $actorId = $existingActor['id'];
-                    } else {
-                        // Neuen Schauspieler erstellen
-                        $insertActorStmt = $pdo->prepare("
-                            INSERT INTO actors (first_name, last_name, birth_year, created_at) 
-                            VALUES (?, ?, ?, NOW())
-                        ");
-                        $insertActorStmt->execute([$firstName, $lastName, $birthYear ?: null]);
-                        $actorId = $pdo->lastInsertId();
-                        $totalActorsImported++;
+                    if (!empty($firstName) || !empty($lastName)) {
+                        // Prüfen ob Schauspieler bereits existiert (ohne birth_year falls unbekannt)
+                        if ($birthYear > 0) {
+                            $stmtActor = $pdo->prepare("SELECT id FROM actors WHERE first_name = ? AND last_name = ? AND birth_year = ?");
+                            $stmtActor->execute([$firstName, $lastName, $birthYear]);
+                        } else {
+                            $stmtActor = $pdo->prepare("SELECT id FROM actors WHERE first_name = ? AND last_name = ? AND (birth_year IS NULL OR birth_year = 0)");
+                            $stmtActor->execute([$firstName, $lastName]);
+                        }
                         
-                        error_log("DVD $id: Neuer Schauspieler erstellt: $firstName $lastName (ID: $actorId)");
-                    }
-                    
-                    // Prüfen ob Verknüpfung bereits existiert
-                    $linkCheck = $pdo->prepare("
-                        SELECT COUNT(*) FROM film_actor 
-                        WHERE film_id = ? AND actor_id = ?
-                    ");
-                    $linkCheck->execute([$id, $actorId]);
-                    
-                    if ($linkCheck->fetchColumn() == 0) {
-                        // Verknüpfung erstellen
-                        $stmtLink = $pdo->prepare("
-                            INSERT INTO film_actor (film_id, actor_id, role) 
-                            VALUES (?, ?, ?)
-                        ");
+                        $actorId = $stmtActor->fetchColumn();
+
+                        if (!$actorId) {
+                            // Neuen Schauspieler anlegen mit allen Spalten
+                            $stmtInsert = $pdo->prepare("
+                                INSERT INTO actors (first_name, last_name, birth_year, bio, created_at, updated_at) 
+                                VALUES (?, ?, ?, '', NOW(), NOW())
+                            ");
+                            $stmtInsert->execute([$firstName, $lastName, $birthYear > 0 ? $birthYear : null]);
+                            $actorId = $pdo->lastInsertId();
+                            $totalActorsImported++;
+                            
+                            error_log("DVD $id: Neuer Schauspieler erstellt: $firstName $lastName (ID: $actorId)");
+                        } else {
+                            error_log("DVD $id: Bestehender Schauspieler gefunden: $firstName $lastName (ID: $actorId)");
+                        }
+
+                        // Verknüpfung Film-Schauspieler anlegen
+                        $stmtLink = $pdo->prepare("INSERT IGNORE INTO film_actor (film_id, actor_id, role) VALUES (?, ?, ?)");
                         $stmtLink->execute([$id, $actorId, $role]);
                         
                         $actorCount++;
@@ -297,10 +293,8 @@ try {
         }
     }
 
-    // PHASE 3: BoxSet-Validierung und Bereinigung (VOLLSTÄNDIG)
+    // Foreign Key Constraints temporär prüfen
     try {
-        error_log("Starte BoxSet-Validierung...");
-        
         // Prüfe auf invalide BoxSet-Parents
         $invalidParents = $pdo->query("
             SELECT DISTINCT d1.boxset_parent, COUNT(*) as count
@@ -318,47 +312,10 @@ try {
                 // Invalide Parent-Referenzen auf NULL setzen
                 $fixStmt = $pdo->prepare("UPDATE dvds SET boxset_parent = NULL WHERE boxset_parent = ?");
                 $fixStmt->execute([$invalid['boxset_parent']]);
-                
-                error_log("BoxSet-Referenzen für Parent {$invalid['boxset_parent']} auf NULL gesetzt");
             }
         }
-        
-        // Prüfe auf zirkuläre Referenzen
-        $circularCheck = $pdo->query("
-            SELECT d1.id, d1.title, d1.boxset_parent
-            FROM dvds d1
-            INNER JOIN dvds d2 ON d1.boxset_parent = d2.id
-            WHERE d2.boxset_parent = d1.id
-        ")->fetchAll();
-        
-        if (!empty($circularCheck)) {
-            foreach ($circularCheck as $circular) {
-                error_log("WARNUNG: Zirkuläre BoxSet-Referenz gefunden: DVD {$circular['id']} ({$circular['title']})");
-                $fixStmt = $pdo->prepare("UPDATE dvds SET boxset_parent = NULL WHERE id = ?");
-                $fixStmt->execute([$circular['id']]);
-                $boxsetFixed++;
-            }
-        }
-        
-        // Prüfe auf selbst-referenzierende DVDs
-        $selfRefCheck = $pdo->query("
-            SELECT id, title FROM dvds WHERE id = boxset_parent
-        ")->fetchAll();
-        
-        if (!empty($selfRefCheck)) {
-            foreach ($selfRefCheck as $selfRef) {
-                error_log("WARNUNG: Selbst-referenzierende DVD gefunden: {$selfRef['id']} ({$selfRef['title']})");
-                $fixStmt = $pdo->prepare("UPDATE dvds SET boxset_parent = NULL WHERE id = ?");
-                $fixStmt->execute([$selfRef['id']]);
-                $boxsetFixed++;
-            }
-        }
-        
-        error_log("BoxSet-Validierung abgeschlossen");
-        
     } catch (Exception $e) {
         error_log("Fehler bei BoxSet-Validierung: " . $e->getMessage());
-        // Nicht kritisch - Import kann fortgesetzt werden
     }
 
     $pdo->commit();
@@ -379,7 +336,6 @@ try {
     error_log("- $finalActorLinksTotal Schauspieler-Verknüpfungen gesamt in DB");
     error_log("- $finalBoxsetChildren BoxSet-Kinder");
     error_log("- $finalBoxsetParents BoxSet-Parents");
-    error_log("- $boxsetFixed BoxSet-Probleme behoben");
 
 } catch (Exception $e) {
     $pdo->rollBack();
@@ -419,4 +375,3 @@ $_SESSION['import_result'] = $resultMessage;
 
 header('Location: ../index.php?page=import');
 exit;
-?>

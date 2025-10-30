@@ -1,16 +1,15 @@
 <?php
 /**
- * Film-Fragment mit robuster Fehlerbehandlung und Memory-Management
- * PRODUCTION VERSION - Ohne Debug-Code, mit verbesserter Stabilität
+ * Film-Fragment mit verbesserter Fehlerbehandlung und Sicherheit
+ * Fixes: Output Buffer Management, ID-Validierung, Memory-Leaks
  */
 
 // Sicherheitsheader setzen
 header('X-Content-Type-Options: nosniff');
 header('X-Frame-Options: DENY');
-header('Cache-Control: no-cache, must-revalidate');
 
 try {
-    // ID-Validierung mit strikter Prüfung
+    // Bessere ID-Validierung am Anfang
     $id = filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT);
     if (!$id || $id <= 0) {
         http_response_code(400);
@@ -23,7 +22,7 @@ try {
     }
     ob_start();
 
-    // Database connection mit Fehlerbehandlung
+    // Database connection mit verbesserter Fehlerbehandlung
     try {
         require_once __DIR__ . '/includes/bootstrap.php';
         
@@ -31,14 +30,14 @@ try {
             throw new Exception('Datenbankverbindung nicht verfügbar');
         }
         
-        // Verbindung testen
+        // Test der Verbindung
         $pdo->query('SELECT 1');
         
-        // Helper-Funktionen definieren falls nicht vorhanden
+        // Benötigte Funktionen definieren falls nicht vorhanden
         if (!function_exists('findCoverImage')) {
             function findCoverImage(string $coverId, string $suffix = 'f', string $folder = 'cover', string $fallback = 'cover/placeholder.png'): string {
                 if (empty($coverId)) return $fallback;
-                $extensions = ['.jpg', '.jpeg', '.png', '.webp'];
+                $extensions = ['.jpg', '.jpeg', '.png'];
                 foreach ($extensions as $ext) {
                     $file = "{$folder}/{$coverId}{$suffix}{$ext}";
                     if (file_exists($file)) {
@@ -52,17 +51,11 @@ try {
         if (!function_exists('getActorsByDvdId')) {
             function getActorsByDvdId(PDO $pdo, int $dvdId): array {
                 try {
-                    $stmt = $pdo->prepare("
-                        SELECT first_name, last_name, role 
-                        FROM film_actor fa 
-                        JOIN actors a ON fa.actor_id = a.id 
-                        WHERE fa.film_id = ? 
-                        ORDER BY a.last_name, a.first_name
-                    ");
+                    $stmt = $pdo->prepare("SELECT first_name, last_name, role FROM film_actor fa JOIN actors a ON fa.actor_id = a.id WHERE fa.film_id = ?");
                     $stmt->execute([$dvdId]);
                     return $stmt->fetchAll(PDO::FETCH_ASSOC);
                 } catch (PDOException $e) {
-                    error_log("Actor query error for film {$dvdId}: " . $e->getMessage());
+                    error_log("Actor query error: " . $e->getMessage());
                     return [];
                 }
             }
@@ -77,27 +70,17 @@ try {
             }
         }
         
-        if (!function_exists('formatFileSize')) {
-            function formatFileSize(?int $bytes): string {
-                if (!$bytes) return '';
-                $units = ['B', 'KB', 'MB', 'GB'];
-                $factor = floor((strlen((string)$bytes) - 1) / 3);
-                return sprintf("%.1f", $bytes / pow(1024, $factor)) . ' ' . $units[$factor];
-            }
-        }
-        
     } catch (PDOException $e) {
         throw new Exception('Datenbankfehler: ' . $e->getMessage());
     }
 
-    // Film-Daten laden mit optimierter Query
+    // Film-Daten laden mit prepared statement
     try {
         $stmt = $pdo->prepare("
             SELECT d.*, 
                    u.email as added_by_user,
                    d.genre as genres_list,
-                   (SELECT COUNT(*) FROM dvds WHERE boxset_parent = d.id) as boxset_children_count,
-                   COALESCE(d.view_count, 0) as view_count
+                   (SELECT COUNT(*) FROM dvds WHERE boxset_parent = d.id) as boxset_children_count
             FROM dvds d 
             LEFT JOIN users u ON d.user_id = u.id 
             WHERE d.id = ?
@@ -115,6 +98,11 @@ try {
             throw new Exception("Film mit ID $id nicht gefunden");
         }
         
+        // Debug: Film gefunden
+        error_log("Film-Fragment: Film geladen - ID: $id, Titel: " . $dvd['title']);
+        error_log("Film-Fragment: DVD-Daten: " . json_encode(array_keys($dvd)));
+        error_log("Film-Fragment: DVD-ID Feld: " . var_export($dvd['id'] ?? 'NICHT_GESETZT', true));
+        
     } catch (PDOException $e) {
         throw new Exception('Fehler beim Laden der Film-Daten: ' . $e->getMessage());
     }
@@ -124,13 +112,15 @@ try {
     if ($dvd['boxset_children_count'] > 0) {
         try {
             $childStmt = $pdo->prepare("
-                SELECT id, title, year, cover_id, runtime, rating_age
+                SELECT id, title, year, poster_url 
                 FROM dvds 
                 WHERE boxset_parent = ? 
-                ORDER BY year ASC, title ASC
+                ORDER BY title ASC
             ");
             $childStmt->execute([$id]);
             $boxsetChildren = $childStmt->fetchAll(PDO::FETCH_ASSOC);
+            
+            error_log("Film-Fragment: " . count($boxsetChildren) . " BoxSet-Kinder geladen");
             
         } catch (PDOException $e) {
             error_log("Warnung: BoxSet-Kinder konnten nicht geladen werden: " . $e->getMessage());
@@ -138,77 +128,63 @@ try {
         }
     }
 
-    // film-view.php laden mit verbesserter Fehlerbehandlung
+    // Debug: Vor film-view.php include
+    error_log("Film-Fragment: Lade film-view.php für Film: " . $dvd['title']);
+
+    // film-view.php laden - mit Fehlerbehandlung
     $filmViewPath = __DIR__ . '/partials/film-view.php';
     
     if (!file_exists($filmViewPath)) {
-        throw new Exception('Film-Detail-Template nicht gefunden');
+        throw new Exception('film-view.php nicht gefunden: ' . $filmViewPath);
     }
     
     if (!is_readable($filmViewPath)) {
-        throw new Exception('Film-Detail-Template nicht lesbar');
+        throw new Exception('film-view.php nicht lesbar: ' . $filmViewPath);
     }
 
-    // Output Buffer für film-view.php
-    $filmViewOutput = '';
-    $bufferLevel = ob_get_level();
+    // Neuer Output Buffer für film-view.php
+    ob_start();
     
     try {
-        ob_start();
-        
-        // Include mit allen Variablen im Scope
+        // Direktes Include - $dvd und $boxsetChildren sind im Scope verfügbar
         include $filmViewPath;
-        
         $filmViewOutput = ob_get_clean();
         
         if (empty($filmViewOutput)) {
-            throw new Exception('Film-Detail-Template hat keinen Output produziert');
+            throw new Exception('film-view.php hat keinen Output produziert');
         }
         
+        // XSS-Schutz für Film-ID
+        $safeFilmId = htmlspecialchars($id, ENT_QUOTES, 'UTF-8');
+        
+        // Wrapper für AJAX-Content mit verbesserter Struktur
+        echo '<div class="film-detail-content fade-in" data-film-id="' . $safeFilmId . '" data-loaded="' . time() . '">';
+        echo $filmViewOutput;
+        echo '</div>';
+        
     } catch (Throwable $e) {
-        // Buffer aufräumen bei Fehler
-        while (ob_get_level() > $bufferLevel) {
-            ob_end_clean();
-        }
-        throw new Exception('Fehler beim Laden des Film-Detail-Templates: ' . $e->getMessage());
+        ob_end_clean();
+        throw new Exception('Fehler beim Laden von film-view.php: ' . $e->getMessage());
     }
 
-    // View-Count erhöhen (non-blocking)
-    try {
-        $updateViewStmt = $pdo->prepare("UPDATE dvds SET view_count = COALESCE(view_count, 0) + 1 WHERE id = ?");
-        $updateViewStmt->execute([$id]);
-    } catch (PDOException $e) {
-        // View-Count-Update ist nicht kritisch
-        error_log("View count update error for film {$id}: " . $e->getMessage());
-    }
-
-    // Sichere HTML-Ausgabe
-    $safeFilmId = htmlspecialchars((string)$id, ENT_QUOTES, 'UTF-8');
-    $safeTitle = htmlspecialchars($dvd['title'] ?? 'Unbekannter Film', ENT_QUOTES, 'UTF-8');
-    
-    // Wrapper für AJAX-Content
-    echo '<div class="film-detail-content fade-in" data-film-id="' . $safeFilmId . '" data-loaded="' . time() . '" aria-label="Film-Details für ' . $safeTitle . '">';
-    echo $filmViewOutput;
-    echo '</div>';
+    // Debug: Erfolgreich geladen
+    error_log("Film-Fragment: Erfolgreich geladen für Film-ID: $id, Output-Größe: " . strlen($filmViewOutput) . " Bytes");
 
 } catch (Throwable $e) {
-    // Komplette Buffer-Bereinigung bei Fehler
+    // Buffer komplett leeren bei Fehler
     while (ob_get_level()) {
         ob_end_clean();
     }
     
-    // Fehler loggen mit Kontext
-    error_log("Film-Fragment ERROR: " . $e->getMessage());
-    error_log("Film-Fragment Context: " . json_encode([
-        'type' => get_class($e),
-        'file' => $e->getFile(),
-        'line' => $e->getLine(),
-        'film_id' => $_GET['id'] ?? 'keine',
-        'memory_usage' => memory_get_usage(true),
-        'ip' => $_SERVER['REMOTE_ADDR'] ?? 'unknown'
-    ]));
+    // Fehler loggen mit mehr Kontext
+    error_log("Film-Fragment FATAL ERROR: " . $e->getMessage());
+    error_log("Film-Fragment Error Type: " . get_class($e));
+    error_log("Film-Fragment File: " . $e->getFile() . ":" . $e->getLine());
+    error_log("Film-Fragment Stack: " . $e->getTraceAsString());
+    error_log("Film-Fragment Request: " . json_encode($_GET));
+    error_log("Film-Fragment Memory: " . memory_get_usage(true) . " bytes");
     
-    // HTTP Status setzen
+    // HTTP Status setzen basierend auf Fehlertyp
     if ($e instanceof InvalidArgumentException) {
         http_response_code(400);
     } elseif (strpos($e->getMessage(), 'nicht gefunden') !== false) {
@@ -217,47 +193,47 @@ try {
         http_response_code(500);
     }
     
-    // Benutzerfreundliche Fehlermeldung
+    // Benutzerfreundliche Fehlermeldung mit verbesserter UX
     $errorClass = $e instanceof InvalidArgumentException ? 'client-error' : 'server-error';
     $errorIcon = $e instanceof InvalidArgumentException ? 'bi-exclamation-circle' : 'bi-exclamation-triangle';
     $safeErrorMsg = htmlspecialchars($e->getMessage(), ENT_QUOTES, 'UTF-8');
     $safeFilmId = htmlspecialchars($_GET['id'] ?? 'keine', ENT_QUOTES, 'UTF-8');
-    $isDevelopment = defined('DEBUG') && DEBUG;
+    $safeIP = htmlspecialchars($_SERVER['REMOTE_ADDR'] ?? 'unbekannt', ENT_QUOTES, 'UTF-8');
     
-    echo '<div class="error-message ' . $errorClass . '">';
-    echo '<i class="' . $errorIcon . '"></i>';
-    echo '<h3>' . ($e instanceof InvalidArgumentException ? 'Ungültige Anfrage' : 'Serverfehler') . '</h3>';
-    echo '<p>Die Film-Details konnten nicht geladen werden.</p>';
-    
-    if ($isDevelopment) {
-        echo '<details class="error-details">';
-        echo '<summary>Technische Details (Development-Mode)</summary>';
-        echo '<p><strong>Fehlertyp:</strong> ' . htmlspecialchars(get_class($e), ENT_QUOTES, 'UTF-8') . '</p>';
-        echo '<p><strong>Fehler:</strong> ' . $safeErrorMsg . '</p>';
-        echo '<p><strong>Film-ID:</strong> ' . $safeFilmId . '</p>';
-        echo '<p><strong>Zeit:</strong> ' . date('Y-m-d H:i:s') . '</p>';
-        echo '<p><strong>Memory:</strong> ' . memory_get_usage(true) . ' bytes</p>';
-        echo '</details>';
-    }
-    
-    echo '<div class="error-actions">';
-    echo '<button onclick="location.reload()" class="btn btn-primary">';
-    echo '<i class="bi bi-arrow-clockwise"></i> Seite neu laden';
-    echo '</button>';
-    echo '<button onclick="closeDetail()" class="btn btn-secondary">';
-    echo '<i class="bi bi-x"></i> Schließen';
-    echo '</button>';
-    echo '<button onclick="goBack()" class="btn btn-outline">';
-    echo '<i class="bi bi-arrow-left"></i> Zurück zur Liste';
-    echo '</button>';
-    echo '</div>';
-    echo '</div>';
+    echo '<div class="error-message ' . $errorClass . '">
+            <i class="' . $errorIcon . '"></i>
+            <h3>' . ($e instanceof InvalidArgumentException ? 'Ungültige Anfrage' : 'Serverfehler') . '</h3>
+            <p>Die Film-Details konnten nicht geladen werden.</p>
+            <details class="error-details">
+                <summary>Technische Details (für Entwickler)</summary>
+                <p><strong>Fehlertyp:</strong> ' . htmlspecialchars(get_class($e), ENT_QUOTES, 'UTF-8') . '</p>
+                <p><strong>Fehler:</strong> ' . $safeErrorMsg . '</p>
+                <p><strong>Film-ID:</strong> ' . $safeFilmId . '</p>
+                <p><strong>Zeit:</strong> ' . date('Y-m-d H:i:s') . '</p>
+                <p><strong>IP:</strong> ' . $safeIP . '</p>
+                <p><strong>Memory:</strong> ' . memory_get_usage(true) . ' bytes</p>
+                <p><strong>User-Agent:</strong> ' . htmlspecialchars($_SERVER['HTTP_USER_AGENT'] ?? 'unbekannt', ENT_QUOTES, 'UTF-8') . '</p>
+            </details>
+            <div class="error-actions">
+                <button onclick="location.reload()" class="btn btn-primary">
+                    <i class="bi bi-arrow-clockwise"></i> Seite neu laden
+                </button>
+                <button onclick="closeDetail()" class="btn btn-secondary">
+                    <i class="bi bi-x"></i> Schließen
+                </button>
+                <button onclick="goBack()" class="btn btn-outline">
+                    <i class="bi bi-arrow-left"></i> Zurück zur Liste
+                </button>
+            </div>
+          </div>';
 }
 
-// JavaScript für Enhanced UX (außerhalb try-catch)
+// JavaScript für Enhanced UX mit besserer Fehlerbehandlung
 ?>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    console.log('Film-Fragment JavaScript geladen');
+    
     try {
         // Smooth scroll to top of detail panel
         const detailPanel = document.getElementById('detail-container');
@@ -266,61 +242,65 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         // Focus management für Accessibility
-        const firstHeading = document.querySelector('.film-detail-content h2, .film-detail-content h1');
+        const firstHeading = document.querySelector('.film-detail-content h2');
         if (firstHeading) {
             firstHeading.setAttribute('tabindex', '-1');
             firstHeading.focus();
         }
         
+        // Performance monitoring
+        const loadTime = performance.now();
+        console.log(`Film-Fragment loaded in ${loadTime.toFixed(2)}ms`);
+        
         // Memory cleanup für alte Film-Details
         const oldDetails = document.querySelectorAll('.film-detail-content[data-loaded]');
-        const currentTime = Math.floor(Date.now() / 1000);
-        
         oldDetails.forEach(detail => {
-            const loadedTime = parseInt(detail.dataset.loaded || '0');
-            // Entferne Details die älter als 5 Minuten sind
-            if (currentTime - loadedTime > 300) {
+            const loadedTime = parseInt(detail.dataset.loaded);
+            const now = Math.floor(Date.now() / 1000);
+            if (now - loadedTime > 300) { // 5 Minuten alt
                 detail.remove();
             }
         });
         
-        // Error handling für AJAX-Calls in film-view.php
-        window.addEventListener('unhandledrejection', function(event) {
-            console.error('Unhandled promise rejection in film-fragment:', event.reason);
-        });
-        
     } catch (error) {
-        console.error('Film-Fragment JavaScript error:', error);
+        console.error('Film-Fragment JavaScript Error:', error);
     }
 });
 
-// Helper functions für error actions
 function closeDetail() {
     try {
         const detailContainer = document.getElementById('detail-container');
         if (detailContainer) {
-            detailContainer.innerHTML = '';
-            detailContainer.style.display = 'none';
-        }
-        
-        // Focus zurück zur Liste
-        const filmGrid = document.querySelector('.film-grid, .film-list');
-        if (filmGrid) {
-            filmGrid.focus();
+            // Fade out animation
+            detailContainer.style.opacity = '0';
+            
+            setTimeout(() => {
+                detailContainer.innerHTML = `
+                    <div class="detail-placeholder">
+                        <i class="bi bi-film"></i>
+                        <p>Wählen Sie einen Film aus der Liste, um Details anzuzeigen.</p>
+                    </div>
+                `;
+                detailContainer.style.opacity = '1';
+            }, 200);
+            
+            // URL cleanup
+            if (history.replaceState) {
+                history.replaceState(null, '', window.location.pathname);
+            }
         }
     } catch (error) {
         console.error('Error closing detail:', error);
-        // Fallback: Seite neu laden
+        // Fallback ohne Animation
         location.reload();
     }
 }
 
 function goBack() {
     try {
-        if (window.history.length > 1) {
-            window.history.back();
+        if (history.length > 1) {
+            history.back();
         } else {
-            // Fallback: Zu Hauptseite
             window.location.href = '/';
         }
     } catch (error) {
@@ -328,34 +308,38 @@ function goBack() {
         window.location.href = '/';
     }
 }
+
+// Global error handler für AJAX
+window.addEventListener('unhandledrejection', function(event) {
+    console.error('Unhandled Promise Rejection:', event.reason);
+    event.preventDefault();
+});
 </script>
 
 <style>
-/* Error Message Styles */
 .error-message {
-    background: var(--glass-bg-strong, rgba(255, 255, 255, 0.15));
-    border-radius: var(--radius-lg, 16px);
-    padding: var(--space-xl, 24px);
+    background: var(--glass-bg-strong);
+    border-radius: var(--radius-lg);
+    padding: var(--space-xl);
     text-align: center;
-    color: var(--text-glass, rgba(255, 255, 255, 0.9));
+    color: var(--text-glass);
     backdrop-filter: blur(10px);
     max-width: 500px;
-    margin: var(--space-xl, 24px) auto;
+    margin: var(--space-xl) auto;
     animation: fadeIn 0.3s ease-out;
-    border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.2));
 }
 
 .error-message.server-error {
-    border-color: rgba(239, 68, 68, 0.3);
+    border: 1px solid rgba(239, 68, 68, 0.3);
 }
 
 .error-message.client-error {
-    border-color: rgba(245, 158, 11, 0.3);
+    border: 1px solid rgba(245, 158, 11, 0.3);
 }
 
 .error-message i {
     font-size: 3rem;
-    margin-bottom: var(--space-lg, 16px);
+    margin-bottom: var(--space-lg);
     display: block;
 }
 
@@ -367,89 +351,45 @@ function goBack() {
     color: #f59e0b;
 }
 
-.error-message h3 {
-    margin: 0 0 var(--space-md, 12px) 0;
-    font-size: 1.5rem;
-}
-
-.error-message p {
-    margin: 0 0 var(--space-lg, 16px) 0;
-    opacity: 0.8;
-}
-
 .error-details {
-    margin: var(--space-lg, 16px) 0;
+    margin: var(--space-lg) 0;
     text-align: left;
-    background: var(--glass-bg, rgba(255, 255, 255, 0.1));
-    padding: var(--space-md, 12px);
-    border-radius: var(--radius-md, 8px);
-    border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.2));
+    background: var(--glass-bg);
+    padding: var(--space-md);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--glass-border);
 }
 
 .error-details summary {
     cursor: pointer;
     font-weight: 600;
-    color: var(--text-white, #ffffff);
-    margin-bottom: var(--space-sm, 8px);
+    color: var(--text-white);
+    margin-bottom: var(--space-sm);
     user-select: none;
 }
 
 .error-details summary:hover {
-    color: var(--primary-color, #3b82f6);
+    color: var(--primary-color);
 }
 
 .error-details p {
-    margin: var(--space-xs, 4px) 0;
+    margin: var(--space-xs) 0;
     font-size: 0.85rem;
     font-family: 'Courier New', monospace;
     word-break: break-all;
-    opacity: 0.9;
 }
 
 .error-actions {
     display: flex;
-    gap: var(--space-md, 12px);
+    gap: var(--space-md);
     justify-content: center;
-    margin-top: var(--space-lg, 16px);
+    margin-top: var(--space-lg);
     flex-wrap: wrap;
 }
 
-.error-actions .btn {
-    padding: var(--space-sm, 8px) var(--space-md, 12px);
-    border-radius: var(--radius-md, 8px);
-    border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.2));
-    background: var(--glass-bg, rgba(255, 255, 255, 0.1));
-    color: var(--text-white, #ffffff);
-    text-decoration: none;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    font-size: 0.9rem;
-}
-
-.error-actions .btn:hover {
-    background: var(--glass-bg-strong, rgba(255, 255, 255, 0.2));
-    transform: translateY(-1px);
-}
-
-.error-actions .btn-primary {
-    background: var(--primary-color, #3b82f6);
-    border-color: var(--primary-color, #3b82f6);
-}
-
-.error-actions .btn i {
-    font-size: 1rem;
-    margin-right: var(--space-xs, 4px);
-}
-
 @keyframes fadeIn {
-    from { 
-        opacity: 0; 
-        transform: translateY(20px); 
-    }
-    to { 
-        opacity: 1; 
-        transform: translateY(0); 
-    }
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 
 @media (max-width: 768px) {
@@ -458,28 +398,8 @@ function goBack() {
     }
     
     .error-message {
-        margin: var(--space-md, 12px);
-        padding: var(--space-lg, 16px);
-    }
-    
-    .error-message i {
-        font-size: 2.5rem;
-    }
-}
-
-/* Film Detail Content Animations */
-.film-detail-content.fade-in {
-    animation: slideInFromRight 0.3s ease-out;
-}
-
-@keyframes slideInFromRight {
-    from {
-        opacity: 0;
-        transform: translateX(20px);
-    }
-    to {
-        opacity: 1;
-        transform: translateX(0);
+        margin: var(--space-md);
+        padding: var(--space-lg);
     }
 }
 </style>

@@ -25,7 +25,7 @@ $allowedMimeTypes = [
 
 // Upload-Verzeichnis erstellen falls nicht vorhanden
 if (!is_dir($uploadDir)) {
-    if (!mkdir($uploadDir, 0750, true)) {
+    if (!mkdir($uploadDir, 0755, true)) {
         die('❌ Upload-Verzeichnis konnte nicht erstellt werden.');
     }
 }

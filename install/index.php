@@ -11,11 +11,10 @@ header('Referrer-Policy: strict-origin-when-cross-origin');
 const MIN_PHP_VERSION = '8.0.0';
 const MIN_PASSWORD_LENGTH = 8;
 const MAX_INPUT_LENGTH = 255;
-const DB_VERSION = '1.4.8'; // Aktuelle Version
+const DB_VERSION = '1.4.1'; // Aktuelle Version
 
 // Pfade definieren
-// Lock-Datei wird in /admin gespeichert (sicher, auch wenn /install Ordner gelöscht wird)
-$lockFile = dirname(__DIR__) . '/admin/.install.lock';
+$lockFile = __DIR__ . '/install.lock';
 $configDir = dirname(__DIR__) . '/config';
 $configFile = $configDir . '/config.php';
 
@@ -412,14 +411,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ready) {
             $installationSteps[] = '✅ Datenbankverbindung erfolgreich';
             $installationSteps[] = '📝 Konfigurationsdatei erstellen...';
 
-            // Config-Verzeichnis erstellen, falls es nicht existiert
-            if (!file_exists($configDir)) {
-                if (!mkdir($configDir, 0755, true)) {
-                    throw new RuntimeException('Konnte Config-Verzeichnis nicht erstellen');
-                }
-                $installationSteps[] = '✅ Config-Verzeichnis erstellt';
-            }
-
             // Config-Datei erstellen
             $configContent = "<?php\n// Generiert am " . date('Y-m-d H:i:s') . "\nreturn " . var_export([
                 'db_host' => $dbHost,
@@ -489,13 +480,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $ready) {
             $installationSteps[] = '🔒 Installation abschließen...';
 
             // Lock-Datei erstellen (nach erfolgreichem Commit)
-            $lockDir = dirname($lockFile);
-            if (!file_exists($lockDir)) {
-                if (!mkdir($lockDir, 0755, true)) {
-                    throw new RuntimeException('Konnte Lock-Verzeichnis nicht erstellen');
-                }
-            }
-
             $lockContent = json_encode([
                 'installed_at' => date('Y-m-d H:i:s'),
                 'version' => DB_VERSION,

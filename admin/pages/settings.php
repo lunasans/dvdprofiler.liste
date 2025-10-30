@@ -1,9 +1,11 @@
 <?php
 /**
- * DVD Profiler Liste - Systemeinstellungen
- * GEÄNDERT: Verwendet zentralisierte Update-Logik aus version.php
+ * DVD Profiler Liste - Admin Settings
+ * 
+ * @package    dvdprofiler.liste
+ * @author     René Neuhaus
+ * @version    1.4.5
  */
-declare(strict_types=1);
 
 // Sicherheitscheck
 if (!isset($_SESSION['user_id'])) {
@@ -11,18 +13,228 @@ if (!isset($_SESSION['user_id'])) {
     exit;
 }
 
-// CSRF-Token für sicherheitsrelevante Operationen
+// Versionsinformationen laden
+require_once dirname(__DIR__, 2) . '/includes/version.php';
+
+// CSRF-Token generieren
 $csrfToken = generateCSRFToken();
 
-// GEÄNDERT: Verwende zentralisierte Update-Logik
-$updateInfo = getDVDProfilerUpdateInfo();
-$latestData = $updateInfo['latest_data'];
-$latestVersion = $updateInfo['latest_version'] ?? 'unbekannt';
-$localVersion = $updateInfo['current_version'];
-$isUpdateAvailable = $updateInfo['is_update_available'];
-
+// Variablen initialisieren
 $error = '';
 $success = '';
+
+// GitHub Update System
+class GitHubUpdater {
+    private $pdo;
+    private $repo = 'lunasans/dvdprofiler.liste';
+    
+    public function __construct($pdo) {
+        $this->pdo = $pdo;
+    }
+    
+    public function getLatestRelease(): ?array {
+        // Cache für 1 Stunde
+        $cacheKey = 'github_latest_release';
+        $cached = getSetting($cacheKey . '_data', '');
+        $cacheTime = (int)getSetting($cacheKey . '_time', '0');
+        
+        if ($cached && (time() - $cacheTime < 3600)) {
+            return json_decode($cached, true);
+        }
+        
+        $apiUrl = "https://api.github.com/repos/{$this->repo}/releases/latest";
+        $opts = [
+            'http' => [
+                'method' => 'GET',
+                'header' => "User-Agent: DVD-Profiler-Updater/1.0\r\n",
+                'timeout' => 10
+            ]
+        ];
+        
+        $context = stream_context_create($opts);
+        $json = @file_get_contents($apiUrl, false, $context);
+        
+        if ($json) {
+            $data = json_decode($json, true);
+            if ($data && isset($data['tag_name'])) {
+                // Cache speichern
+                setSetting($cacheKey . '_data', $json);
+                setSetting($cacheKey . '_time', (string)time());
+                return $data;
+            }
+        }
+        
+        return null;
+    }
+    
+    public function createBackup(): string {
+        $backupDir = dirname(__DIR__, 2) . '/admin/backups/';
+        if (!is_dir($backupDir)) {
+            mkdir($backupDir, 0755, true);
+        }
+        
+        $timestamp = date('Ymd_His');
+        $backupFile = $backupDir . "backup_{$timestamp}.zip";
+        
+        $zip = new ZipArchive();
+        if ($zip->open($backupFile, ZipArchive::CREATE) !== TRUE) {
+            throw new Exception('Backup-Datei konnte nicht erstellt werden.');
+        }
+        
+        $baseDir = dirname(__DIR__, 2);
+        $excludeDirs = ['admin/backups', 'uploads', 'cache', 'logs', '.git'];
+        $excludeFiles = ['.env', 'config/config.php'];
+        
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($baseDir, RecursiveDirectoryIterator::SKIP_DOTS),
+            RecursiveIteratorIterator::SELF_FIRST
+        );
+        
+        foreach ($iterator as $file) {
+            $relativePath = str_replace($baseDir . '/', '', $file->getPathname());
+            
+            // Prüfung auf ausgeschlossene Pfade
+            $skip = false;
+            foreach ($excludeDirs as $excludeDir) {
+                if (str_starts_with($relativePath, $excludeDir)) {
+                    $skip = true;
+                    break;
+                }
+            }
+            
+            if ($skip || in_array($relativePath, $excludeFiles)) {
+                continue;
+            }
+            
+            if ($file->isDir()) {
+                $zip->addEmptyDir($relativePath);
+            } else {
+                $zip->addFile($file->getPathname(), $relativePath);
+            }
+        }
+        
+        $zip->close();
+        return $backupFile;
+    }
+    
+    public function performUpdate($releaseData): array {
+        try {
+            // 1. Backup erstellen
+            $backupFile = $this->createBackup();
+            
+            // 2. Update-Dateien herunterladen
+            $result = $this->downloadAndExtractUpdate($releaseData['zipball_url']);
+            if (!$result['success']) {
+                return $result;
+            }
+            
+            // 3. Datenbank-Updates (falls vorhanden)
+            $this->runUpdateSQL();
+            
+            // 4. Version in Datenbank aktualisieren
+            setSetting('version', ltrim($releaseData['tag_name'], 'v'));
+            setSetting('last_update', date('Y-m-d H:i:s'));
+            
+            return [
+                'success' => true,
+                'message' => "✅ Update erfolgreich! Backup erstellt: " . basename($backupFile)
+            ];
+            
+        } catch (Exception $e) {
+            error_log('Update failed: ' . $e->getMessage());
+            return [
+                'success' => false,
+                'message' => '❌ Update fehlgeschlagen: ' . $e->getMessage()
+            ];
+        }
+    }
+    
+    private function downloadAndExtractUpdate(string $zipUrl): array {
+        $tempFile = sys_get_temp_dir() . '/dvd_update_' . uniqid() . '.zip';
+        
+        // Download mit Timeout
+        $context = stream_context_create([
+            'http' => [
+                'timeout' => 300, // 5 Minuten
+                'user_agent' => 'DVD-Profiler-Updater/1.0'
+            ]
+        ]);
+        
+        if (!copy($zipUrl, $tempFile, $context)) {
+            return ['success' => false, 'message' => 'Download fehlgeschlagen.'];
+        }
+        
+        $zip = new ZipArchive();
+        if ($zip->open($tempFile) !== TRUE) {
+            unlink($tempFile);
+            return ['success' => false, 'message' => 'ZIP-Datei konnte nicht geöffnet werden.'];
+        }
+        
+        $baseDir = dirname(__DIR__, 2);
+        $repoPrefix = null;
+        
+        // Repository-Prefix ermitteln
+        for ($i = 0; $i < $zip->numFiles; $i++) {
+            $filename = $zip->getNameIndex($i);
+            if (str_contains($filename, '/')) {
+                $repoPrefix = explode('/', $filename)[0];
+                break;
+            }
+        }
+        
+        if (!$repoPrefix) {
+            $zip->close();
+            unlink($tempFile);
+            return ['success' => false, 'message' => 'Ungültiges ZIP-Format.'];
+        }
+        
+        // Dateien extrahieren
+        for ($i = 0; $i < $zip->numFiles; $i++) {
+            $filename = $zip->getNameIndex($i);
+            $relativePath = preg_replace("#^{$repoPrefix}/#", '', $filename);
+            
+            if (empty($relativePath) || $relativePath === $filename) {
+                continue;
+            }
+            
+            $targetPath = $baseDir . '/' . $relativePath;
+            
+            if (str_ends_with($filename, '/')) {
+                @mkdir($targetPath, 0755, true);
+            } else {
+                @mkdir(dirname($targetPath), 0755, true);
+                file_put_contents($targetPath, $zip->getFromIndex($i));
+            }
+        }
+        
+        $zip->close();
+        unlink($tempFile);
+        
+        return ['success' => true, 'message' => 'Update-Dateien erfolgreich extrahiert.'];
+    }
+    
+    private function runUpdateSQL(): void {
+        $sqlFile = dirname(__DIR__, 2) . '/update.sql';
+        if (file_exists($sqlFile)) {
+            try {
+                $sql = file_get_contents($sqlFile);
+                $this->pdo->exec($sql);
+                unlink($sqlFile);
+            } catch (PDOException $e) {
+                error_log('Update SQL failed: ' . $e->getMessage());
+                throw $e;
+            }
+        }
+    }
+}
+
+// Update System initialisieren
+$updater = new GitHubUpdater($pdo);
+$latestData = $updater->getLatestRelease();
+$latestVersion = $latestData['tag_name'] ?? 'unbekannt';
+$localVersion = DVDPROFILER_VERSION;
+
+$isUpdateAvailable = $latestData && version_compare(ltrim($latestVersion, 'v'), $localVersion, '>');
 
 // POST-Handler mit CSRF-Schutz
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -31,12 +243,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!validateCSRFToken($submittedToken)) {
         $error = '❌ Ungültiger CSRF-Token. Bitte versuchen Sie es erneut.';
     } else {
-        // GEÄNDERT: Update-Weiterleitung zur echten Update-Seite
-        if (isset($_POST['start_update'])) {
-            header('Location: ?page=update');
-            exit;
-        }
-        
         // Einstellungen speichern
         if (isset($_POST['save_settings'])) {
             $allowedSettings = [
@@ -88,6 +294,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // Settings neu laden
                 header('Location: ?page=settings&saved=1');
                 exit;
+            }
+        }
+        
+        // Update durchführen
+        if (isset($_POST['start_update']) && $latestData) {
+            $result = $updater->performUpdate($latestData);
+            if ($result['success']) {
+                $success = $result['message'];
+                $localVersion = ltrim($latestVersion, 'v'); // Version aktualisieren
+                $isUpdateAvailable = false;
+            } else {
+                $error = $result['message'];
             }
         }
         
@@ -182,492 +400,417 @@ $showSaved = isset($_GET['saved']) && $_GET['saved'] === '1';
             Einstellungen erfolgreich gespeichert!
         </div>
     <?php endif; ?>
-
+    
     <?php if ($error): ?>
         <div class="alert alert-danger">
+            <i class="bi bi-exclamation-triangle"></i>
             <?= htmlspecialchars($error) ?>
         </div>
     <?php endif; ?>
-
+    
     <?php if ($success): ?>
         <div class="alert alert-success">
+            <i class="bi bi-check-circle"></i>
             <?= htmlspecialchars($success) ?>
         </div>
     <?php endif; ?>
 
-    <!-- Tab Navigation -->
-    <ul class="nav nav-tabs" id="settingsTabs" role="tablist">
-        <li class="nav-item" role="presentation">
-            <button class="nav-link active" id="general-tab" data-bs-toggle="tab" data-bs-target="#general" type="button" role="tab">
-                <i class="bi bi-gear"></i>
-                Allgemein
-            </button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link" id="security-tab" data-bs-toggle="tab" data-bs-target="#security" type="button" role="tab">
-                <i class="bi bi-shield-check"></i>
-                Sicherheit
-            </button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link" id="system-tab" data-bs-toggle="tab" data-bs-target="#system" type="button" role="tab">
-                <i class="bi bi-cpu"></i>
-                System
-            </button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link" id="updates-tab" data-bs-toggle="tab" data-bs-target="#updates" type="button" role="tab">
-                <i class="bi bi-arrow-up-circle"></i>
-                Updates
-                <?php if ($isUpdateAvailable): ?>
-                    <span class="badge bg-warning text-dark ms-1">!</span>
-                <?php endif; ?>
-            </button>
-        </li>
-    </ul>
+    <!-- Settings Tabs -->
+    <div class="settings-tabs">
+        <ul class="nav nav-tabs" id="settingsTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="general-tab" data-bs-toggle="tab" data-bs-target="#general" type="button" role="tab">
+                    <i class="bi bi-gear"></i> Allgemein
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="security-tab" data-bs-toggle="tab" data-bs-target="#security" type="button" role="tab">
+                    <i class="bi bi-shield-check"></i> Sicherheit
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="system-tab" data-bs-toggle="tab" data-bs-target="#system" type="button" role="tab">
+                    <i class="bi bi-cpu"></i> System
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="updates-tab" data-bs-toggle="tab" data-bs-target="#updates" type="button" role="tab">
+                    <i class="bi bi-arrow-up-circle"></i> Updates
+                    <?php if ($isUpdateAvailable): ?>
+                        <span class="badge bg-warning text-dark ms-1">!</span>
+                    <?php endif; ?>
+                </button>
+            </li>
+        </ul>
 
-    <!-- Tab Content -->
-    <div class="tab-content" id="settingsTabsContent">
-        
-        <!-- Tab: Allgemein -->
-        <div class="tab-pane fade show active" id="general" role="tabpanel">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="mb-0">
-                        <i class="bi bi-gear"></i>
-                        Allgemeine Einstellungen
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <form method="post">
-                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
-                        
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="mb-3">
-                                    <label for="site_title" class="form-label">
-                                        <i class="bi bi-card-heading"></i>
-                                        Website-Titel
-                                    </label>
-                                    <input type="text" class="form-control" id="site_title" name="site_title" 
-                                           value="<?= htmlspecialchars(getSetting('site_title', 'DVD Profiler Liste')) ?>" required>
-                                    <div class="form-text">Der Titel wird im Browser-Tab und Header angezeigt</div>
+        <div class="tab-content mt-4" id="settingsTabContent">
+            <!-- Tab: Allgemein -->
+            <div class="tab-pane fade show active" id="general" role="tabpanel">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="bi bi-sliders"></i>
+                            Allgemeine Einstellungen
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <form method="post">
+                            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
+                            
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="site_title" class="form-label">Website-Titel *</label>
+                                        <input type="text" name="site_title" id="site_title" class="form-control" 
+                                               value="<?= htmlspecialchars(getSetting('site_title', 'DVD Profiler Liste')) ?>" 
+                                               required maxlength="255">
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="base_url" class="form-label">Base URL</label>
+                                        <input type="url" name="base_url" id="base_url" class="form-control" 
+                                               value="<?= htmlspecialchars(getSetting('base_url', '')) ?>"
+                                               placeholder="https://ihre-domain.de/dvd/">
+                                    </div>
                                 </div>
                             </div>
                             
-                            <div class="col-md-6">
-                                <div class="mb-3">
-                                    <label for="base_url" class="form-label">
-                                        <i class="bi bi-link"></i>
-                                        Base URL
-                                    </label>
-                                    <input type="url" class="form-control" id="base_url" name="base_url" 
-                                           value="<?= htmlspecialchars(getSetting('base_url', '')) ?>" placeholder="https://example.com">
-                                    <div class="form-text">Vollständige URL zu Ihrer Installation</div>
-                                </div>
+                            <div class="mb-3">
+                                <label for="site_description" class="form-label">Website-Beschreibung</label>
+                                <textarea name="site_description" id="site_description" class="form-control" rows="3" maxlength="500"><?= htmlspecialchars(getSetting('site_description', '')) ?></textarea>
                             </div>
-                        </div>
-                        
-                        <div class="mb-3">
-                            <label for="site_description" class="form-label">
-                                <i class="bi bi-card-text"></i>
-                                Website-Beschreibung
-                            </label>
-                            <textarea class="form-control" id="site_description" name="site_description" rows="3" 
-                                      placeholder="Beschreibung Ihrer Filmsammlung..."><?= htmlspecialchars(getSetting('site_description', '')) ?></textarea>
-                            <div class="form-text">Wird für SEO und Social Media verwendet</div>
-                        </div>
-                        
-                        <div class="row">
-                            <div class="col-md-4">
-                                <div class="mb-3">
-                                    <label for="environment" class="form-label">
-                                        <i class="bi bi-gear-wide-connected"></i>
-                                        Umgebung
-                                    </label>
-                                    <select class="form-select" id="environment" name="environment">
-                                        <option value="production" <?= getSetting('environment', 'production') === 'production' ? 'selected' : '' ?>>Production</option>
-                                        <option value="development" <?= getSetting('environment') === 'development' ? 'selected' : '' ?>>Development</option>
-                                    </select>
+                            
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label for="theme" class="form-label">Theme</label>
+                                        <select name="theme" id="theme" class="form-select">
+                                            <option value="default" <?= getSetting('theme', 'default') === 'default' ? 'selected' : '' ?>>Standard</option>
+                                            <option value="dark" <?= getSetting('theme', 'default') === 'dark' ? 'selected' : '' ?>>Dark Mode</option>
+                                            <option value="blue" <?= getSetting('theme', 'default') === 'blue' ? 'selected' : '' ?>>Blau</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label for="items_per_page" class="form-label">Filme pro Seite</label>
+                                        <input type="number" name="items_per_page" id="items_per_page" class="form-control" 
+                                               value="<?= htmlspecialchars(getSetting('items_per_page', '12')) ?>" 
+                                               min="5" max="100">
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label for="environment" class="form-label">Umgebung</label>
+                                        <select name="environment" id="environment" class="form-select">
+                                            <option value="production" <?= getSetting('environment', 'production') === 'production' ? 'selected' : '' ?>>Production</option>
+                                            <option value="development" <?= getSetting('environment', 'production') === 'development' ? 'selected' : '' ?>>Development</option>
+                                        </select>
+                                    </div>
                                 </div>
                             </div>
                             
-                            <div class="col-md-4">
-                                <div class="mb-3">
-                                    <label for="theme" class="form-label">
-                                        <i class="bi bi-palette"></i>
-                                        Theme
-                                    </label>
-                                    <select class="form-select" id="theme" name="theme">
-                                        <option value="default" <?= getSetting('theme', 'default') === 'default' ? 'selected' : '' ?>>Standard</option>
-                                        <option value="dark" <?= getSetting('theme') === 'dark' ? 'selected' : '' ?>>Dark</option>
-                                        <option value="blue" <?= getSetting('theme') === 'blue' ? 'selected' : '' ?>>Blue</option>
-                                    </select>
-                                </div>
-                            </div>
-                            
-                            <div class="col-md-4">
-                                <div class="mb-3">
-                                    <label for="items_per_page" class="form-label">
-                                        <i class="bi bi-list-ol"></i>
-                                        Filme pro Seite
-                                    </label>
-                                    <input type="number" class="form-control" id="items_per_page" name="items_per_page" 
-                                           value="<?= htmlspecialchars(getSetting('items_per_page', '20')) ?>" min="5" max="100">
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div class="text-end">
                             <button type="submit" name="save_settings" class="btn btn-primary">
                                 <i class="bi bi-save"></i>
                                 Einstellungen speichern
                             </button>
-                        </div>
-                    </form>
+                        </form>
+                    </div>
                 </div>
             </div>
-        </div>
 
-        <!-- Tab: Sicherheit -->
-        <div class="tab-pane fade" id="security" role="tabpanel">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="mb-0">
-                        <i class="bi bi-shield-check"></i>
-                        Sicherheitseinstellungen
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <form method="post">
-                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
-                        
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="mb-3">
-                                    <label for="login_attempts_max" class="form-label">
-                                        <i class="bi bi-shield-exclamation"></i>
-                                        Max. Login-Versuche
-                                    </label>
-                                    <input type="number" class="form-control" id="login_attempts_max" name="login_attempts_max" 
-                                           value="<?= htmlspecialchars(getSetting('login_attempts_max', '5')) ?>" min="1" max="10">
-                                    <div class="form-text">Anzahl fehlgeschlagener Versuche vor Sperrung</div>
-                                </div>
-                            </div>
+            <!-- Tab: Sicherheit -->
+            <div class="tab-pane fade" id="security" role="tabpanel">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="bi bi-shield-lock"></i>
+                            Sicherheitseinstellungen
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <form method="post">
+                            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
                             
-                            <div class="col-md-6">
-                                <div class="mb-3">
-                                    <label for="login_lockout_time" class="form-label">
-                                        <i class="bi bi-clock"></i>
-                                        Sperrzeit (Sekunden)
-                                    </label>
-                                    <input type="number" class="form-control" id="login_lockout_time" name="login_lockout_time" 
-                                           value="<?= htmlspecialchars(getSetting('login_lockout_time', '900')) ?>" min="60" max="3600">
-                                    <div class="form-text">Dauer der Sperrung nach zu vielen Fehlversuchen</div>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="mb-3">
-                                    <label for="session_timeout" class="form-label">
-                                        <i class="bi bi-stopwatch"></i>
-                                        Session Timeout (Sekunden)
-                                    </label>
-                                    <input type="number" class="form-control" id="session_timeout" name="session_timeout" 
-                                           value="<?= htmlspecialchars(getSetting('session_timeout', '3600')) ?>" min="300" max="86400">
-                                    <div class="form-text">Automatisches Logout nach Inaktivität</div>
-                                </div>
-                            </div>
-                            
-                            <div class="col-md-6">
-                                <div class="mb-3">
-                                    <div class="form-check form-switch">
-                                        <input class="form-check-input" type="checkbox" id="enable_2fa" name="enable_2fa" value="1" 
-                                               <?= getSetting('enable_2fa', '0') === '1' ? 'checked' : '' ?>>
-                                        <label class="form-check-label" for="enable_2fa">
-                                            <i class="bi bi-key"></i>
-                                            Zwei-Faktor-Authentifizierung aktivieren
-                                        </label>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="login_attempts_max" class="form-label">Max. Login-Versuche</label>
+                                        <input type="number" name="login_attempts_max" id="login_attempts_max" class="form-control" 
+                                               value="<?= htmlspecialchars(getSetting('login_attempts_max', '5')) ?>" 
+                                               min="1" max="10">
                                     </div>
-                                    <div class="form-text">Zusätzliche Sicherheitsebene für Admin-Login</div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="login_lockout_time" class="form-label">Sperrzeit (Sekunden)</label>
+                                        <input type="number" name="login_lockout_time" id="login_lockout_time" class="form-control" 
+                                               value="<?= htmlspecialchars(getSetting('login_lockout_time', '900')) ?>" 
+                                               min="60" max="3600">
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                        
-                        <div class="text-end">
+                            
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="session_timeout" class="form-label">Session-Timeout (Sekunden)</label>
+                                        <input type="number" name="session_timeout" id="session_timeout" class="form-control" 
+                                               value="<?= htmlspecialchars(getSetting('session_timeout', '3600')) ?>" 
+                                               min="300" max="86400">
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3 form-check form-switch mt-4">
+                                        <input type="hidden" name="enable_2fa" value="0">
+                                        <input type="checkbox" name="enable_2fa" id="enable_2fa" class="form-check-input" value="1" 
+                                               <?= getSetting('enable_2fa', '1') === '1' ? 'checked' : '' ?>>
+                                        <label for="enable_2fa" class="form-check-label">2FA aktivieren</label>
+                                    </div>
+                                </div>
+                            </div>
+                            
                             <button type="submit" name="save_settings" class="btn btn-primary">
                                 <i class="bi bi-save"></i>
                                 Sicherheitseinstellungen speichern
                             </button>
-                        </div>
-                    </form>
+                        </form>
+                    </div>
                 </div>
             </div>
-        </div>
 
-        <!-- Tab: System -->
-        <div class="tab-pane fade" id="system" role="tabpanel">
-            <div class="row">
-                <!-- Systeminfos -->
-                <div class="col-md-6">
-                    <div class="card">
-                        <div class="card-header">
-                            <h5 class="mb-0">
-                                <i class="bi bi-info-circle"></i>
-                                Systemstatus
-                            </h5>
+            <!-- Tab: System -->
+            <div class="tab-pane fade" id="system" role="tabpanel">
+                <div class="row">
+                    <!-- System-Information -->
+                    <div class="col-md-6">
+                        <div class="card mb-4">
+                            <div class="card-header">
+                                <h5 class="mb-0">
+                                    <i class="bi bi-info-circle"></i>
+                                    System-Information
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="system-info">
+                                    <div class="info-row">
+                                        <strong>Version:</strong> <?= getDVDProfilerVersionFull() ?>
+                                    </div>
+                                    <div class="info-row">
+                                        <strong>Build-Datum:</strong> <?= DVDPROFILER_BUILD_DATE ?>
+                                    </div>
+                                    <div class="info-row">
+                                        <strong>Branch:</strong> <?= DVDPROFILER_BRANCH ?>
+                                    </div>
+                                    <div class="info-row">
+                                        <strong>Commit:</strong> <?= DVDPROFILER_COMMIT ?>
+                                    </div>
+                                    <div class="info-row">
+                                        <strong>Repository:</strong> 
+                                        <a href="<?= DVDPROFILER_GITHUB_URL ?>" target="_blank"><?= DVDPROFILER_REPOSITORY ?></a>
+                                    </div>
+                                    <div class="info-row">
+                                        <strong>PHP Version:</strong> <?= PHP_VERSION ?>
+                                    </div>
+                                    <div class="info-row">
+                                        <strong>Features aktiv:</strong> <?= count(array_filter(DVDPROFILER_FEATURES)) ?>/<?= count(DVDPROFILER_FEATURES) ?>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
-                        <div class="card-body">
-                            <div class="system-info-grid">
-                                <div class="info-item">
-                                    <strong>Version:</strong> <?= DVDPROFILER_VERSION ?> "<?= DVDPROFILER_CODENAME ?>"
+                    </div>
+
+                    <!-- System-Requirements -->
+                    <div class="col-md-6">
+                        <div class="card mb-4">
+                            <div class="card-header">
+                                <h5 class="mb-0">
+                                    <i class="bi bi-check-circle"></i>
+                                    System-Anforderungen
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="requirements-list">
+                                    <div class="requirement-item">
+                                        <i class="bi bi-<?= $systemRequirements['php'] ? 'check-circle text-success' : 'x-circle text-danger' ?>"></i>
+                                        <span>PHP ≥ 7.4.0 (Aktuell: <?= PHP_VERSION ?>)</span>
+                                    </div>
+                                    <div class="requirement-item">
+                                        <i class="bi bi-<?= $systemRequirements['php_recommended'] ? 'check-circle text-success' : 'exclamation-triangle text-warning' ?>"></i>
+                                        <span>PHP ≥ 8.0.0 (Empfohlen)</span>
+                                    </div>
+                                    
+                                    <?php foreach ($systemRequirements['extensions'] as $ext => $loaded): ?>
+                                        <div class="requirement-item">
+                                            <i class="bi bi-<?= $loaded ? 'check-circle text-success' : 'x-circle text-danger' ?>"></i>
+                                            <span>PHP Extension: <?= $ext ?></span>
+                                        </div>
+                                    <?php endforeach; ?>
                                 </div>
-                                <div class="info-item">
-                                    <strong>Build:</strong> <?= DVDPROFILER_BUILD_DATE ?>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Cache Management -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="bi bi-arrow-clockwise"></i>
+                            Cache-Verwaltung
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted">Leeren Sie den Cache bei Problemen oder nach Updates.</p>
+                        
+                        <form method="post" class="d-inline">
+                            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
+                            <button type="submit" name="clear_cache" class="btn btn-warning" 
+                                    onclick="return confirm('Sind Sie sicher, dass Sie den Cache leeren möchten?')">
+                                <i class="bi bi-trash"></i>
+                                Cache leeren
+                            </button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Backup Management -->
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="bi bi-archive"></i>
+                            Backup-Verwaltung
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <?php if (!empty($backups)): ?>
+                            <div class="table-responsive">
+                                <table class="table table-sm">
+                                    <thead>
+                                        <tr>
+                                            <th>Backup-Datei</th>
+                                            <th>Größe</th>
+                                            <th>Datum</th>
+                                            <th>Aktionen</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <?php foreach ($backups as $backup): ?>
+                                            <tr>
+                                                <td><?= htmlspecialchars($backup['name']) ?></td>
+                                                <td><?= formatBytes($backup['size']) ?></td>
+                                                <td><?= date('d.m.Y H:i', $backup['date']) ?></td>
+                                                <td>
+                                                    <form method="post" class="d-inline">
+                                                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
+                                                        <input type="hidden" name="delete_backup" value="<?= htmlspecialchars($backup['name']) ?>">
+                                                        <button type="submit" class="btn btn-danger btn-sm" 
+                                                                onclick="return confirm('Backup wirklich löschen?')">
+                                                            <i class="bi bi-trash"></i>
+                                                        </button>
+                                                    </form>
+                                                </td>
+                                            </tr>
+                                        <?php endforeach; ?>
+                                    </tbody>
+                                </table>
+                            </div>
+                        <?php else: ?>
+                            <p class="text-muted">Keine Backups vorhanden.</p>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab: Updates -->
+            <div class="tab-pane fade" id="updates" role="tabpanel">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="bi bi-arrow-up-circle"></i>
+                            Update-System
+                            <?php if ($isUpdateAvailable): ?>
+                                <span class="badge bg-warning text-dark ms-2">Update verfügbar</span>
+                            <?php endif; ?>
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6>Aktuelle Version</h6>
+                                <div class="version-display">
+                                    <span class="version-badge current">v<?= DVDPROFILER_VERSION ?></span>
+                                    <div class="version-details">
+                                        <small>
+                                            "<?= DVDPROFILER_CODENAME ?>" | Build <?= DVDPROFILER_BUILD_DATE ?>
+                                        </small>
+                                    </div>
                                 </div>
-                                <div class="info-item">
-                                    <strong>Branch:</strong> <?= DVDPROFILER_BRANCH ?>
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <h6>Neueste Version</h6>
+                                <div class="version-display">
+                                    <?php if ($latestData): ?>
+                                        <span class="version-badge <?= $isUpdateAvailable ? 'available' : 'current' ?>">
+                                            <?= htmlspecialchars($latestVersion) ?>
+                                        </span>
+                                        <div class="version-details">
+                                            <small>
+                                                <?php if (isset($latestData['published_at'])): ?>
+                                                    Veröffentlicht: <?= date('d.m.Y', strtotime($latestData['published_at'])) ?>
+                                                <?php endif; ?>
+                                            </small>
+                                        </div>
+                                    <?php else: ?>
+                                        <span class="text-muted">Nicht verfügbar</span>
+                                    <?php endif; ?>
                                 </div>
-                                <div class="info-item">
-                                    <strong>Commit:</strong> <?= DVDPROFILER_COMMIT ?>
-                                </div>
-                                <div class="info-item">
-                                    <strong>PHP:</strong> <?= PHP_VERSION ?>
-                                </div>
-                                <div class="info-item">
-                                    <strong>Features:</strong>
-                                    <?= count(array_filter(DVDPROFILER_FEATURES)) ?>/<?= count(DVDPROFILER_FEATURES) ?> aktiv
-                                </div>
-                                <div class="info-item">
-                                    <strong>Repository:</strong>
-                                    <a href="<?= DVDPROFILER_GITHUB_URL ?>" target="_blank" class="text-decoration-none">
-                                        <?= DVDPROFILER_REPOSITORY ?>
+                            </div>
+                        </div>
+
+                        <?php if ($isUpdateAvailable && $latestData): ?>
+                            <div class="alert alert-info mt-4">
+                                <h6>
+                                    <i class="bi bi-info-circle"></i>
+                                    Update verfügbar: <?= htmlspecialchars($latestVersion) ?>
+                                </h6>
+                                
+                                <?php if (!empty($latestData['body'])): ?>
+                                    <div class="changelog mt-3">
+                                        <h6>Changelog:</h6>
+                                        <div class="changelog-content">
+                                            <?= nl2br(htmlspecialchars(substr($latestData['body'], 0, 500))) ?>
+                                            <?php if (strlen($latestData['body']) > 500): ?>
+                                                <p><em>... (gekürzt)</em></p>
+                                            <?php endif; ?>
+                                        </div>
+                                    </div>
+                                <?php endif; ?>
+                                
+                                <div class="mt-3">
+                                    <form method="post" class="d-inline">
+                                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
+                                        <button type="submit" name="start_update" class="btn btn-warning" 
+                                                onclick="return confirm('Update starten? Ein Backup wird automatisch erstellt.')">
+                                            <i class="bi bi-download"></i>
+                                            Update jetzt installieren
+                                        </button>
+                                    </form>
+                                    
+                                    <a href="<?= DVDPROFILER_GITHUB_URL ?>/releases/latest" target="_blank" class="btn btn-outline-info ms-2">
+                                        <i class="bi bi-github"></i>
+                                        Details auf GitHub
                                     </a>
                                 </div>
                             </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Wartung -->
-                <div class="col-md-6">
-                    <div class="card">
-                        <div class="card-header">
-                            <h5 class="mb-0">
-                                <i class="bi bi-tools"></i>
-                                Wartung
-                            </h5>
-                        </div>
-                        <div class="card-body">
-                            <form method="post" class="mb-3">
-                                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
-                                <button type="submit" name="clear_cache" class="btn btn-outline-warning btn-sm" 
-                                        onclick="return confirm('Cache wirklich leeren?')">
-                                    <i class="bi bi-trash"></i>
-                                    Cache leeren
-                                </button>
-                            </form>
-                            
-                            <div class="maintenance-info">
-                                <div class="info-item">
-                                    <strong>Backup-Aufbewahrung:</strong>
-                                    <form method="post" class="d-inline">
-                                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
-                                        <input type="number" name="backup_retention_days" 
-                                               value="<?= htmlspecialchars(getSetting('backup_retention_days', '30')) ?>" 
-                                               min="1" max="365" class="form-control form-control-sm d-inline-block" style="width: 80px;">
-                                        <span class="small text-muted">Tage</span>
-                                        <button type="submit" name="save_settings" class="btn btn-outline-primary btn-sm ms-2">
-                                            <i class="bi bi-save"></i>
-                                        </button>
-                                    </form>
-                                </div>
+                        <?php else: ?>
+                            <div class="alert alert-success mt-4">
+                                <i class="bi bi-check-circle"></i>
+                                Sie verwenden die neueste Version von DVD Profiler Liste.
                             </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Backups -->
-                    <div class="card mt-3">
-                        <div class="card-header">
-                            <h6 class="mb-0">
-                                <i class="bi bi-archive"></i>
-                                Backup-Dateien
-                            </h6>
-                        </div>
-                        <div class="card-body">
-                            <?php if (!empty($backups)): ?>
-                                <div class="table-responsive">
-                                    <table class="table table-sm">
-                                        <thead>
-                                            <tr>
-                                                <th>Datei</th>
-                                                <th>Größe</th>
-                                                <th>Datum</th>
-                                                <th></th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            <?php foreach (array_slice($backups, 0, 5) as $backup): ?>
-                                                <tr>
-                                                    <td>
-                                                        <small class="font-monospace"><?= htmlspecialchars($backup['name']) ?></small>
-                                                    </td>
-                                                    <td>
-                                                        <small><?= formatFileSize($backup['size']) ?></small>
-                                                    </td>
-                                                    <td>
-                                                        <small><?= date('d.m.Y H:i', $backup['date']) ?></small>
-                                                    </td>
-                                                    <td>
-                                                        <form method="post" class="d-inline">
-                                                            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
-                                                            <input type="hidden" name="delete_backup" value="<?= htmlspecialchars($backup['name']) ?>">
-                                                            <button type="submit" class="btn btn-outline-danger btn-sm" 
-                                                                    onclick="return confirm('Backup <?= htmlspecialchars($backup['name']) ?> wirklich löschen?')">
-                                                                <i class="bi bi-trash"></i>
-                                                            </button>
-                                                        </form>
-                                                    </td>
-                                                </tr>
-                                            <?php endforeach; ?>
-                                        </tbody>
-                                    </table>
-                                </div>
-                                <?php if (count($backups) > 5): ?>
-                                    <small class="text-muted">
-                                        ... und <?= count($backups) - 5 ?> weitere Backups
-                                    </small>
-                                <?php endif; ?>
-                            <?php else: ?>
-                                <p class="text-muted">Keine Backups vorhanden.</p>
-                            <?php endif; ?>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Tab: Updates -->
-        <div class="tab-pane fade" id="updates" role="tabpanel">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="mb-0">
-                        <i class="bi bi-arrow-up-circle"></i>
-                        Update-System
-                        <?php if ($isUpdateAvailable): ?>
-                            <span class="badge bg-warning text-dark ms-2">Update verfügbar</span>
                         <?php endif; ?>
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-6">
-                            <h6>Aktuelle Version</h6>
-                            <div class="version-display">
-                                <span class="version-badge current">v<?= htmlspecialchars($localVersion) ?></span>
-                                <div class="version-details">
-                                    <small>
-                                        "<?= DVDPROFILER_CODENAME ?>" | Build <?= DVDPROFILER_BUILD_DATE ?>
-                                    </small>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div class="col-md-6">
-                            <h6>Neueste Version</h6>
-                            <div class="version-display">
-                                <?php if ($latestData): ?>
-                                    <span class="version-badge <?= $isUpdateAvailable ? 'available' : 'current' ?>">
-                                        <?= htmlspecialchars($latestVersion) ?>
-                                    </span>
-                                    <div class="version-details">
-                                        <small>
-                                            <?php if (isset($latestData['published_at'])): ?>
-                                                Veröffentlicht: <?= date('d.m.Y', strtotime($latestData['published_at'])) ?>
-                                            <?php endif; ?>
-                                        </small>
-                                    </div>
-                                <?php else: ?>
-                                    <span class="text-muted">Nicht verfügbar</span>
-                                <?php endif; ?>
-                            </div>
-                        </div>
-                    </div>
-
-                    <?php if ($isUpdateAvailable && $latestData): ?>
-                        <div class="alert alert-info mt-4">
-                            <h6>
-                                <i class="bi bi-info-circle"></i>
-                                Update verfügbar: <?= htmlspecialchars($latestVersion) ?>
-                            </h6>
-                            
-                            <?php if (!empty($latestData['description'])): ?>
-                                <div class="changelog mt-3">
-                                    <h6>Changelog:</h6>
-                                    <div class="changelog-content">
-                                        <?= nl2br(htmlspecialchars(substr($latestData['description'], 0, 500))) ?>
-                                        <?php if (strlen($latestData['description']) > 500): ?>
-                                            <p><em>... (gekürzt)</em></p>
-                                        <?php endif; ?>
-                                    </div>
-                                </div>
-                            <?php endif; ?>
-                            
-                            <div class="mt-3">
-                                <a href="?page=update" class="btn btn-warning">
-                                    <i class="bi bi-arrow-up-circle"></i>
-                                    Zur Update-Seite
-                                </a>
-                                <small class="text-muted ms-3">
-                                    <i class="bi bi-info-circle"></i>
-                                    Updates werden auf der dedizierten Update-Seite durchgeführt
-                                </small>
-                            </div>
-                        </div>
-                    <?php elseif ($latestData && !$isUpdateAvailable): ?>
-                        <div class="alert alert-success mt-4">
-                            <i class="bi bi-check-circle"></i>
-                            Sie verwenden bereits die neueste Version.
-                        </div>
-                    <?php else: ?>
-                        <div class="alert alert-warning mt-4">
-                            <i class="bi bi-exclamation-triangle"></i>
-                            Update-Server nicht erreichbar. 
-                            <a href="?page=update" class="btn btn-sm btn-outline-primary ms-2">
-                                Auf Update-Seite prüfen
-                            </a>
-                        </div>
-                    <?php endif; ?>
-                    
-                    <div class="update-info mt-4">
-                        <h6>Update-Informationen</h6>
-                        <div class="row">
-                            <div class="col-md-6">
-                                <small class="text-muted">
-                                    <strong>Update-Server:</strong><br>
-                                    <?= htmlspecialchars(parse_url(getDVDProfilerUpdateConfig()['api_url'], PHP_URL_HOST)) ?><br><br>
-                                    
-                                    <strong>Status:</strong><br>
-                                    <?php if ($updateInfo['server_reachable']): ?>
-                                        ✅ Server erreichbar<br>
-                                    <?php else: ?>
-                                        ❌ Server nicht erreichbar<br>
-                                    <?php endif; ?>
-                                </small>
-                            </div>
-                            <div class="col-md-6">
-                                <small class="text-muted">
-                                    <strong>Update-Funktionen:</strong><br>
-                                    • Automatisches Backup<br>
-                                    • Sichere Datei-Installation<br>
-                                    • Rollback bei Fehlern<br>
-                                    • SQL-Updates<br>
-                                    • Cache-Bereinigung
-                                </small>
-                            </div>
-                        </div>
                     </div>
                 </div>
             </div>
@@ -698,40 +841,41 @@ $showSaved = isset($_GET['saved']) && $_GET['saved'] === '1';
 .settings-subtitle {
     color: var(--text-glass, rgba(255, 255, 255, 0.8));
     margin-bottom: 0;
-}
-
-.update-alert {
-    background: var(--glass-bg-warning, rgba(243, 156, 18, 0.2));
-    border: 1px solid var(--clr-warning, #f39c12);
-    border-radius: var(--radius-md, 12px);
-    padding: var(--space-sm, 8px) var(--space-md, 16px);
-    color: var(--text-white, #ffffff);
+    font-family: monospace;
     font-size: 0.9rem;
 }
 
-.nav-tabs {
-    background: var(--glass-bg, rgba(255, 255, 255, 0.1));
+.update-alert {
+    background: var(--glass-bg-strong, rgba(255, 255, 255, 0.15));
+    border: 1px solid rgba(255, 193, 7, 0.3);
     border-radius: var(--radius-md, 12px);
-    padding: var(--space-sm, 8px);
+    padding: var(--space-md, 16px);
+    text-align: center;
+    font-size: 0.9rem;
+    animation: pulse 2s ease-in-out infinite;
+}
+
+.settings-tabs .nav-tabs {
+    border-bottom: 2px solid var(--glass-border, rgba(255, 255, 255, 0.2));
+}
+
+.settings-tabs .nav-link {
+    background: var(--glass-bg, rgba(255, 255, 255, 0.1));
     border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.2));
-}
-
-.nav-tabs .nav-link {
-    background: transparent;
-    border: none;
     color: var(--text-glass, rgba(255, 255, 255, 0.8));
-    border-radius: var(--radius-sm, 8px);
+    margin-right: var(--space-sm, 8px);
+    border-radius: var(--radius-md, 12px) var(--radius-md, 12px) 0 0;
     transition: all var(--transition-fast, 0.3s);
-    margin: 0 var(--space-xs, 4px);
 }
 
-.nav-tabs .nav-link:hover {
-    background: var(--glass-bg-hover, rgba(255, 255, 255, 0.1));
+.settings-tabs .nav-link:hover {
+    background: var(--glass-bg-strong, rgba(255, 255, 255, 0.15));
     color: var(--text-white, #ffffff);
 }
 
-.nav-tabs .nav-link.active {
+.settings-tabs .nav-link.active {
     background: var(--gradient-primary, linear-gradient(135deg, #667eea 0%, #764ba2 100%));
+    border-color: transparent;
     color: var(--text-white, #ffffff);
 }
 
@@ -740,7 +884,6 @@ $showSaved = isset($_GET['saved']) && $_GET['saved'] === '1';
     backdrop-filter: blur(10px);
     border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.2));
     border-radius: var(--radius-lg, 16px);
-    margin-top: var(--space-lg, 20px);
 }
 
 .card-header {
@@ -749,22 +892,37 @@ $showSaved = isset($_GET['saved']) && $_GET['saved'] === '1';
     border-radius: var(--radius-lg, 16px) var(--radius-lg, 16px) 0 0;
 }
 
-.form-control, .form-select {
-    background: var(--glass-bg-input, rgba(255, 255, 255, 0.1));
-    border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.3));
-    color: var(--text-white, #ffffff);
-    border-radius: var(--radius-sm, 8px);
-}
-
-.form-control:focus, .form-select:focus {
-    background: var(--glass-bg-input, rgba(255, 255, 255, 0.15));
-    border-color: var(--clr-accent, #3498db);
-    box-shadow: 0 0 0 0.2rem rgba(52, 152, 219, 0.25);
+.system-info .info-row {
+    display: flex;
+    justify-content: space-between;
+    padding: var(--space-sm, 8px) 0;
+    border-bottom: 1px solid var(--glass-border, rgba(255, 255, 255, 0.1));
+    font-size: 0.9rem;
     color: var(--text-white, #ffffff);
 }
 
-.form-control::placeholder {
-    color: var(--text-glass, rgba(255, 255, 255, 0.6));
+.system-info .info-row:last-child {
+    border-bottom: none;
+}
+
+.requirements-list .requirement-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm, 8px);
+    padding: var(--space-sm, 8px) 0;
+    border-bottom: 1px solid var(--glass-border, rgba(255, 255, 255, 0.1));
+    color: var(--text-white, #ffffff);
+}
+
+.requirements-list .requirement-item:last-child {
+    border-bottom: none;
+}
+
+.version-display {
+    text-align: center;
+    padding: var(--space-md, 16px);
+    background: var(--glass-bg-strong, rgba(255, 255, 255, 0.1));
+    border-radius: var(--radius-md, 12px);
 }
 
 .version-badge {
@@ -772,92 +930,135 @@ $showSaved = isset($_GET['saved']) && $_GET['saved'] === '1';
     padding: var(--space-sm, 8px) var(--space-md, 16px);
     border-radius: var(--radius-md, 12px);
     font-weight: 600;
+    font-size: 1rem;
     margin-bottom: var(--space-sm, 8px);
 }
 
 .version-badge.current {
-    background: var(--gradient-success, linear-gradient(135deg, #2ecc71 0%, #27ae60 100%));
+    background: var(--gradient-primary, linear-gradient(135deg, #667eea 0%, #764ba2 100%));
     color: var(--text-white, #ffffff);
 }
 
 .version-badge.available {
-    background: var(--gradient-warning, linear-gradient(135deg, #f39c12 0%, #e67e22 100%));
+    background: linear-gradient(135deg, #f39c12 0%, #e74c3c 100%);
     color: var(--text-white, #ffffff);
+    animation: pulse 2s ease-in-out infinite;
 }
 
-.system-info-grid {
-    display: grid;
-    gap: var(--space-sm, 8px);
+.version-details {
+    font-size: 0.8rem;
+    color: var(--text-glass, rgba(255, 255, 255, 0.7));
 }
 
-.info-item {
-    padding: var(--space-sm, 8px);
-    background: var(--glass-bg-subtle, rgba(255, 255, 255, 0.05));
-    border-radius: var(--radius-sm, 8px);
-    font-size: 0.9rem;
-}
-
-.btn {
-    border-radius: var(--radius-sm, 8px);
-    transition: all var(--transition-fast, 0.3s);
-}
-
-.btn-primary {
-    background: var(--gradient-primary, linear-gradient(135deg, #667eea 0%, #764ba2 100%));
-    border: none;
-}
-
-.btn-warning {
-    background: var(--gradient-warning, linear-gradient(135deg, #f39c12 0%, #e67e22 100%));
-    border: none;
-    color: var(--text-white, #ffffff);
-}
-
-.alert {
+.changelog-content {
     background: var(--glass-bg, rgba(255, 255, 255, 0.1));
-    border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.2));
-    border-radius: var(--radius-md, 12px);
+    border-radius: var(--radius-sm, 6px);
+    padding: var(--space-md, 16px);
+    font-size: 0.9rem;
+    max-height: 200px;
+    overflow-y: auto;
+    white-space: pre-line;
+}
+
+/* Form Styling */
+.form-control,
+.form-select {
+    background: var(--glass-bg-strong, rgba(255, 255, 255, 0.15));
+    border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.3));
     color: var(--text-white, #ffffff);
 }
 
-.alert-success {
-    background: var(--glass-bg-success, rgba(46, 204, 113, 0.2));
-    border-color: var(--clr-success, #2ecc71);
+.form-control:focus,
+.form-select:focus {
+    background: var(--glass-bg-strong, rgba(255, 255, 255, 0.2));
+    border-color: var(--accent-color, #3498db);
+    box-shadow: 0 0 0 0.25rem rgba(52, 152, 219, 0.25);
+    color: var(--text-white, #ffffff);
 }
 
-.alert-warning {
-    background: var(--glass-bg-warning, rgba(243, 156, 18, 0.2));
-    border-color: var(--clr-warning, #f39c12);
+.form-label {
+    color: var(--text-white, #ffffff);
+    font-weight: 500;
 }
 
-.alert-danger {
-    background: var(--glass-bg-danger, rgba(231, 76, 60, 0.2));
-    border-color: var(--clr-danger, #e74c3c);
+.form-check-label {
+    color: var(--text-glass, rgba(255, 255, 255, 0.9));
 }
 
-.alert-info {
-    background: var(--glass-bg-info, rgba(52, 152, 219, 0.2));
-    border-color: var(--clr-info, #3498db);
+/* Table Styling */
+.table {
+    color: var(--text-white, #ffffff);
+}
+
+.table th {
+    border-color: var(--glass-border, rgba(255, 255, 255, 0.2));
+    background: var(--glass-bg-strong, rgba(255, 255, 255, 0.1));
+}
+
+.table td {
+    border-color: var(--glass-border, rgba(255, 255, 255, 0.1));
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .settings-title {
+        font-size: 1.5rem;
+    }
+    
+    .system-info .info-row {
+        flex-direction: column;
+        gap: var(--space-xs, 4px);
+    }
+    
+    .version-display {
+        margin-bottom: var(--space-md, 16px);
+    }
+}
+
+/* Animations */
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.7;
+    }
 }
 </style>
 
 <script>
-// Bootstrap Tab Functionality
 document.addEventListener('DOMContentLoaded', function() {
-    // Tab-Hash-Navigation
-    const hash = window.location.hash;
-    if (hash) {
-        const tabButton = document.querySelector(`button[data-bs-target="${hash}"]`);
-        if (tabButton) {
-            new bootstrap.Tab(tabButton).show();
-        }
-    }
-    
-    // Hash bei Tab-Wechsel setzen
-    document.querySelectorAll('button[data-bs-toggle="tab"]').forEach(button => {
-        button.addEventListener('shown.bs.tab', function(e) {
-            window.location.hash = e.target.getAttribute('data-bs-target');
+    // Form validation enhancement
+    const forms = document.querySelectorAll('form');
+    forms.forEach(form => {
+        form.addEventListener('submit', function(e) {
+            const submitBtn = this.querySelector('button[type="submit"]');
+            if (submitBtn && !submitBtn.disabled) {
+                submitBtn.disabled = true;
+                const originalText = submitBtn.innerHTML;
+                submitBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Verarbeitung...';
+                
+                // Re-enable after timeout (fallback)
+                setTimeout(() => {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = originalText;
+                }, 15000);
+            }
         });
     });
+    
+    // Auto-save indicator
+    const inputs = document.querySelectorAll('input, select, textarea');
+    inputs.forEach(input => {
+        input.addEventListener('change', function() {
+            // Visual indicator that changes need to be saved
+            this.style.borderColor = '#f39c12';
+            setTimeout(() => {
+                this.style.borderColor = '';
+            }, 2000);
+        });
+    });
+    
+    console.log('DVD Profiler Liste Settings v<?= DVDPROFILER_VERSION ?> loaded');
 });
 </script>

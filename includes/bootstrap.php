@@ -6,13 +6,13 @@ function setSecurityHeaders(): void {
     header('X-Content-Type-Options: nosniff');
     header('X-Frame-Options: DENY');
     header('X-XSS-Protection: 1; mode=block');
-
+    
     // Content Security Policy - erweitert für bessere Sicherheit
-    header("Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' cdn.jsdelivr.net cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' cdn.jsdelivr.net fonts.googleapis.com; img-src 'self' data: *; font-src 'self' cdn.jsdelivr.net fonts.gstatic.com; frame-src 'self' www.youtube.com");
-
+    header("Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' cdn.jsdelivr.net cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' cdn.jsdelivr.net; img-src 'self' data: *; font-src 'self' cdn.jsdelivr.net; frame-src 'self' www.youtube.com");
+    
     // Verhindert MIME-Type sniffing
     header('Referrer-Policy: strict-origin-when-cross-origin');
-
+    
     // Zusätzliche Sicherheitsheader
     header('Permissions-Policy: geolocation=(), microphone=(), camera=()');
 }
@@ -21,8 +21,7 @@ function setSecurityHeaders(): void {
 setSecurityHeaders();
 
 // Weiterleitung bei fehlender Installation
-// Lock-Datei wird in /admin/.install.lock gespeichert (sicher, auch wenn /install gelöscht wird)
-$lockFile = dirname(__DIR__) . '/admin/.install.lock';
+$lockFile = dirname(__DIR__) . '/install/install.lock';
 $installScript = dirname($_SERVER['SCRIPT_NAME']) . '/install/index.php';
 
 if (!file_exists($lockFile)) {

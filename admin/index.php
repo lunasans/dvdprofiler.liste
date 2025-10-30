@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 // Bootstrap (startet bereits die Session)
 require_once __DIR__ . '/../includes/bootstrap.php';
+require_once __DIR__ . '/../includes/version.php'; // Neue Versionsverwaltung laden
 
 // Zugriffsschutz
 if (!isset($_SESSION['user_id'])) {
@@ -19,81 +20,17 @@ if (!in_array($page, $allowedPages)) {
     $page = 'dashboard'; // Fallback
 }
 
-// Version und Update-Informationen
+// Version und Update-Informationen von neuer Versionsverwaltung
 $currentVersion = DVDPROFILER_VERSION;
 $versionName = DVDPROFILER_CODENAME;
 $buildDate = DVDPROFILER_BUILD_DATE;
 $buildInfo = getDVDProfilerBuildInfo();
-
-// Update-System: ROBUSTE Implementierung mit Fehlerbehandlung
-$isUpdateAvailable = false;
-$latestVersion = null;
-$updateError = null;
-
-try {
-    // Debug: Update-API testen
-    if (getSetting('environment', 'production') === 'development') {
-        error_log('Testing update API...');
-    }
-    
-    $isUpdateAvailable = isDVDProfilerUpdateAvailable();
-    if ($isUpdateAvailable) {
-        $latestVersionData = getDVDProfilerLatestVersion();
-        
-        if ($latestVersionData && is_array($latestVersionData)) {
-            $latestVersion = $latestVersionData['tag_name'] ?? $latestVersionData['version'] ?? null;
-            
-            // Debug: API-Antwort loggen
-            if (getSetting('environment', 'production') === 'development') {
-                error_log('Update API Response: ' . print_r($latestVersionData, true));
-            }
-        } else {
-            $updateError = 'Invalid API response format';
-            $isUpdateAvailable = false;
-        }
-    }
-} catch (Exception $e) {
-    $updateError = $e->getMessage();
-    error_log('Update check failed: ' . $e->getMessage());
-    $isUpdateAvailable = false;
-    $latestVersion = null;
-}
-
-$systemHealth = getSystemHealth();
+$isUpdateAvailable = isDVDProfilerUpdateAvailable();
+$systemHealth = getSystemHealth(); // Aus bootstrap.php
 
 // Performance-Monitoring für Admin
 $pageStartTime = microtime(true);
 $memoryStart = memory_get_usage(true);
-
-// SICHERE JavaScript-Variablen mit vollständiger Validierung
-function safeJsonEncode($data): string {
-    $encoded = json_encode($data, JSON_UNESCAPED_SLASHES | JSON_HEX_QUOT | JSON_HEX_APOS);
-    return $encoded !== false ? $encoded : 'null';
-}
-
-function safeJsString($value): string {
-    if ($value === null) return 'null';
-    // Doppelte Sicherheit: htmlspecialchars + json_encode
-    $safe = htmlspecialchars((string)$value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-    return '"' . str_replace(['"', "'", "\n", "\r", "\t"], ['\"', "\'", "\\n", "\\r", "\\t"], $safe) . '"';
-}
-
-// Sichere JavaScript-Variablen zusammenstellen
-$jsVars = [
-    'version' => $currentVersion,
-    'codename' => $versionName,
-    'buildDate' => $buildDate,
-    'siteTitle' => $siteTitle,
-    'featuresCount' => count(array_filter(DVDPROFILER_FEATURES)),
-    'environment' => getSetting('environment', 'production'),
-    'updateAvailable' => $isUpdateAvailable,
-    'latestVersion' => $latestVersion,
-    'updateError' => $updateError
-];
-
-// Features und BuildInfo sicher enkodieren
-$safeFeaturesJson = safeJsonEncode(array_keys(array_filter(DVDPROFILER_FEATURES)));
-$safeBuildInfoJson = safeJsonEncode($buildInfo);
 
 ?>
 <!DOCTYPE html>
@@ -107,46 +44,27 @@ $safeBuildInfoJson = safeJsonEncode($buildInfo);
     <link rel="preload" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" as="style">
     <link rel="preload" href="css/admin.css" as="style">
     
-    <!-- Bootstrap CSS -->
+    <!-- Bootstrap CSS (für Grid & Components) -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- Bootstrap Icons -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css">
+    
+    <!-- Custom Admin CSS (überschreibt Bootstrap) -->
     <link href="css/admin.css" rel="stylesheet">
     
     <!-- Meta Tags -->
     <meta name="description" content="Admin Center für <?= htmlspecialchars($siteTitle) ?>">
     <meta name="robots" content="noindex, nofollow">
     <meta name="author" content="<?= DVDPROFILER_AUTHOR ?>">
+    
+    <!-- Admin-spezifische Meta-Informationen -->
     <meta name="application-name" content="DVD Profiler Liste Admin">
     <meta name="application-version" content="<?= DVDPROFILER_VERSION ?>">
     <meta name="application-build" content="<?= DVDPROFILER_BUILD_DATE ?>">
     
-    <!-- SICHERE JavaScript-Konfiguration mit Fehlerbehandlung -->
-    <script>
-        // Sichere Admin-Konfiguration (alle Werte validiert und escaped)
-        window.DVDAdmin = {
-            version: <?= safeJsString($jsVars['version']) ?>,
-            codename: <?= safeJsString($jsVars['codename']) ?>,
-            buildDate: <?= safeJsString($jsVars['buildDate']) ?>,
-            siteTitle: <?= safeJsString($jsVars['siteTitle']) ?>,
-            featuresCount: <?= (int)$jsVars['featuresCount'] ?>,
-            environment: <?= safeJsString($jsVars['environment']) ?>,
-            updateAvailable: <?= $jsVars['updateAvailable'] ? 'true' : 'false' ?>,
-            latestVersion: <?= $jsVars['latestVersion'] ? safeJsString($jsVars['latestVersion']) : 'null' ?>,
-            updateError: <?= $jsVars['updateError'] ? safeJsString($jsVars['updateError']) : 'null' ?>,
-            features: <?= $safeFeaturesJson ?>,
-            buildInfo: <?= $safeBuildInfoJson ?>
-        };
-        
-        // Debug-Ausgabe für Entwicklung
-        <?php if (getSetting('environment', 'production') === 'development'): ?>
-        console.log('DVDAdmin Config loaded:', window.DVDAdmin);
-        if (window.DVDAdmin.updateError) {
-            console.warn('Update API Error:', window.DVDAdmin.updateError);
-        }
-        <?php endif; ?>
-    </script>
-    
     <style>
+        /* Enhanced loading animation */
         .page-loader {
             position: fixed;
             top: 0;
@@ -177,6 +95,7 @@ $safeBuildInfoJson = safeJsonEncode($buildInfo);
             opacity: 0.7;
         }
         
+        /* System status indicator */
         .system-status {
             position: fixed;
             top: 10px;
@@ -200,28 +119,6 @@ $safeBuildInfoJson = safeJsonEncode($buildInfo);
         .status-ok { background: var(--clr-success); }
         .status-warning { background: var(--clr-warning); }
         .status-error { background: var(--clr-danger); }
-        
-        .update-notification {
-            background: linear-gradient(135deg, #f39c12 0%, #e74c3c 100%);
-            color: white;
-            padding: 0.5rem 1rem;
-            border-radius: var(--radius);
-            margin-bottom: 1rem;
-            animation: pulse 2s ease-in-out infinite;
-        }
-        
-        .update-error {
-            background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
-            color: white;
-            padding: 0.5rem 1rem;
-            border-radius: var(--radius);
-            margin-bottom: 1rem;
-        }
-        
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.8; }
-        }
     </style>
 </head>
 <body>
@@ -242,10 +139,8 @@ $safeBuildInfoJson = safeJsonEncode($buildInfo);
     <div class="system-status" id="systemStatus" style="display: none;">
         <span class="status-indicator <?= $systemHealth['database'] ? 'status-ok' : 'status-error' ?>"></span>
         <span>System: <?= $systemHealth['database'] ? 'Online' : 'Offline' ?></span>
-        <?php if ($isUpdateAvailable && $latestVersion): ?>
-            <br><small><i class="bi bi-arrow-up-circle text-warning"></i> Update: v<?= htmlspecialchars($latestVersion) ?></small>
-        <?php elseif ($updateError): ?>
-            <br><small><i class="bi bi-exclamation-triangle text-warning"></i> Update-Check: Fehler</small>
+        <?php if ($isUpdateAvailable): ?>
+            <br><small><i class="bi bi-arrow-up-circle text-warning"></i> Update verfügbar</small>
         <?php endif; ?>
     </div>
 
@@ -256,36 +151,6 @@ $safeBuildInfoJson = safeJsonEncode($buildInfo);
         <!-- Main Content -->
         <main class="admin-content">
             <div class="container-fluid p-4">
-                <!-- Update Notification -->
-                <?php if ($isUpdateAvailable && $latestVersion): ?>
-                <div class="update-notification">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <i class="bi bi-arrow-up-circle me-2"></i>
-                            <strong>Update verfügbar!</strong>
-                            <span class="ms-2">Eine neue Version (v<?= htmlspecialchars($latestVersion) ?>) ist verfügbar.</span>
-                        </div>
-                        <div>
-                            <a href="?page=settings&tab=updates" class="btn btn-light btn-sm me-2">
-                                Details ansehen
-                            </a>
-                            <button class="btn-close btn-close-white" onclick="this.parentElement.parentElement.parentElement.style.display='none'"></button>
-                        </div>
-                    </div>
-                </div>
-                <?php elseif ($updateError && getSetting('environment', 'production') === 'development'): ?>
-                <div class="update-error">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <i class="bi bi-exclamation-triangle me-2"></i>
-                            <strong>Update-API Fehler:</strong>
-                            <span class="ms-2"><?= htmlspecialchars($updateError) ?></span>
-                        </div>
-                        <button class="btn-close btn-close-white" onclick="this.parentElement.parentElement.style.display='none'"></button>
-                    </div>
-                </div>
-                <?php endif; ?>
-
                 <!-- Admin Header -->
                 <div class="d-flex justify-content-between align-items-center mb-4">
                     <div>
@@ -314,17 +179,17 @@ $safeBuildInfoJson = safeJsonEncode($buildInfo);
                             <i class="bi bi-house"></i>
                         </a>
                         
-                        <?php if ($isUpdateAvailable && $latestVersion): ?>
-                        <a href="?page=settings&tab=updates" class="btn btn-warning btn-sm" title="Update verfügbar: v<?= htmlspecialchars($latestVersion) ?>">
+                        <?php if (isDVDProfilerFeatureEnabled('system_updates') && $isUpdateAvailable): ?>
+                        <a href="?page=settings&action=update" class="btn btn-warning btn-sm" title="Update verfügbar">
                             <i class="bi bi-arrow-up-circle"></i>
-                            Update v<?= htmlspecialchars($latestVersion) ?>
+                            Update
                         </a>
                         <?php endif; ?>
                         
                         <div class="dropdown">
                             <button class="btn btn-outline-light btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown">
                                 <i class="bi bi-person-circle"></i>
-                                <?= htmlspecialchars($_SESSION['username'] ?? $_SESSION['user_email'] ?? 'Admin') ?>
+                                <?= htmlspecialchars($_SESSION['username'] ?? 'Admin') ?>
                             </button>
                             <ul class="dropdown-menu dropdown-menu-end">
                                 <li><a class="dropdown-item" href="?page=settings"><i class="bi bi-gear"></i> Einstellungen</a></li>
@@ -338,8 +203,9 @@ $safeBuildInfoJson = safeJsonEncode($buildInfo);
                 <!-- Content Area -->
                 <div class="content-wrapper">
                     <?php
-                    // Enhanced error handling
+                    // Enhanced error handling with system information
                     if (file_exists(__DIR__ . "/pages/{$page}.php")) {
+                        // Performance tracking
                         $pageLoadStart = microtime(true);
                         
                         try {
@@ -363,6 +229,7 @@ $safeBuildInfoJson = safeJsonEncode($buildInfo);
                         
                         $pageLoadTime = microtime(true) - $pageLoadStart;
                         
+                        // Performance-Log für Entwicklung
                         if (getSetting('environment', 'production') === 'development') {
                             error_log("Admin page '{$page}' loaded in " . round($pageLoadTime * 1000, 2) . "ms");
                         }
@@ -403,17 +270,9 @@ $safeBuildInfoJson = safeJsonEncode($buildInfo);
                                 <i class="bi bi-memory"></i>
                                 <?= formatBytes($memoryUsage) ?>
                                 <br>
-                                <i class="bi bi-cloud"></i>
-                                Update-API: 
-                                <?php if ($isUpdateAvailable): ?>
-                                    <span class="text-success">Verfügbar</span>
-                                <?php elseif ($updateError): ?>
-                                    <span class="text-warning">Fehler</span>
-                                <?php else: ?>
-                                    <span class="text-info">Kein Update</span>
-                                <?php endif; ?>
-                                <a href="<?= DVDPROFILER_GITHUB_URL ?>" target="_blank" class="text-muted ms-2">
-                                    <i class="bi bi-box-arrow-up-right"></i>
+                                <i class="bi bi-github"></i>
+                                <a href="<?= DVDPROFILER_GITHUB_URL ?>" target="_blank" class="text-muted">
+                                    <?= DVDPROFILER_REPOSITORY ?>
                                 </a>
                             </small>
                         </div>
@@ -426,19 +285,15 @@ $safeBuildInfoJson = safeJsonEncode($buildInfo);
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     
-    <!-- SICHERE Admin JavaScript mit Fehlerbehandlung -->
+    <!-- Custom Admin JS -->
     <script>
+        // Enhanced Admin JavaScript
         document.addEventListener('DOMContentLoaded', function() {
-            // Überprüfe ob DVDAdmin korrekt geladen wurde
-            if (typeof window.DVDAdmin === 'undefined') {
-                console.error('DVDAdmin configuration failed to load!');
-                return;
-            }
-            
-            // Page Loader
+            // Page Loader with enhanced timing
             const loader = document.getElementById('pageLoader');
             const systemStatus = document.getElementById('systemStatus');
             
+            // Show system status after loader
             setTimeout(() => {
                 loader.classList.add('hidden');
                 setTimeout(() => {
@@ -460,7 +315,7 @@ $safeBuildInfoJson = safeJsonEncode($buildInfo);
                 }
             });
 
-            // Enhanced form validation
+            // Enhanced form validation feedback
             const forms = document.querySelectorAll('form');
             forms.forEach(form => {
                 form.addEventListener('submit', function(e) {
@@ -470,60 +325,103 @@ $safeBuildInfoJson = safeJsonEncode($buildInfo);
                         const originalText = submitBtn.innerHTML;
                         submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Verarbeitung...';
                         
+                        // Re-enable after timeout (fallback)
                         setTimeout(() => {
                             submitBtn.disabled = false;
                             submitBtn.innerHTML = originalText;
-                        }, 30000);
+                        }, 30000); // 30 seconds timeout
                     }
                 });
             });
 
+            // Auto-hide system status on scroll
+            let scrollTimeout;
+            window.addEventListener('scroll', function() {
+                systemStatus.style.opacity = '0.5';
+                
+                clearTimeout(scrollTimeout);
+                scrollTimeout = setTimeout(() => {
+                    systemStatus.style.opacity = '1';
+                }, 1000);
+            });
+
             // Keyboard shortcuts
             document.addEventListener('keydown', function(e) {
+                // Ctrl/Cmd + D = Dashboard
                 if ((e.ctrlKey || e.metaKey) && e.key === 'd') {
                     e.preventDefault();
                     window.location.href = '?page=dashboard';
                 }
+                
+                // Ctrl/Cmd + U = Users
+                if ((e.ctrlKey || e.metaKey) && e.key === 'u') {
+                    e.preventDefault();
+                    window.location.href = '?page=users';
+                }
+                
+                // Ctrl/Cmd + S = Settings
+                if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                    e.preventDefault();
+                    window.location.href = '?page=settings';
+                }
             });
 
-            // Debug-Ausgabe für Development (mit Fehlerbehandlung)
-            if (window.DVDAdmin.environment === 'development') {
-                console.log('DVD Profiler Liste Admin Center v' + window.DVDAdmin.version + ' "' + window.DVDAdmin.codename + '" ready');
-                console.log('Build: ' + window.DVDAdmin.buildDate + ' | Features: ' + window.DVDAdmin.featuresCount + ' aktiv');
-                
-                if (window.DVDAdmin.updateError) {
-                    console.warn('Update-Fehler:', window.DVDAdmin.updateError);
-                } else {
-                    console.log('Update verfügbar: ' + (window.DVDAdmin.updateAvailable ? 'Ja (v' + window.DVDAdmin.latestVersion + ')' : 'Nein'));
-                }
+            // Version info click handler
+            const versionInfo = document.querySelector('.loader-version, small:contains("Version")');
+            if (versionInfo) {
+                versionInfo.addEventListener('click', function() {
+                    const buildInfo = <?= json_encode($buildInfo) ?>;
+                    console.log('DVD Profiler Liste Admin - Build Information:', buildInfo);
+                });
             }
+
+            // Update notification
+            <?php if ($isUpdateAvailable): ?>
+            setTimeout(() => {
+                if (!localStorage.getItem('update_notification_dismissed')) {
+                    const notification = document.createElement('div');
+                    notification.className = 'alert alert-warning alert-dismissible position-fixed';
+                    notification.style.cssText = 'top: 70px; right: 20px; z-index: 1050; max-width: 300px;';
+                    notification.innerHTML = `
+                        <i class="bi bi-arrow-up-circle"></i>
+                        <strong>Update verfügbar!</strong>
+                        <p class="mb-2">Eine neue Version ist verfügbar.</p>
+                        <button type="button" class="btn btn-sm btn-warning" onclick="window.location.href='?page=settings&action=update'">
+                            Jetzt aktualisieren
+                        </button>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" onclick="localStorage.setItem('update_notification_dismissed', 'true')"></button>
+                    `;
+                    document.body.appendChild(notification);
+                }
+            }, 2000);
+            <?php endif; ?>
+
+            console.log('DVD Profiler Liste Admin Center v<?= DVDPROFILER_VERSION ?> "<?= DVDPROFILER_CODENAME ?>" ready');
+            console.log('Build: <?= DVDPROFILER_BUILD_DATE ?> | Features: <?= count(array_filter(DVDPROFILER_FEATURES)) ?> aktiv');
         });
 
-        // Global admin functions (mit Fehlerbehandlung)
+        // Global admin functions
         window.dvdAdmin = {
-            version: window.DVDAdmin?.version || 'Unknown',
-            updateAvailable: window.DVDAdmin?.updateAvailable || false,
+            version: '<?= DVDPROFILER_VERSION ?>',
+            codename: '<?= DVDPROFILER_CODENAME ?>',
+            buildDate: '<?= DVDPROFILER_BUILD_DATE ?>',
+            features: <?= json_encode(array_keys(array_filter(DVDPROFILER_FEATURES))) ?>,
             
             showToast: function(message, type = 'info') {
+                // Simple toast notification system
                 const toast = document.createElement('div');
                 toast.className = `alert alert-${type} position-fixed`;
                 toast.style.cssText = 'top: 20px; right: 20px; z-index: 1060; min-width: 250px;';
-                toast.innerHTML = message + ' <button type="button" class="btn-close" onclick="this.parentElement.remove()"></button>';
+                toast.innerHTML = `${message} <button type="button" class="btn-close" onclick="this.parentElement.remove()"></button>`;
                 document.body.appendChild(toast);
+                
                 setTimeout(() => toast.remove(), 5000);
             },
             
-            testUpdateAPI: function() {
-                fetch('https://update.neuhaus.or.at/update-api.php')
-                    .then(response => response.json())
-                    .then(data => {
-                        console.log('Update API Test:', data);
-                        this.showToast('Update-API funktioniert: ' + (data.tag_name || 'OK'), 'success');
-                    })
-                    .catch(error => {
-                        console.error('Update API Test failed:', error);
-                        this.showToast('Update-API Fehler: ' + error.message, 'danger');
-                    });
+            confirmAction: function(message, callback) {
+                if (confirm(message)) {
+                    callback();
+                }
             }
         };
     </script>

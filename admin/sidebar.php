@@ -1,16 +1,21 @@
 <?php
-// admin/sidebar.php - Vereinfachte Sidebar mit zentralisierter Versionsverwaltung
+// admin/sidebar.php - Aktualisierte Sidebar mit neuer Versionsverwaltung
+require_once dirname(__DIR__) . '/includes/version.php';
 
+// Aktuelle Version aus der neuen Versionsverwaltung
+$currentVersion = DVDPROFILER_VERSION;
 
-// GEÄNDERT: Verwende zentralisierte Update-Logik
-$updateStatus = getDVDProfilerUpdateStatus();
-$dvdProfilerStats = getDVDProfilerStatistics();
+// GitHub Update-Check verwenden
+$isUpdateAvailable = isDVDProfilerUpdateAvailable();
+$latestRelease = getDVDProfilerLatestGitHubVersion();
+$latestVersion = $latestRelease['version'] ?? 'Unbekannt';
 
 // Build-Info für Tooltip
-$tooltipText = "Aktuelle Version: {$updateStatus['version']} \"{$updateStatus['codename']}\"\nBuild: {$updateStatus['build_date']}\nPHP: " . PHP_VERSION;
+$buildInfo = getDVDProfilerBuildInfo();
+$tooltipText = "Aktuelle Version: {$currentVersion} \"{$buildInfo['codename']}\"\nBuild: {$buildInfo['build_date']}\nPHP: {$buildInfo['php_version']}";
 
-if ($updateStatus['has_update']) {
-    $tooltipText .= "\n\nNeue Version verfügbar: {$updateStatus['latest_version']}";
+if ($isUpdateAvailable) {
+    $tooltipText .= "\n\nNeue Version verfügbar: {$latestVersion}";
 }
 ?>
 

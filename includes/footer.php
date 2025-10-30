@@ -1,6 +1,6 @@
 <?php
 // inc/footer.php - Erweiterte Footer für DVD Profiler Liste
-
+require_once __DIR__ . '/version.php';
 
 // Hole Statistiken für Footer
 $dvdProfilerStats = getDVDProfilerStatistics();
@@ -10,9 +10,9 @@ $totalVisits = $dvdProfilerStats['total_visits'] ?? $visits ?? 0;
 $totalGenres = $dvdProfilerStats['total_genres'] ?? 0;
 $storageSize = $dvdProfilerStats['storage_size'] ?? 0;
 
-//  Update Check
+// GitHub Update Check
 $updateAvailable = isDVDProfilerUpdateAvailable();
-$latestVersion = getDVDProfilerLatestVersion();
+$latestVersion = getDVDProfilerLatestGitHubVersion();
 ?>
 
 <footer class="site-footer" role="contentinfo">

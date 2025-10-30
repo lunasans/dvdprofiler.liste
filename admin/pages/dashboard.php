@@ -4,7 +4,7 @@
  * 
  * @package    dvdprofiler.liste
  * @author     René Neuhaus
- * @version    1.4.8
+ * @version    1.4.5
  */
 
 // Sicherheitscheck
@@ -12,6 +12,9 @@ if (!isset($_SESSION['user_id'])) {
     header('Location: login.php');
     exit;
 }
+
+// Versionsinformationen und Statistiken laden
+require_once dirname(__DIR__, 2) . '/includes/version.php';
 
 // Dashboard-Statistiken sammeln
 $dashboardStats = [
@@ -58,7 +61,7 @@ try {
 // System-Health von Bootstrap abrufen
 $systemHealth = getSystemHealth();
 $updateAvailable = isDVDProfilerUpdateAvailable();
-$latestRelease = getDVDProfilerLatestVersion();
+$latestRelease = getDVDProfilerLatestGitHubVersion();
 
 // Build-Informationen
 $buildInfo = getDVDProfilerBuildInfo();
