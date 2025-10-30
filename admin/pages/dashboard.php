@@ -1,709 +1,415 @@
 <?php
-/**
- * DVD Profiler Liste - Admin Dashboard
- * 
- * @package    dvdprofiler.liste
- * @author     René Neuhaus
- * @version    1.4.5
- */
+declare(strict_types=1);
 
-// Sicherheitscheck
-if (!isset($_SESSION['user_id'])) {
-    header('Location: login.php');
+function setSecurityHeaders(): void {
+    // Verhindert XSS Angriffe
+    header('X-Content-Type-Options: nosniff');
+    header('X-Frame-Options: DENY');
+    header('X-XSS-Protection: 1; mode=block');
+    
+    // Content Security Policy - erweitert für bessere Sicherheit
+    header("Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' cdn.jsdelivr.net cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' cdn.jsdelivr.net; img-src 'self' data: *; font-src 'self' cdn.jsdelivr.net; frame-src 'self' www.youtube.com");
+    
+    // Verhindert MIME-Type sniffing
+    header('Referrer-Policy: strict-origin-when-cross-origin');
+    
+    // Zusätzliche Sicherheitsheader
+    header('Permissions-Policy: geolocation=(), microphone=(), camera=()');
+}
+
+// Security Headers setzen
+setSecurityHeaders();
+
+// Weiterleitung bei fehlender Installation
+$lockFile = dirname(__DIR__) . '/install/install.lock';
+$installScript = dirname($_SERVER['SCRIPT_NAME']) . '/install/index.php';
+
+if (!file_exists($lockFile)) {
+    header('Location: ' . $installScript);
     exit;
 }
 
-// Versionsinformationen und Statistiken laden
-require_once dirname(__DIR__, 2) . '/includes/version.php';
+// Konfiguration einbinden
+define('BASE_PATH', dirname(__DIR__));
+$config = require BASE_PATH . '/config/config.php';
 
-// Dashboard-Statistiken sammeln
-$dashboardStats = [
-    'total_films' => 0,
-    'total_boxsets' => 0,
-    'total_genres' => 0,
-    'total_actors' => 0,
-    'newest_films' => [],
-    'popular_genres' => [],
-    'recent_activity' => [],
-    'system_health' => []
-];
-
+// Datenbankverbindung mit besserer Fehlerbehandlung
 try {
-    // Film-Statistiken
-    $stmt = $pdo->query("SELECT COUNT(*) as total FROM dvds");
-    $dashboardStats['total_films'] = (int) ($stmt->fetch()['total'] ?? 0);
-
-    // BoxSet-Statistiken
-    $stmt = $pdo->query("SELECT COUNT(DISTINCT boxset_name) as total FROM dvds WHERE boxset_name IS NOT NULL AND boxset_name != ''");
-    $dashboardStats['total_boxsets'] = (int) ($stmt->fetch()['total'] ?? 0);
-
-    // Genre-Statistiken
-    $stmt = $pdo->query("SELECT COUNT(DISTINCT genre) as total FROM dvds WHERE genre IS NOT NULL AND genre != ''");
-    $dashboardStats['total_genres'] = (int) ($stmt->fetch()['total'] ?? 0);
-
-    // Actor-Statistiken (vereinfacht)
-    $stmt = $pdo->query("SELECT COUNT(*) as total FROM dvds WHERE actors IS NOT NULL AND actors != ''");
-    $dashboardStats['total_actors'] = (int) ($stmt->fetch()['total'] ?? 0);
-
-    // Neueste Filme (letzte 5)
-    $stmt = $pdo->query("SELECT title, year, genre, created_at FROM dvds ORDER BY created_at DESC LIMIT 5");
-    $dashboardStats['newest_films'] = $stmt->fetchAll();
-
-    // Beliebte Genres
-    $stmt = $pdo->query("SELECT genre, COUNT(*) as count FROM dvds WHERE genre IS NOT NULL AND genre != '' GROUP BY genre ORDER BY count DESC LIMIT 5");
-    $dashboardStats['popular_genres'] = $stmt->fetchAll();
-
-} catch (Exception $e) {
-    error_log('Dashboard stats error: ' . $e->getMessage());
-    $statsError = 'Statistiken konnten nicht geladen werden.';
+    $dsn = "mysql:host={$config['db_host']};dbname={$config['db_name']};charset={$config['db_charset']}";
+    $pdo = new PDO($dsn, $config['db_user'], $config['db_pass'], [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+        PDO::ATTR_EMULATE_PREPARES => false,
+        PDO::ATTR_STRINGIFY_FETCHES => false,
+    ]);
+} catch (PDOException $e) {
+    error_log('Database connection failed: ' . $e->getMessage());
+    die('<h2 style="color:red;">❌ Fehler bei der Datenbankverbindung</h2><p>Die Anwendung kann nicht gestartet werden. Bitte prüfen Sie die Konfiguration.</p>');
 }
 
-// System-Health von Bootstrap abrufen
-$systemHealth = getSystemHealth();
-$updateAvailable = isDVDProfilerUpdateAvailable();
-$latestRelease = getDVDProfilerLatestGitHubVersion();
-
-// Build-Informationen
-$buildInfo = getDVDProfilerBuildInfo();
-$dvdStats = getDVDProfilerStatistics();
-?>
-
-<div class="dashboard-container">
-    <!-- Welcome Header -->
-    <div class="welcome-section mb-4">
-        <div class="row align-items-center">
-            <div class="col-md-8">
-                <h1 class="dashboard-title">
-                    <i class="bi bi-speedometer2"></i>
-                    Dashboard
-                </h1>
-                <p class="dashboard-subtitle">
-                    Willkommen im Admin Center von
-                    <?= htmlspecialchars(getSetting('site_title', 'DVD Profiler Liste')) ?>
-                </p>
-            </div>
-            <div class="col-md-4 text-md-end">
-                <div class="version-info-card">
-                    <div class="version-badge-large">
-                        v<?= DVDPROFILER_VERSION ?>
-                    </div>
-                    <div class="version-details">
-                        <small>
-                            "<?= DVDPROFILER_CODENAME ?>"<br>
-                            Build <?= DVDPROFILER_BUILD_DATE ?>
-                        </small>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Quick Stats Row -->
-    <div class="row mb-4">
-        <div class="col-md-3 col-sm-6 mb-3">
-            <div class="stat-card">
-                <div class="stat-icon">
-                    <i class="bi bi-collection-play"></i>
-                </div>
-                <div class="stat-content">
-                    <h3><?= number_format($dashboardStats['total_films']) ?></h3>
-                    <p>Filme in der Sammlung</p>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-md-3 col-sm-6 mb-3">
-            <div class="stat-card">
-                <div class="stat-icon">
-                    <i class="bi bi-collection"></i>
-                </div>
-                <div class="stat-content">
-                    <h3><?= number_format($dashboardStats['total_boxsets']) ?></h3>
-                    <p>BoxSet-Sammlungen</p>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-md-3 col-sm-6 mb-3">
-            <div class="stat-card">
-                <div class="stat-icon">
-                    <i class="bi bi-tags"></i>
-                </div>
-                <div class="stat-content">
-                    <h3><?= number_format($dashboardStats['total_genres']) ?></h3>
-                    <p>Verschiedene Genres</p>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-md-3 col-sm-6 mb-3">
-            <div class="stat-card">
-                <div class="stat-icon">
-                    <i class="bi bi-eye"></i>
-                </div>
-                <div class="stat-content">
-                    <h3><?= number_format($dvdStats['total_visits'] ?? 0) ?></h3>
-                    <p>Website-Besucher</p>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Main Content Row -->
-    <div class="row">
-        <!-- Left Column -->
-        <div class="col-lg-8">
-            <!-- System Status Card -->
-            <div class="card dashboard-card mb-4">
-                <div class="card-header">
-                    <h5 class="mb-0">
-                        <i class="bi bi-heart-pulse"></i>
-                        System-Status
-                        <span class="badge bg-<?= ($systemHealth['overall'] ?? false) ? 'success' : 'danger' ?> ms-2">
-                            <?= ($systemHealth['overall'] ?? false) ? 'Gesund' : 'Probleme' ?>
-                        </span>
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="health-item">
-                                <i
-                                    class="bi bi-database <?= $systemHealth['database'] ? 'text-success' : 'text-danger' ?>"></i>
-                                <span>Datenbank:
-                                    <strong><?= $systemHealth['database'] ? 'Verbunden' : 'Fehler' ?></strong></span>
-                            </div>
-                            <div class="health-item">
-                                <i
-                                    class="bi bi-code-slash <?= $systemHealth['php_version'] ? 'text-success' : 'text-warning' ?>"></i>
-                                <span>PHP: <strong><?= PHP_VERSION ?></strong></span>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="health-item">
-                                <i class="bi bi-memory text-info"></i>
-                                <span>Memory:
-                                    <strong><?= formatBytes($systemHealth['memory_usage'] ?? 0) ?></strong></span>
-                            </div>
-                            <div class="health-item">
-                                <i class="bi bi-hdd text-info"></i>
-                                <span>Disk: <strong><?= formatBytes($systemHealth['disk_space'] ?? 0) ?>
-                                        frei</strong></span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <?php if ($systemHealth['overall'] ?? false): ?>
-                        <div class="alert alert-warning mt-3 mb-0">
-                            <i class="bi bi-exclamation-triangle"></i>
-                            <strong>Achtung:</strong> Es wurden Systemprobleme erkannt. Bitte überprüfen Sie die
-                            Konfiguration.
-                        </div>
-                    <?php endif; ?>
-                </div>
-            </div>
-
-            <!-- Updates Card -->
-            <?php if ($updateAvailable): ?>
-                <div class="card dashboard-card mb-4">
-                    <div class="card-header">
-                        <h5 class="mb-0">
-                            <i class="bi bi-arrow-up-circle text-warning"></i>
-                            Update verfügbar
-                            <span
-                                class="badge bg-warning text-dark ms-2"><?= htmlspecialchars($latestRelease['version'] ?? 'Unbekannt') ?></span>
-                        </h5>
-                    </div>
-                    <div class="card-body">
-                        <p class="mb-3">
-                            Eine neue Version von DVD Profiler Liste ist verfügbar.
-                            Aktuelle Version: <strong><?= DVDPROFILER_VERSION ?></strong> →
-                            Neue Version: <strong><?= htmlspecialchars($latestRelease['version'] ?? 'Unbekannt') ?></strong>
-                        </p>
-
-                        <?php if (!empty($latestRelease['description'])): ?>
-                            <div class="update-changelog">
-                                <h6>Changelog:</h6>
-                                <div class="changelog-content">
-                                    <?= nl2br(htmlspecialchars(substr($latestRelease['description'] ?? '', 0, 300))) ?>
-                                    <?php if (strlen($latestRelease['description'] ?? '') > 300): ?>...<?php endif; ?>
-                                </div>
-                            </div>
-                        <?php endif; ?>
-
-                        <div class="d-flex gap-2 mt-3">
-                            <a href="?page=settings&action=update" class="btn btn-warning">
-                                <i class="bi bi-download"></i>
-                                Jetzt aktualisieren
-                            </a>
-                            <a href="<?= DVDPROFILER_GITHUB_URL ?>/releases/latest" target="_blank"
-                                class="btn btn-outline-secondary">
-                                <i class="bi bi-github"></i>
-                                Details ansehen
-                            </a>
-                        </div>
-                    </div>
-                </div>
-            <?php endif; ?>
-
-            <!-- Recent Films Card -->
-            <div class="card dashboard-card mb-4">
-                <div class="card-header">
-                    <h5 class="mb-0">
-                        <i class="bi bi-clock-history"></i>
-                        Neueste Filme
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <?php if (!empty($dashboardStats['newest_films'])): ?>
-                        <div class="recent-films-list">
-                            <?php foreach ($dashboardStats['newest_films'] as $film): ?>
-                                <div class="recent-film-item">
-                                    <div class="film-info">
-                                        <h6 class="film-title">
-                                            <?= htmlspecialchars($film['title']) ?>
-                                            <?php if ($film['year']): ?>
-                                                <span class="year">(<?= htmlspecialchars($film['year']) ?>)</span>
-                                            <?php endif; ?>
-                                        </h6>
-                                        <small class="text-muted">
-                                            <?= htmlspecialchars($film['genre'] ?? 'Unbekannt') ?> •
-                                            <?= date('d.m.Y H:i', strtotime($film['created_at'])) ?>
-                                        </small>
-                                    </div>
-                                </div>
-                            <?php endforeach; ?>
-                        </div>
-                    <?php else: ?>
-                        <p class="text-muted mb-0">Noch keine Filme in der Sammlung.</p>
-                    <?php endif; ?>
-                </div>
-            </div>
-        </div>
-
-        <!-- Right Column -->
-        <div class="col-lg-4">
-            <!-- Quick Actions Card -->
-            <div class="card dashboard-card mb-4">
-                <div class="card-header">
-                    <h5 class="mb-0">
-                        <i class="bi bi-lightning"></i>
-                        Schnellaktionen
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <div class="d-grid gap-2">
-                        <a href="?page=import" class="btn btn-primary">
-                            <i class="bi bi-upload"></i>
-                            Filme importieren
-                        </a>
-                        <a href="../" class="btn btn-outline-primary" target="_blank">
-                            <i class="bi bi-eye"></i>
-                            Website ansehen
-                        </a>
-                        <a href="?page=settings" class="btn btn-outline-secondary">
-                            <i class="bi bi-gear"></i>
-                            Einstellungen
-                        </a>
-                        <a href="<?= DVDPROFILER_GITHUB_URL ?>" target="_blank" class="btn btn-outline-info">
-                            <i class="bi bi-github"></i>
-                            GitHub Repository
-                        </a>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Popular Genres Card -->
-            <div class="card dashboard-card mb-4">
-                <div class="card-header">
-                    <h5 class="mb-0">
-                        <i class="bi bi-bar-chart"></i>
-                        Beliebte Genres
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <?php if (!empty($dashboardStats['popular_genres'])): ?>
-                        <div class="genre-list">
-                            <?php foreach ($dashboardStats['popular_genres'] as $genre): ?>
-                                <div class="genre-item">
-                                    <div class="genre-name"><?= htmlspecialchars($genre['genre']) ?></div>
-                                    <div class="genre-stats">
-                                        <span class="badge bg-secondary"><?= $genre['count'] ?></span>
-                                        <div class="genre-bar">
-                                            <div class="genre-progress"
-                                                style="width: <?= ($genre['count'] / max(1, $dashboardStats['popular_genres'][0]['count'])) * 100 ?>%">
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            <?php endforeach; ?>
-                        </div>
-                    <?php else: ?>
-                        <p class="text-muted mb-0">Noch keine Genre-Statistiken verfügbar.</p>
-                    <?php endif; ?>
-                </div>
-            </div>
-
-            <!-- System Info Card -->
-            <div class="card dashboard-card mb-4">
-                <div class="card-header">
-                    <h5 class="mb-0">
-                        <i class="bi bi-info-circle"></i>
-                        System-Information
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <div class="system-info">
-                        <div class="info-item">
-                            <strong>Version:</strong> <?= getDVDProfilerVersionFull() ?>
-                        </div>
-                        <div class="info-item">
-                            <strong>Build:</strong> <?= DVDPROFILER_BUILD_DATE ?>
-                        </div>
-                        <div class="info-item">
-                            <strong>Branch:</strong> <?= DVDPROFILER_BRANCH ?>
-                        </div>
-                        <div class="info-item">
-                            <strong>Commit:</strong> <?= DVDPROFILER_COMMIT ?>
-                        </div>
-                        <div class="info-item">
-                            <strong>PHP:</strong> <?= PHP_VERSION ?>
-                        </div>
-                        <div class="info-item">
-                            <strong>Features:</strong>
-                            <?= count(array_filter(DVDPROFILER_FEATURES)) ?>/<?= count(DVDPROFILER_FEATURES) ?> aktiv
-                        </div>
-                        <div class="info-item">
-                            <strong>Repository:</strong>
-                            <a href="<?= DVDPROFILER_GITHUB_URL ?>" target="_blank" class="text-decoration-none">
-                                <?= DVDPROFILER_REPOSITORY ?>
-                            </a>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<style>
-    /* Dashboard-spezifische Styles */
-    .dashboard-container {
-        padding: 0;
+// Settings-System initialisieren
+$settings = [];
+try {
+    // Prüfen, ob Settings-Tabelle existiert
+    $pdo->query("SELECT 1 FROM settings LIMIT 1");
+    
+    // Alle Settings laden und cachen
+    $stmt = $pdo->query("SELECT `key`, `value` FROM settings");
+    $settings = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
+    
+    // BASE_URL definieren
+    define('BASE_URL', isset($settings['base_url']) ? rtrim($settings['base_url'], '/') : '');
+    
+} catch (PDOException $e) {
+    if (str_contains($e->getMessage(), 'Base table or view not found')) {
+        header('Location: ' . $installScript);
+        exit;
     }
+    error_log('Settings loading failed: ' . $e->getMessage());
+    define('BASE_URL', '');
+}
 
-    .welcome-section {
-        background: var(--glass-bg, rgba(255, 255, 255, 0.1));
-        backdrop-filter: blur(10px);
-        border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.2));
-        border-radius: var(--radius-lg, 16px);
-        padding: var(--space-xl, 24px);
-        margin-bottom: var(--space-xl, 24px);
+// Neue Versionsverwaltung laden (nach Datenbankverbindung)
+try {
+    require_once __DIR__ . '/version.php';
+    
+    // Legacy-Support: Alte Version-Variable für Kompatibilität setzen
+    if (!isset($version)) {
+        $version = DVDPROFILER_VERSION;
     }
-
-    .dashboard-title {
-        font-size: 2rem;
-        margin-bottom: var(--space-sm, 8px);
-        color: var(--text-white, #ffffff);
+    
+    // System-Informationen für Debugging (nur im Development)
+    if (getSetting('environment', 'production') === 'development') {
+        error_log('DVD Profiler Liste ' . getDVDProfilerVersionFull() . ' loaded');
+        error_log('Features enabled: ' . count(array_filter(DVDPROFILER_FEATURES)));
     }
-
-    .dashboard-subtitle {
-        color: var(--text-glass, rgba(255, 255, 255, 0.8));
-        margin-bottom: 0;
+    
+} catch (Exception $e) {
+    error_log('Version system loading failed: ' . $e->getMessage());
+    // Fallback-Werte definieren
+    if (!defined('DVDPROFILER_VERSION')) {
+        define('DVDPROFILER_VERSION', '1.4.7');
+        define('DVDPROFILER_CODENAME', 'Cinephile');
+        define('DVDPROFILER_AUTHOR', 'René Neuhaus');
+        define('DVDPROFILER_GITHUB_URL', 'https://github.com/lunasans/dvdprofiler.liste');
     }
+    $version = DVDPROFILER_VERSION;
+}
 
-    .version-info-card {
-        text-align: center;
-        background: var(--glass-bg-strong, rgba(255, 255, 255, 0.15));
-        border-radius: var(--radius-md, 12px);
-        padding: var(--space-md, 16px);
+// Utility Functions
+
+/**
+ * Settings-Wert abrufen mit Fallback
+ */
+function getSetting(string $key, string $default = ''): string
+{
+    global $settings;
+    
+    // Key Validation: Nur erlaubte Zeichen
+    if (!preg_match('/^[a-zA-Z0-9_.-]+$/', $key) || strlen($key) > 100) {
+        error_log("Invalid setting key attempted: " . substr($key, 0, 50));
+        return $default;
     }
+    
+    return $settings[$key] ?? $default;
+}
 
-    .version-badge-large {
-        background: var(--gradient-accent, linear-gradient(135deg, #667eea 0%, #764ba2 100%));
-        color: var(--text-white, #ffffff);
-        padding: var(--space-sm, 8px) var(--space-md, 16px);
-        border-radius: var(--radius-md, 12px);
-        font-size: 1.1rem;
-        font-weight: 700;
-        display: inline-block;
-        margin-bottom: var(--space-sm, 8px);
+/**
+ * Settings-Wert setzen
+ */
+function setSetting(string $key, string $value): bool
+{
+    global $pdo, $settings;
+    
+    // Key Validation
+    if (!preg_match('/^[a-zA-Z0-9_.-]+$/', $key) || strlen($key) > 100) {
+        error_log("Invalid setting key attempted: " . substr($key, 0, 50));
+        return false;
     }
-
-    .version-details {
-        color: var(--text-glass, rgba(255, 255, 255, 0.8));
-        font-size: 0.85rem;
+    
+    // Value Validation
+    if (strlen($value) > 10000) {
+        error_log("Setting value too long for key: " . $key);
+        return false;
     }
-
-    .stat-card {
-        background: var(--glass-bg, rgba(255, 255, 255, 0.1));
-        backdrop-filter: blur(10px);
-        border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.2));
-        border-radius: var(--radius-lg, 16px);
-        padding: var(--space-lg, 20px);
-        height: 100%;
-        transition: all var(--transition-fast, 0.3s);
-        display: flex;
-        align-items: center;
-        gap: var(--space-md, 16px);
-    }
-
-    .stat-card:hover {
-        transform: translateY(-4px);
-        box-shadow: var(--shadow-lg, 0 10px 25px rgba(0, 0, 0, 0.2));
-    }
-
-    .stat-icon {
-        width: 60px;
-        height: 60px;
-        background: var(--gradient-primary, linear-gradient(135deg, #667eea 0%, #764ba2 100%));
-        border-radius: var(--radius-lg, 16px);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 1.5rem;
-        color: var(--text-white, #ffffff);
-        flex-shrink: 0;
-    }
-
-    .stat-content h3 {
-        font-size: 2rem;
-        font-weight: 700;
-        margin: 0;
-        color: var(--text-white, #ffffff);
-    }
-
-    .stat-content p {
-        margin: 0;
-        color: var(--text-glass, rgba(255, 255, 255, 0.8));
-        font-size: 0.9rem;
-    }
-
-    .dashboard-card {
-        background: var(--glass-bg, rgba(255, 255, 255, 0.1));
-        backdrop-filter: blur(10px);
-        border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.2));
-        border-radius: var(--radius-lg, 16px);
-    }
-
-    .dashboard-card .card-header {
-        background: var(--glass-bg-strong, rgba(255, 255, 255, 0.15));
-        border-bottom: 1px solid var(--glass-border, rgba(255, 255, 255, 0.2));
-        border-radius: var(--radius-lg, 16px) var(--radius-lg, 16px) 0 0;
-        padding: var(--space-md, 16px) var(--space-lg, 20px);
-    }
-
-    .dashboard-card .card-body {
-        padding: var(--space-lg, 20px);
-    }
-
-    .health-item {
-        display: flex;
-        align-items: center;
-        gap: var(--space-sm, 8px);
-        margin-bottom: var(--space-sm, 8px);
-        font-size: 0.9rem;
-        color: var(--text-white, #ffffff);
-    }
-
-    .recent-film-item {
-        padding: var(--space-md, 16px);
-        border-bottom: 1px solid var(--glass-border, rgba(255, 255, 255, 0.1));
-        transition: all var(--transition-fast, 0.3s);
-    }
-
-    .recent-film-item:last-child {
-        border-bottom: none;
-    }
-
-    .recent-film-item:hover {
-        background: var(--glass-bg-strong, rgba(255, 255, 255, 0.1));
-        border-radius: var(--radius-sm, 6px);
-    }
-
-    .film-title {
-        margin: 0 0 var(--space-xs, 4px) 0;
-        color: var(--text-white, #ffffff);
-    }
-
-    .year {
-        color: var(--text-glass, rgba(255, 255, 255, 0.6));
-        font-weight: normal;
-    }
-
-    .genre-item {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: var(--space-sm, 8px) 0;
-        border-bottom: 1px solid var(--glass-border, rgba(255, 255, 255, 0.1));
-    }
-
-    .genre-item:last-child {
-        border-bottom: none;
-    }
-
-    .genre-name {
-        flex: 1;
-        color: var(--text-white, #ffffff);
-    }
-
-    .genre-stats {
-        display: flex;
-        align-items: center;
-        gap: var(--space-sm, 8px);
-    }
-
-    .genre-bar {
-        width: 60px;
-        height: 4px;
-        background: var(--glass-border, rgba(255, 255, 255, 0.2));
-        border-radius: 2px;
-        overflow: hidden;
-    }
-
-    .genre-progress {
-        height: 100%;
-        background: var(--gradient-accent, linear-gradient(135deg, #667eea 0%, #764ba2 100%));
-        transition: width 0.3s ease;
-    }
-
-    .system-info .info-item {
-        display: flex;
-        justify-content: space-between;
-        padding: var(--space-xs, 4px) 0;
-        border-bottom: 1px solid var(--glass-border, rgba(255, 255, 255, 0.1));
-        font-size: 0.85rem;
-        color: var(--text-white, #ffffff);
-    }
-
-    .system-info .info-item:last-child {
-        border-bottom: none;
-    }
-
-    .update-changelog {
-        background: var(--glass-bg-strong, rgba(255, 255, 255, 0.1));
-        border-radius: var(--radius-sm, 6px);
-        padding: var(--space-md, 16px);
-        margin: var(--space-md, 16px) 0;
-    }
-
-    .changelog-content {
-        font-size: 0.9rem;
-        line-height: 1.4;
-        color: var(--text-glass, rgba(255, 255, 255, 0.8));
-    }
-
-    /* Responsive */
-    @media (max-width: 768px) {
-        .dashboard-title {
-            font-size: 1.5rem;
+    
+    try {
+        $stmt = $pdo->prepare("INSERT INTO settings (`key`, `value`) VALUES (?, ?) ON DUPLICATE KEY UPDATE `value` = VALUES(`value`)");
+        $result = $stmt->execute([$key, $value]);
+        
+        if ($result) {
+            $settings[$key] = $value; // Cache aktualisieren
         }
+        
+        return $result;
+    } catch (PDOException $e) {
+        error_log("Setting update failed for key '{$key}': " . $e->getMessage());
+        return false;
+    }
+}
 
-        .stat-card {
-            text-align: center;
-            flex-direction: column;
-            gap: var(--space-sm, 8px);
-        }
-
-        .genre-stats {
-            flex-direction: column;
-            align-items: flex-end;
-            gap: var(--space-xs, 4px);
-        }
-
-        .system-info .info-item {
-            flex-direction: column;
-            align-items: flex-start;
-            gap: var(--space-xs, 4px);
+/**
+ * Sichere Session-Initialisierung
+ */
+function initializeSecureSession(): void
+{
+    // Session bereits gestartet?
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        return;
+    }
+    
+    // Sichere Session-Konfiguration
+    ini_set('session.cookie_httponly', '1');
+    ini_set('session.cookie_secure', '0'); // Auf 1 setzen wenn HTTPS verwendet wird
+    ini_set('session.use_strict_mode', '1');
+    ini_set('session.cookie_samesite', 'Strict');
+    ini_set('session.gc_maxlifetime', '7200'); // 2 Stunden
+    
+    // Session starten
+    session_start();
+    
+    // Session-Hijacking Schutz
+    if (!isset($_SESSION['initiated'])) {
+        session_regenerate_id(true);
+        $_SESSION['initiated'] = true;
+        $_SESSION['user_agent'] = $_SERVER['HTTP_USER_AGENT'] ?? '';
+        $_SESSION['ip_address'] = $_SERVER['REMOTE_ADDR'] ?? '';
+    } else {
+        // Validierung der Session-Integrität
+        if (($_SESSION['user_agent'] ?? '') !== ($_SERVER['HTTP_USER_AGENT'] ?? '') ||
+            ($_SESSION['ip_address'] ?? '') !== ($_SERVER['REMOTE_ADDR'] ?? '')) {
+            
+            session_destroy();
+            session_start();
+            $_SESSION['initiated'] = true;
+            $_SESSION['user_agent'] = $_SERVER['HTTP_USER_AGENT'] ?? '';
+            $_SESSION['ip_address'] = $_SERVER['REMOTE_ADDR'] ?? '';
         }
     }
+}
 
-    /* Animation beim Laden */
-    @keyframes fadeInUp {
-        from {
-            opacity: 0;
-            transform: translateY(20px);
+/**
+ * CSRF-Token generieren
+ */
+function generateCSRFToken(): string
+{
+    if (!isset($_SESSION['csrf_token'])) {
+        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+    }
+    return $_SESSION['csrf_token'];
+}
+
+/**
+ * CSRF-Token validieren
+ */
+function validateCSRFToken(string $token): bool
+{
+    return isset($_SESSION['csrf_token']) && hash_equals($_SESSION['csrf_token'], $token);
+}
+
+/**
+ * Rate-Limiting für Requests
+ */
+function checkRateLimit(string $identifier, int $maxRequests = 60, int $timeWindow = 3600): bool
+{
+    $key = 'rate_limit_' . md5($identifier);
+    $current = getSetting($key, '0|0');
+    [$count, $timestamp] = explode('|', $current . '|0');
+    
+    $count = (int)$count;
+    $timestamp = (int)$timestamp;
+    $now = time();
+    
+    // Reset counter if time window expired
+    if ($now - $timestamp > $timeWindow) {
+        $count = 0;
+        $timestamp = $now;
+    }
+    
+    $count++;
+    setSetting($key, $count . '|' . $timestamp);
+    
+    return $count <= $maxRequests;
+}
+
+/**
+ * System-Health Check
+ */
+function getSystemHealth(): array
+{
+    global $pdo;
+    
+    $health = [
+        'database' => false,
+        'php_version' => version_compare(PHP_VERSION, '7.4.0', '>='),
+        'extensions' => [],
+        'permissions' => [],
+        'disk_space' => 0,
+        'memory_usage' => 0,
+        'overall' => true
+    ];
+    
+    // Database Check
+    try {
+        $pdo->query('SELECT 1');
+        $health['database'] = true;
+    } catch (Exception $e) {
+        error_log('Database health check failed: ' . $e->getMessage());
+        $health['database'] = false;
+        $health['overall'] = false;
+    }
+    
+    // PHP Extensions Check
+    $requiredExtensions = ['pdo', 'pdo_mysql', 'json', 'mbstring'];
+    foreach ($requiredExtensions as $ext) {
+        $health['extensions'][$ext] = extension_loaded($ext);
+        if (!$health['extensions'][$ext]) {
+            $health['overall'] = false;
         }
-
-        to {
-            opacity: 1;
-            transform: translateY(0);
+    }
+    
+    // File Permissions Check
+    $paths = [
+        'config' => BASE_PATH . '/config',
+        'uploads' => BASE_PATH . '/uploads',
+        'cache' => BASE_PATH . '/cache'
+    ];
+    
+    foreach ($paths as $name => $path) {
+        $health['permissions'][$name] = is_dir($path) && is_writable($path);
+        if (!$health['permissions'][$name]) {
+            $health['overall'] = false;
         }
     }
+    
+    // System Resources
+    $health['disk_space'] = disk_free_space(BASE_PATH) ?: 0;
+    $health['memory_usage'] = memory_get_usage(true);
+    
+    return $health;
+}
 
-    .dashboard-card {
-        animation: fadeInUp 0.5s ease-out;
-    }
-
-    .stat-card {
-        animation: fadeInUp 0.5s ease-out;
-    }
-
-    /* Staggered Animation */
-    .stat-card:nth-child(1) {
-        animation-delay: 0.1s;
-    }
-
-    .stat-card:nth-child(2) {
-        animation-delay: 0.2s;
-    }
-
-    .stat-card:nth-child(3) {
-        animation-delay: 0.3s;
-    }
-
-    .stat-card:nth-child(4) {
-        animation-delay: 0.4s;
-    }
-</style>
-
-<script>
-    document.addEventListener('DOMContentLoaded', function () {
-        // Counter Animation für Statistiken
-        function animateCounters() {
-            const counters = document.querySelectorAll('.stat-content h3');
-
-            counters.forEach(counter => {
-                const target = parseInt(counter.textContent.replace(/[,\.]/g, ''));
-                const increment = target / 50;
-                let current = 0;
-
-                const timer = setInterval(() => {
-                    current += increment;
-                    if (current >= target) {
-                        counter.textContent = target.toLocaleString();
-                        clearInterval(timer);
-                    } else {
-                        counter.textContent = Math.floor(current).toLocaleString();
-                    }
-                }, 30);
-            });
+/**
+ * DVD Profiler Statistiken sammeln
+ */
+function getDVDProfilerStatistics(): array
+{
+    global $pdo;
+    
+    $stats = [
+        'total_films' => 0,
+        'total_boxsets' => 0,
+        'total_genres' => 0,
+        'total_visits' => 0,
+        'storage_size' => 0
+    ];
+    
+    try {
+        // Filme zählen
+        $stmt = $pdo->query("SELECT COUNT(*) as count FROM dvds");
+        $result = $stmt->fetch();
+        $stats['total_films'] = $result['count'] ?? 0;
+        
+        // BoxSets zählen
+        $stmt = $pdo->query("SELECT COUNT(*) as count FROM dvds WHERE boxset_parent IS NOT NULL");
+        $result = $stmt->fetch();
+        $stats['total_boxsets'] = $result['count'] ?? 0;
+        
+        // Genres zählen
+        $stmt = $pdo->query("SELECT COUNT(DISTINCT genre) as count FROM dvds WHERE genre IS NOT NULL AND genre != ''");
+        $result = $stmt->fetch();
+        $stats['total_genres'] = $result['count'] ?? 0;
+        
+        // Geschätzte Speichergröße
+        $stmt = $pdo->query("SELECT AVG(runtime) as avg_runtime, COUNT(*) as total FROM dvds WHERE runtime > 0");
+        $result = $stmt->fetch();
+        if ($result && $result['avg_runtime']) {
+            $avgSize = ($result['avg_runtime'] / 60) * 4.5; // ~4.5GB pro Stunde geschätzt
+            $stats['storage_size'] = round($avgSize * $result['total'], 1);
         }
+        
+    } catch (Exception $e) {
+        error_log('Statistics error: ' . $e->getMessage());
+    }
+    
+    // Besucher aus Counter-Datei
+    $counterFile = dirname(__DIR__) . '/counter.txt';
+    if (file_exists($counterFile)) {
+        $stats['total_visits'] = (int)file_get_contents($counterFile);
+    }
+    
+    return $stats;
+}
 
-        // Animation starten nach kurzer Verzögerung
-        setTimeout(animateCounters, 500);
+/**
+ * GitHub Update-Funktionen (Fallback)
+ */
+function getDVDProfilerLatestGitHubVersion(): array
+{
+    if (function_exists('getLatestGitHubRelease')) {
+        return getLatestGitHubRelease();
+    }
+    
+    return [
+        'version' => 'Unbekannt',
+        'published_at' => '',
+        'html_url' => ''
+    ];
+}
 
-        // Progress bars für Genres animieren
-        const progressBars = document.querySelectorAll('.genre-progress');
-        progressBars.forEach((bar, index) => {
-            setTimeout(() => {
-                bar.style.width = bar.style.width;
-            }, 800 + (index * 100));
-        });
+/**
+ * Byte-Formatierung
+ */
+function formatBytes(int|float $bytes, int $precision = 2): string
+{
+    $units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    
+    for ($i = 0; $bytes > 1024 && $i < count($units) - 1; $i++) {
+        $bytes /= 1024;
+    }
+    
+    return round($bytes, $precision) . ' ' . $units[$i];
+}
 
-        // System Health Status Tooltip
-        const healthItems = document.querySelectorAll('.health-item');
-        healthItems.forEach(item => {
-            item.addEventListener('mouseenter', function () {
-                this.style.transform = 'translateX(5px)';
-            });
+// Session initialisieren
+initializeSecureSession();
 
-            item.addEventListener('mouseleave', function () {
-                this.style.transform = 'translateX(0)';
-            });
-        });
+// CSRF-Token für Forms verfügbar machen
+$csrf_token = generateCSRFToken();
 
-        console.log('DVD Profiler Liste Dashboard v<?= DVDPROFILER_VERSION ?> loaded');
+// System-Health Check (nur im Admin-Bereich)
+if (strpos($_SERVER['REQUEST_URI'] ?? '', '/admin/') !== false) {
+    $systemHealth = getSystemHealth();
+    
+    // Kritische Probleme loggen
+    if (!$systemHealth['database']) {
+        error_log('CRITICAL: Database connection failed in admin area');
+    }
+    
+    foreach ($systemHealth['extensions'] as $ext => $loaded) {
+        if (!$loaded) {
+            error_log("WARNING: Required PHP extension '{$ext}' not loaded");
+        }
+    }
+}
+
+// Performance Monitoring (nur im Development)
+if (getSetting('environment', 'production') === 'development') {
+    register_shutdown_function(function() {
+        $memory = memory_get_peak_usage(true);
+        $time = microtime(true) - $_SERVER['REQUEST_TIME_FLOAT'];
+        error_log(sprintf('Performance: %.3fs, %s memory', $time, formatBytes($memory)));
     });
-</script>
+}
+
+// Version-Kompatibilität sicherstellen
+if (!function_exists('getDVDProfilerVersion')) {
+    function getDVDProfilerVersion(): string {
+        return defined('DVDPROFILER_VERSION') ? DVDPROFILER_VERSION : '1.4.7';
+    }
+}
+
+// Bootstrap-Abschluss-Log
+if (getSetting('environment', 'production') === 'development') {
+    error_log('Bootstrap completed successfully - DVD Profiler Liste ' . getDVDProfilerVersion());
+}
