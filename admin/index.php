@@ -54,7 +54,7 @@ try {
         // Basis-System-Health Check
         $systemHealth = [
             'database' => true, // Wird später geprüft
-            'php_version' => version_compare(PHP_VERSION, '7.4.0', '>='),
+            'php_version' => version_compare(PHP_VERSION, '8.0.0', '>='),
             'memory_usage' => memory_get_usage(true),
             'overall' => true
         ];
@@ -217,14 +217,7 @@ $memoryStart = memory_get_usage(true);
                             <span class="badge bg-secondary" title="Version <?= htmlspecialchars($currentVersion) ?>">
                                 v<?= htmlspecialchars($currentVersion) ?>
                             </span>
-                            
-                            <!-- Update Notice -->
-                            <?php if ($isUpdateAvailable): ?>
-                            <a href="?page=settings" class="btn btn-warning btn-sm" title="Update verfügbar">
-                                <i class="bi bi-arrow-up-circle"></i> Update
-                            </a>
-                            <?php endif; ?>
-                            
+                                                        
                             <!-- User Dropdown -->
                             <div class="dropdown">
                                 <button class="btn btn-outline-light dropdown-toggle" type="button" data-bs-toggle="dropdown">

@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-require_once __DIR__ . '/../../includes/bootstrap.php';
+// Bootstrap.php ist bereits durch admin/index.php geladen - NICHT nochmal laden!
 
 // Security: Session und Berechtigung prüfen
 if (!isset($_SESSION['user_id'])) {
@@ -9,7 +9,7 @@ if (!isset($_SESSION['user_id'])) {
     exit;
 }
 
-// CSRF-Token generieren
+// CSRF-Token generieren (Funktion ist bereits durch bootstrap.php verfügbar)
 $csrfToken = generateCSRFToken();
 
 // Konfiguration
@@ -88,475 +88,335 @@ class SecureFileUploader
         finfo_close($finfo);
 
         if (!in_array($mimeType, $this->allowedMimeTypes)) {
-            return ['success' => false, 'message' => 'Ungültiger MIME-Type: ' . $mimeType];
-        }
-
-        // ZIP-spezifische Validierung
-        if ($extension === 'zip') {
-            $validation = $this->validateZipContent($file['tmp_name']);
-            if (!$validation['success']) {
-                return $validation;
-            }
-        }
-
-        // XML-spezifische Validierung
-        if ($extension === 'xml') {
-            $validation = $this->validateXMLContent($file['tmp_name']);
-            if (!$validation['success']) {
-                return $validation;
-            }
+            return ['success' => false, 'message' => 'Ungültiger MIME-Type. Erlaubt: ' . implode(', ', $this->allowedMimeTypes)];
         }
 
         return ['success' => true, 'message' => 'Datei ist gültig.'];
     }
 
-    private function validateZipContent(string $filePath): array
-    {
-        $zip = new ZipArchive();
-        if ($zip->open($filePath) !== TRUE) {
-            return ['success' => false, 'message' => 'ZIP-Datei konnte nicht geöffnet werden.'];
-        }
-
-        $hasXmlFile = false;
-        for ($i = 0; $i < $zip->numFiles; $i++) {
-            $filename = $zip->getNameIndex($i);
-
-            // Path-Traversal prüfen
-            if (str_contains($filename, '..') || str_starts_with($filename, '/')) {
-                $zip->close();
-                return ['success' => false, 'message' => 'ZIP enthält unsichere Pfade.'];
-            }
-
-            // XML-Datei suchen
-            if (str_ends_with(strtolower($filename), '.xml')) {
-                $hasXmlFile = true;
-
-                // XML-Inhalt validieren
-                $xmlContent = $zip->getFromIndex($i);
-                if (!$this->isValidXMLContent($xmlContent)) {
-                    $zip->close();
-                    return ['success' => false, 'message' => "Ungültiger XML-Inhalt in {$filename}."];
-                }
-            }
-        }
-
-        $zip->close();
-
-        if (!$hasXmlFile) {
-            return ['success' => false, 'message' => 'ZIP enthält keine XML-Datei.'];
-        }
-
-        return ['success' => true, 'message' => 'ZIP-Inhalt ist gültig.'];
-    }
-
-    private function validateXMLContent(string $filePath): array
-    {
-        $content = file_get_contents($filePath);
-        if (!$this->isValidXMLContent($content)) {
-            return ['success' => false, 'message' => 'Ungültiger XML-Inhalt.'];
-        }
-
-        return ['success' => true, 'message' => 'XML-Inhalt ist gültig.'];
-    }
-
-    private function isValidXMLContent(string $content): bool
-    {
-        // XXE-Angriffe verhindern
-        libxml_use_internal_errors(true);
-        libxml_disable_entity_loader(true);
-
-        $dom = new DOMDocument();
-        $dom->validateOnParse = true;
-
-        $isValid = $dom->loadXML($content, LIBXML_NOENT | LIBXML_DTDLOAD | LIBXML_DTDATTR);
-
-        // Nach DVD-Profiler-Struktur suchen
-        if ($isValid) {
-            $dvdElements = $dom->getElementsByTagName('DVD');
-            $collectionElements = $dom->getElementsByTagName('Collection');
-
-            if ($dvdElements->length === 0 && $collectionElements->length === 0) {
-                return false; // Keine DVD-Daten gefunden
-            }
-        }
-
-        libxml_use_internal_errors(false);
-        return $isValid;
-    }
-
-    public function moveUploadedFile(array $file): array
+    public function moveUploadedFile(array $file, string $targetFilename): array
     {
         $validation = $this->validateUpload($file);
         if (!$validation['success']) {
             return $validation;
         }
 
-        // Sicheren Dateinamen generieren
-        $originalName = pathinfo($file['name'], PATHINFO_FILENAME);
-        $extension = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
-        $safeName = preg_replace('/[^a-zA-Z0-9._-]/', '_', $originalName);
-
-        // Eindeutigen Dateinamen generieren falls bereits vorhanden
-        $counter = 1;
-        $finalName = $safeName . '.' . $extension;
-        while (file_exists($this->uploadDir . $finalName)) {
-            $finalName = $safeName . '_' . $counter . '.' . $extension;
-            $counter++;
-        }
-
-        $targetPath = $this->uploadDir . $finalName;
-
+        // Sichere Ziel-Datei generieren
+        $targetPath = $this->uploadDir . basename($targetFilename);
+        
+        // Datei verschieben
         if (!move_uploaded_file($file['tmp_name'], $targetPath)) {
             return ['success' => false, 'message' => 'Datei konnte nicht gespeichert werden.'];
         }
 
-        // Dateiberechtigungen setzen
-        chmod($targetPath, 0644);
-
         return [
-            'success' => true,
-            'message' => "Datei erfolgreich hochgeladen: {$finalName}",
-            'filename' => $finalName,
-            'path' => $targetPath
+            'success' => true, 
+            'message' => 'Datei erfolgreich hochgeladen.',
+            'file_path' => $targetPath
         ];
     }
-
-    public function deleteFile(string $filename): array
-    {
-        // Dateiname validieren
-        if (!preg_match('/^[a-zA-Z0-9._-]+\.(xml|zip)$/i', $filename)) {
-            return ['success' => false, 'message' => 'Ungültiger Dateiname.'];
-        }
-
-        $filePath = $this->uploadDir . $filename;
-
-        // Sicherheitsprüfung: Datei muss im Upload-Verzeichnis sein
-        $realPath = realpath($filePath);
-        $realUploadDir = realpath($this->uploadDir);
-
-        if (!$realPath || !$realUploadDir || !str_starts_with($realPath, $realUploadDir)) {
-            return ['success' => false, 'message' => 'Ungültiger Dateipfad.'];
-        }
-
-        if (!file_exists($realPath)) {
-            return ['success' => false, 'message' => 'Datei nicht gefunden.'];
-        }
-
-        if (!unlink($realPath)) {
-            return ['success' => false, 'message' => 'Datei konnte nicht gelöscht werden.'];
-        }
-
-        return ['success' => true, 'message' => "Datei '{$filename}' erfolgreich gelöscht."];
-    }
-
-    public function listFiles(): array
-    {
-        $files = [];
-        $pattern = $this->uploadDir . '*.{xml,zip}';
-        $foundFiles = glob($pattern, GLOB_BRACE);
-
-        foreach ($foundFiles as $file) {
-            $filename = basename($file);
-            // Zusätzliche Sicherheitsprüfung
-            if (preg_match('/^[a-zA-Z0-9._-]+\.(xml|zip)$/i', $filename)) {
-                $files[] = [
-                    'name' => $filename,
-                    'size' => filesize($file),
-                    'modified' => filemtime($file),
-                    'extension' => strtolower(pathinfo($filename, PATHINFO_EXTENSION))
-                ];
-            }
-        }
-
-        // Nach Änderungsdatum sortieren (neueste zuerst)
-        usort($files, fn($a, $b) => $b['modified'] - $a['modified']);
-
-        return $files;
-    }
 }
 
-// File-Handler initialisieren
-$fileUploader = new SecureFileUploader($uploadDir, $maxFileSize, $allowedExtensions, $allowedMimeTypes);
+// Upload-Handler
+$uploadResult = null;
+$importResult = null;
 
-$message = '';
-$error = '';
-
-// POST-Handler mit CSRF-Schutz
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    // CSRF-Token prüfen
-    $submittedToken = $_POST['csrf_token'] ?? '';
-    if (!validateCSRFToken($submittedToken)) {
-        $error = '❌ Ungültiger CSRF-Token. Bitte versuchen Sie es erneut.';
-    } else {
-        // Datei löschen
-        if (isset($_POST['delete_file'])) {
-            $result = $fileUploader->deleteFile($_POST['delete_file']);
-            if ($result['success']) {
-                $message = '✅ ' . $result['message'];
-            } else {
-                $error = '❌ ' . $result['message'];
+    try {
+        // CSRF-Token validieren
+        if (!validateCSRFToken($_POST['csrf_token'] ?? '')) {
+            throw new Exception('Ungültiges CSRF-Token.');
+        }
+
+        if (isset($_FILES['xml_file'])) {
+            $uploader = new SecureFileUploader($uploadDir, $maxFileSize, $allowedExtensions, $allowedMimeTypes);
+            
+            // Eindeutigen Dateinamen generieren
+            $timestamp = date('Ymd_His');
+            $randomId = bin2hex(random_bytes(6));
+            $extension = strtolower(pathinfo($_FILES['xml_file']['name'], PATHINFO_EXTENSION));
+            $targetFilename = "import_{$timestamp}_{$randomId}.{$extension}";
+            
+            $uploadResult = $uploader->moveUploadedFile($_FILES['xml_file'], $targetFilename);
+            
+            if ($uploadResult['success']) {
+                // Nach erfolgreichem Upload: Import starten
+                $xmlFile = $uploadResult['file_path'];
+                
+                // Import-Funktionen laden
+                require_once dirname(__DIR__, 2) . '/includes/functions.php';
+                
+                if (function_exists('importDvdCollection')) {
+                    try {
+                        $importResult = importDvdCollection($xmlFile, $pdo);
+                    } catch (Exception $e) {
+                        $importResult = [
+                            'success' => false,
+                            'message' => 'Import-Fehler: ' . $e->getMessage(),
+                            'details' => []
+                        ];
+                    }
+                } else {
+                    $importResult = [
+                        'success' => false,
+                        'message' => 'Import-Funktion nicht verfügbar.',
+                        'details' => []
+                    ];
+                }
             }
         }
+    } catch (Exception $e) {
+        $uploadResult = [
+            'success' => false,
+            'message' => 'Fehler: ' . $e->getMessage()
+        ];
     }
 }
 
-// Import-Ergebnis aus Session anzeigen
-if (!empty($_SESSION['import_result'])) {
-    $importResult = $_SESSION['import_result'];
-    unset($_SESSION['import_result']);
-
-    // XSS-Schutz für Session-Nachrichten
-    $message = '✅ ' . htmlspecialchars($importResult, ENT_QUOTES, 'UTF-8');
-}
-
-// Server-Limits abrufen
-$maxUploadIni = ini_get('upload_max_filesize');
-$maxPostIni = ini_get('post_max_size');
-$memoryLimit = ini_get('memory_limit');
-
-// Dateien auflisten
-$files = $fileUploader->listFiles();
-
-// Formatierungshelfer
-function formatFileSize(int $bytes): string
-{
-    $units = ['B', 'KB', 'MB', 'GB'];
-    $i = 0;
-    while ($bytes >= 1024 && $i < count($units) - 1) {
-        $bytes /= 1024;
-        $i++;
+// Vorhandene XML-Dateien auflisten
+$xmlFiles = [];
+if (is_dir($uploadDir)) {
+    $files = scandir($uploadDir);
+    foreach ($files as $file) {
+        if (preg_match('/\.xml$/i', $file)) {
+            $filePath = $uploadDir . $file;
+            $xmlFiles[] = [
+                'name' => $file,
+                'size' => filesize($filePath),
+                'modified' => filemtime($filePath)
+            ];
+        }
     }
-    return round($bytes, 1) . ' ' . $units[$i];
-}
-
-function getFileIcon(string $extension): string
-{
-    return match ($extension) {
-        'xml' => '📄',
-        'zip' => '📦',
-        default => '📁'
-    };
+    // Nach Änderungsdatum sortieren (neuste zuerst)
+    usort($xmlFiles, fn($a, $b) => $b['modified'] <=> $a['modified']);
 }
 ?>
 
 <div class="container-fluid">
-    <h3>📥 Datei-Import</h3>
-
-    <?php if ($message): ?>
-        <div class="alert alert-success alert-dismissible fade show">
-            <?= $message ?>
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        </div>
-    <?php endif; ?>
-
-    <?php if ($error): ?>
-        <div class="alert alert-danger alert-dismissible fade show">
-            <?= $error ?>
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        </div>
-    <?php endif; ?>
-
-    <!-- Upload-Formular -->
-    <div class="card mb-4">
-        <div class="card-header">
-            <h5 class="mb-0">🔄 Neue Datei hochladen</h5>
-        </div>
-        <div class="card-body">
-            <form action="<?= htmlspecialchars(BASE_URL) ?>/admin/actions/import-handler.php" method="post"
-                enctype="multipart/form-data" id="uploadForm">
-
-                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
-
-                <div class="mb-3">
-                    <label for="xml_file" class="form-label">Datei auswählen</label>
-                    <input type="file" name="xml_file" id="xml_file" class="form-control" required accept=".xml,.zip"
-                        data-max-size="<?= $maxFileSize ?>">
-
-                    <div class="form-text">
-                        <strong>Erlaubte Dateitypen:</strong> XML, ZIP (mit XML-Inhalt)<br>
-                        <strong>Maximale Größe:</strong> <?= formatFileSize($maxFileSize) ?><br>
-                        <strong>Server-Limits:</strong> Upload: <?= htmlspecialchars($maxUploadIni) ?>,
-                        POST: <?= htmlspecialchars($maxPostIni) ?>,
-                        Memory: <?= htmlspecialchars($memoryLimit) ?>
-                    </div>
+    <div class="row">
+        <div class="col-12">
+            <!-- Page Header -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h1 class="h3 mb-0">📥 DVD Collection Import</h1>
+                    <p class="text-muted">XML-Dateien von DVD Profiler oder anderen Quellen importieren</p>
                 </div>
-
-                <div class="mb-3">
-                    <div class="form-check">
-                        <input type="checkbox" id="validate_before_upload" class="form-check-input" checked>
-                        <label for="validate_before_upload" class="form-check-label">
-                            Datei vor Upload validieren (empfohlen)
-                        </label>
-                    </div>
+                <div class="btn-group">
+                    <a href="?page=dashboard" class="btn btn-outline-secondary">
+                        <i class="bi bi-arrow-left"></i> Zurück
+                    </a>
                 </div>
+            </div>
 
-                <div class="d-flex gap-2">
-                    <button type="submit" class="btn btn-primary" id="uploadBtn">
-                        <span class="spinner-border spinner-border-sm d-none" id="uploadSpinner"></span>
-                        📤 Import starten
-                    </button>
-                    <button type="button" class="btn btn-secondary"
-                        onclick="document.getElementById('xml_file').click()">
-                        📁 Datei wählen
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- Datei-Liste -->
-    <div class="card">
-        <div class="card-header d-flex justify-content-between align-items-center">
-            <h5 class="mb-0">📁 Hochgeladene Dateien (<?= count($files) ?>)</h5>
-            <small class="text-muted">Verzeichnis: <code><?= htmlspecialchars($uploadDir) ?></code></small>
-        </div>
-        <div class="card-body">
-            <?php if (empty($files)): ?>
-                <div class="text-center text-muted py-4">
-                    <i class="fs-1">📭</i>
-                    <p class="mt-2">Keine Dateien vorhanden</p>
-                    <small>Laden Sie XML- oder ZIP-Dateien hoch, um zu beginnen.</small>
-                </div>
-            <?php else: ?>
-                <div class="table-responsive">
-                    <table class="table table-hover">
-                        <thead class="table-light">
-                            <tr>
-                                <th width="40"></th>
-                                <th>Dateiname</th>
-                                <th>Größe</th>
-                                <th>Hochgeladen</th>
-                                <th width="150">Aktionen</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($files as $file): ?>
-                                <tr>
-                                    <td class="text-center">
-                                        <?= getFileIcon($file['extension']) ?>
-                                    </td>
-                                    <td>
-                                        <span class="fw-medium"><?= htmlspecialchars($file['name']) ?></span>
-                                        <br>
-                                        <small
-                                            class="text-muted text-uppercase"><?= htmlspecialchars($file['extension']) ?>-Datei</small>
-                                    </td>
-                                    <td><?= formatFileSize($file['size']) ?></td>
-                                    <td>
-                                        <span title="<?= date('d.m.Y H:i:s', $file['modified']) ?>">
-                                            <?= date('d.m.Y', $file['modified']) ?>
-                                        </span>
-                                    </td>
-                                    <td>
-                                        <div class="btn-group btn-group-sm">
-                                            <a href="xml/<?= urlencode($file['name']) ?>" target="_blank"
-                                                class="btn btn-outline-primary" title="Datei anzeigen">
-                                                👁️ Anzeigen
-                                            </a>
-
-                                            <form method="post" style="display:inline;"
-                                                onsubmit="return confirm('Datei <?= htmlspecialchars($file['name']) ?> wirklich löschen?')">
-                                                <input type="hidden" name="csrf_token"
-                                                    value="<?= htmlspecialchars($csrfToken) ?>">
-                                                <input type="hidden" name="delete_file"
-                                                    value="<?= htmlspecialchars($file['name']) ?>">
-                                                <button type="submit" class="btn btn-outline-danger" title="Datei löschen">
-                                                    🗑️
-                                                </button>
-                                            </form>
-                                        </div>
-                                    </td>
-                                </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
+            <!-- Status-Meldungen -->
+            <?php if ($uploadResult): ?>
+                <div class="alert alert-<?= $uploadResult['success'] ? 'success' : 'danger' ?> alert-dismissible fade show">
+                    <i class="bi bi-<?= $uploadResult['success'] ? 'check-circle' : 'exclamation-triangle' ?>"></i>
+                    <strong><?= $uploadResult['success'] ? 'Upload erfolgreich:' : 'Upload fehlgeschlagen:' ?></strong>
+                    <?= htmlspecialchars($uploadResult['message']) ?>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                 </div>
             <?php endif; ?>
+
+            <?php if ($importResult): ?>
+                <div class="alert alert-<?= $importResult['success'] ? 'success' : 'danger' ?> alert-dismissible fade show">
+                    <i class="bi bi-<?= $importResult['success'] ? 'check-circle' : 'exclamation-triangle' ?>"></i>
+                    <strong><?= $importResult['success'] ? 'Import erfolgreich:' : 'Import fehlgeschlagen:' ?></strong>
+                    <?= htmlspecialchars($importResult['message']) ?>
+                    
+                    <?php if (isset($importResult['details']) && !empty($importResult['details'])): ?>
+                        <div class="mt-2">
+                            <details>
+                                <summary>Import-Details anzeigen</summary>
+                                <ul class="mt-2 mb-0">
+                                    <?php foreach ($importResult['details'] as $detail): ?>
+                                        <li><?= htmlspecialchars($detail) ?></li>
+                                    <?php endforeach; ?>
+                                </ul>
+                            </details>
+                        </div>
+                    <?php endif; ?>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            <?php endif; ?>
+
+            <div class="row">
+                <!-- Upload-Bereich -->
+                <div class="col-lg-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">
+                                <i class="bi bi-upload"></i>
+                                Neue XML-Datei hochladen
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <form method="post" enctype="multipart/form-data" class="upload-form">
+                                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
+                                
+                                <div class="mb-3">
+                                    <label for="xml_file" class="form-label">XML-Datei auswählen</label>
+                                    <input type="file" 
+                                           class="form-control" 
+                                           id="xml_file" 
+                                           name="xml_file" 
+                                           accept=".xml,.zip"
+                                           required>
+                                    <div class="form-text">
+                                        Erlaubte Formate: XML, ZIP | Max. Größe: <?= $maxFileSize / 1024 / 1024 ?>MB
+                                    </div>
+                                </div>
+                                
+                                <div class="d-grid">
+                                    <button type="submit" class="btn btn-primary">
+                                        <i class="bi bi-upload"></i>
+                                        Datei hochladen und importieren
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- Upload-Hinweise -->
+                    <div class="card mt-4">
+                        <div class="card-header">
+                            <h6 class="card-title mb-0">
+                                <i class="bi bi-info-circle"></i>
+                                Import-Hinweise
+                            </h6>
+                        </div>
+                        <div class="card-body">
+                            <ul class="mb-0">
+                                <li><strong>DVD Profiler:</strong> Exportieren Sie Ihre Collection als XML</li>
+                                <li><strong>Format:</strong> Standard Collection.xml wird unterstützt</li>
+                                <li><strong>BoxSets:</strong> Werden automatisch erkannt und gruppiert</li>
+                                <li><strong>Updates:</strong> Existierende Filme werden aktualisiert</li>
+                                <li><strong>Sicherheit:</strong> Dateien werden validiert und sicher gespeichert</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Vorhandene Dateien -->
+                <div class="col-lg-6">
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h5 class="card-title mb-0">
+                                <i class="bi bi-files"></i>
+                                Vorhandene XML-Dateien
+                            </h5>
+                            <span class="badge bg-secondary"><?= count($xmlFiles) ?> Dateien</span>
+                        </div>
+                        <div class="card-body">
+                            <?php if (empty($xmlFiles)): ?>
+                                <div class="text-center text-muted py-3">
+                                    <i class="bi bi-file-earmark-x display-4"></i>
+                                    <p class="mt-2">Noch keine XML-Dateien vorhanden</p>
+                                </div>
+                            <?php else: ?>
+                                <div class="list-group list-group-flush">
+                                    <?php foreach ($xmlFiles as $file): ?>
+                                        <div class="list-group-item d-flex justify-content-between align-items-center">
+                                            <div>
+                                                <h6 class="mb-1"><?= htmlspecialchars($file['name']) ?></h6>
+                                                <small class="text-muted">
+                                                    <?= formatBytes($file['size']) ?> • 
+                                                    <?= date('d.m.Y H:i', $file['modified']) ?>
+                                                </small>
+                                            </div>
+                                            <div class="btn-group btn-group-sm">
+                                                <button type="button" class="btn btn-outline-primary btn-sm">
+                                                    <i class="bi bi-download"></i>
+                                                </button>
+                                                <button type="button" class="btn btn-outline-danger btn-sm">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    <?php endforeach; ?>
+                                </div>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
 
+<style>
+.upload-form {
+    border: 2px dashed var(--bs-border-color);
+    border-radius: var(--bs-border-radius);
+    padding: 2rem;
+    text-align: center;
+    transition: all 0.3s ease;
+}
+
+.upload-form:hover {
+    border-color: var(--bs-primary);
+    background-color: var(--bs-light);
+}
+
+.upload-form.dragover {
+    border-color: var(--bs-success);
+    background-color: var(--bs-success-bg-subtle);
+}
+
+.list-group-item {
+    border-left: none;
+    border-right: none;
+}
+
+.list-group-item:first-child {
+    border-top: none;
+}
+
+.list-group-item:last-child {
+    border-bottom: none;
+}
+</style>
+
 <script>
-    document.addEventListener('DOMContentLoaded', function () {
-        const fileInput = document.getElementById('xml_file');
-        const uploadForm = document.getElementById('uploadForm');
-        const uploadBtn = document.getElementById('uploadBtn');
-        const uploadSpinner = document.getElementById('uploadSpinner');
-        const validateCheckbox = document.getElementById('validate_before_upload');
-        const maxSize = parseInt(fileInput.dataset.maxSize);
-
-        // Datei-Validierung
-        fileInput.addEventListener('change', function () {
-            const file = this.files[0];
-            if (!file) return;
-
-            // Größe prüfen
-            if (file.size > maxSize) {
-                alert(`Datei zu groß! Maximum: ${(maxSize / 1024 / 1024).toFixed(1)}MB`);
-                this.value = '';
-                return;
-            }
-
-            // Extension prüfen
-            const allowedTypes = ['xml', 'zip'];
-            const extension = file.name.split('.').pop().toLowerCase();
-            if (!allowedTypes.includes(extension)) {
-                alert('Ungültiger Dateityp! Erlaubt: ' + allowedTypes.join(', '));
-                this.value = '';
-                return;
-            }
-
-            // Client-seitige XML-Validierung
-            if (validateCheckbox.checked && extension === 'xml') {
-                const reader = new FileReader();
-                reader.onload = function (e) {
-                    try {
-                        const parser = new DOMParser();
-                        const xmlDoc = parser.parseFromString(e.target.result, 'text/xml');
-                        const parseError = xmlDoc.getElementsByTagName('parsererror');
-
-                        if (parseError.length > 0) {
-                            alert('Ungültige XML-Datei!');
-                            fileInput.value = '';
-                            return;
-                        }
-
-                        // Nach DVD-Elementen suchen
-                        const dvdElements = xmlDoc.getElementsByTagName('DVD');
-                        const collectionElements = xmlDoc.getElementsByTagName('Collection');
-
-                        if (dvdElements.length === 0 && collectionElements.length === 0) {
-                            if (!confirm('Keine DVD-Daten in der XML-Datei gefunden. Trotzdem hochladen?')) {
-                                fileInput.value = '';
-                                return;
-                            }
-                        }
-
-                        console.log(`✅ XML validiert: ${dvdElements.length} DVD(s), ${collectionElements.length} Collection(s)`);
-                    } catch (error) {
-                        console.error('XML-Validierung fehlgeschlagen:', error);
-                        if (!confirm('XML-Validierung fehlgeschlagen. Trotzdem hochladen?')) {
-                            fileInput.value = '';
-                        }
-                    }
-                };
-                reader.readAsText(file);
-            }
-
-            console.log(`📁 Datei ausgewählt: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)}MB)`);
-        });
-
-        // Upload-Progress
-        uploadForm.addEventListener('submit', function () {
-            uploadBtn.disabled = true;
-            uploadSpinner.classList.remove('d-none');
-            uploadBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Wird hochgeladen...';
-        });
-
-        // Auto-refresh nach 30 Sekunden
-        setTimeout(() => {
-            if (document.hidden) return; // Nur wenn Tab aktiv
-            window.location.reload();
-        }, 30000);
+document.addEventListener('DOMContentLoaded', function() {
+    const uploadForm = document.querySelector('.upload-form');
+    const fileInput = document.getElementById('xml_file');
+    
+    // Drag & Drop functionality
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+        uploadForm.addEventListener(eventName, preventDefaults, false);
     });
+    
+    function preventDefaults(e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+    
+    ['dragenter', 'dragover'].forEach(eventName => {
+        uploadForm.addEventListener(eventName, highlight, false);
+    });
+    
+    ['dragleave', 'drop'].forEach(eventName => {
+        uploadForm.addEventListener(eventName, unhighlight, false);
+    });
+    
+    function highlight(e) {
+        uploadForm.classList.add('dragover');
+    }
+    
+    function unhighlight(e) {
+        uploadForm.classList.remove('dragover');
+    }
+    
+    uploadForm.addEventListener('drop', handleDrop, false);
+    
+    function handleDrop(e) {
+        const dt = e.dataTransfer;
+        const files = dt.files;
+        
+        if (files.length > 0) {
+            fileInput.files = files;
+        }
+    }
+});
 </script>
