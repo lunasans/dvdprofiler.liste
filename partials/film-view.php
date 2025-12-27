@@ -370,7 +370,9 @@ function generateStarRating(float $rating, int $maxStars = 5): string {
         <section class="meta-card">
             <h3><i class="bi bi-play-circle"></i> Trailer</h3>
             <div class="trailer-container">
-                <div class="trailer-box" data-src="<?= htmlspecialchars($dvd['trailer_url']) ?>">
+                <div class="trailer-box" 
+                     data-src="<?= htmlspecialchars($dvd['trailer_url']) ?>"
+                     data-rating-age="<?= (int)($dvd['rating_age'] ?? 0) ?>">
                     <img src="<?= htmlspecialchars($frontCover) ?>" 
                          alt="Trailer Thumbnail"
                          loading="lazy">
@@ -383,6 +385,43 @@ function generateStarRating(float $rating, int $maxStars = 5): string {
                 </div>
             </div>
         </section>
+    <?php endif; ?>
+
+    <!-- Age Verification Modal für FSK 18+ -->
+    <?php if (!empty($dvd['trailer_url']) && (int)($dvd['rating_age'] ?? 0) >= 18): ?>
+    <div id="ageVerificationModal" class="age-modal" style="display: none;">
+        <div class="age-modal-content">
+            <div class="age-modal-header">
+                <i class="bi bi-exclamation-triangle-fill text-warning"></i>
+                <h3>Altersbeschränkung</h3>
+            </div>
+            <div class="age-modal-body">
+                <p class="age-warning">
+                    Dieser Film ist <strong>FSK <?= (int)$dvd['rating_age'] ?></strong> eingestuft.
+                </p>
+                <p>
+                    Der Trailer enthält möglicherweise Inhalte, die für Personen unter <?= (int)$dvd['rating_age'] ?> Jahren nicht geeignet sind.
+                </p>
+                <p class="age-question">
+                    <strong>Bist du mindestens <?= (int)$dvd['rating_age'] ?> Jahre alt?</strong>
+                </p>
+            </div>
+            <div class="age-modal-actions">
+                <button class="btn btn-success age-confirm" id="ageConfirmBtn">
+                    <i class="bi bi-check-circle"></i> Ja, ich bin <?= (int)$dvd['rating_age'] ?>+
+                </button>
+                <button class="btn btn-danger age-deny" id="ageDenyBtn">
+                    <i class="bi bi-x-circle"></i> Nein, abbrechen
+                </button>
+            </div>
+            <p class="age-disclaimer">
+                <small>
+                    <i class="bi bi-info-circle"></i>
+                    Mit der Bestätigung erklärst du, dass du das gesetzliche Mindestalter erreicht hast.
+                </small>
+            </p>
+        </div>
+    </div>
     <?php endif; ?>
 
     <!-- User-Bewertung (falls eingeloggt) -->
@@ -442,16 +481,158 @@ function generateStarRating(float $rating, int $maxStars = 5): string {
 
 <!-- Enhanced JavaScript -->
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Trailer-Funktionalität
-    const trailerBox = document.querySelector('.trailer-box');
-    if (trailerBox) {
-        trailerBox.addEventListener('click', function() {
-            const trailerUrl = this.dataset.src;
-            if (trailerUrl) {
-                window.open(trailerUrl, 'trailer', 'width=800,height=600');
+(function() {
+    // Trailer-Funktionalität mit Age-Verification (sofort ausgeführt)
+    const trailerContainer = document.querySelector('.trailer-container');
+    const ageModal = document.getElementById('ageVerificationModal');
+    const ageConfirmBtn = document.getElementById('ageConfirmBtn');
+    const ageDenyBtn = document.getElementById('ageDenyBtn');
+    
+    if (trailerContainer) {
+        // Event Delegation - fängt Clicks auf Child-Elemente
+        trailerContainer.addEventListener('click', function(e) {
+            const trailerBox = e.target.closest('.trailer-box');
+            if (!trailerBox) return; // Nicht auf trailer-box geklickt
+            
+            e.preventDefault();
+            e.stopPropagation();
+            
+            const ratingAge = parseInt(trailerBox.dataset.ratingAge || 0);
+            const trailerUrl = trailerBox.dataset.src;
+            
+            // Cookie-Check
+            function hasAgeConfirmation() {
+                return document.cookie.includes('age_confirmed_18=true');
+            }
+            
+            // Cookie setzen (30 Tage)
+            function setAgeConfirmation() {
+                const expires = new Date();
+                expires.setDate(expires.getDate() + 30);
+                document.cookie = `age_confirmed_18=true; expires=${expires.toUTCString()}; path=/; SameSite=Strict`;
+            }
+            
+            if (ratingAge >= 18 && !hasAgeConfirmation()) {
+                // Zeige Age-Verification
+                if (ageModal) {
+                    ageModal.style.display = 'flex';
+                    document.body.style.overflow = 'hidden';
+                }
+            } else {
+                // Spiele Trailer ab
+                playTrailer(trailerBox, trailerUrl);
+            }
+            
+            function playTrailer(box, url) {
+                if (!url) return;
+                
+                const container = box.closest('.trailer-container');
+                const embedUrl = convertToEmbedUrl(url);
+                
+                const iframe = document.createElement('iframe');
+                iframe.src = embedUrl;
+                iframe.width = '100%';
+                iframe.style.aspectRatio = '16/9';
+                iframe.style.border = 'none';
+                iframe.style.borderRadius = '8px';
+                iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture';
+                iframe.allowFullscreen = true;
+                
+                box.style.display = 'none';
+                container.appendChild(iframe);
+            }
+            
+            function convertToEmbedUrl(url) {
+                // YouTube
+                if (url.includes('youtube.com') || url.includes('youtu.be')) {
+                    const videoId = url.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/)?.[1];
+                    if (videoId) return `https://www.youtube.com/embed/${videoId}?autoplay=1`;
+                }
+                // Vimeo
+                if (url.includes('vimeo.com')) {
+                    const videoId = url.match(/vimeo\.com\/(\d+)/)?.[1];
+                    if (videoId) return `https://player.vimeo.com/video/${videoId}?autoplay=1`;
+                }
+                // Dailymotion
+                if (url.includes('dailymotion.com')) {
+                    const videoId = url.match(/dailymotion\.com\/video\/([^_]+)/)?.[1];
+                    if (videoId) return `https://www.dailymotion.com/embed/video/${videoId}?autoplay=1`;
+                }
+                return url;
             }
         });
+        
+        // Bestätigen
+        if (ageConfirmBtn) {
+            ageConfirmBtn.addEventListener('click', function() {
+                const expires = new Date();
+                expires.setDate(expires.getDate() + 30);
+                document.cookie = `age_confirmed_18=true; expires=${expires.toUTCString()}; path=/; SameSite=Strict`;
+                
+                if (ageModal) {
+                    ageModal.style.display = 'none';
+                    document.body.style.overflow = '';
+                }
+                
+                // Spiele Trailer ab
+                const trailerBox = document.querySelector('.trailer-box');
+                const trailerUrl = trailerBox?.dataset.src;
+                if (trailerBox && trailerUrl) {
+                    const container = trailerBox.closest('.trailer-container');
+                    const embedUrl = (function(url) {
+                        if (url.includes('youtube.com') || url.includes('youtu.be')) {
+                            const videoId = url.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/)?.[1];
+                            if (videoId) return `https://www.youtube.com/embed/${videoId}?autoplay=1`;
+                        }
+                        if (url.includes('vimeo.com')) {
+                            const videoId = url.match(/vimeo\.com\/(\d+)/)?.[1];
+                            if (videoId) return `https://player.vimeo.com/video/${videoId}?autoplay=1`;
+                        }
+                        return url;
+                    })(trailerUrl);
+                    
+                    const iframe = document.createElement('iframe');
+                    iframe.src = embedUrl;
+                    iframe.width = '100%';
+                    iframe.style.aspectRatio = '16/9';
+                    iframe.style.border = 'none';
+                    iframe.style.borderRadius = '8px';
+                    iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture';
+                    iframe.allowFullscreen = true;
+                    
+                    trailerBox.style.display = 'none';
+                    container.appendChild(iframe);
+                }
+            });
+        }
+        
+        // Ablehnen
+        if (ageDenyBtn) {
+            ageDenyBtn.addEventListener('click', function() {
+                if (ageModal) {
+                    ageModal.style.display = 'none';
+                    document.body.style.overflow = '';
+                }
+            });
+        }
+        
+        // ESC-Taste
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && ageModal && ageModal.style.display === 'flex') {
+                ageModal.style.display = 'none';
+                document.body.style.overflow = '';
+            }
+        });
+        
+        // Click außerhalb
+        if (ageModal) {
+            ageModal.addEventListener('click', function(e) {
+                if (e.target === ageModal) {
+                    ageModal.style.display = 'none';
+                    document.body.style.overflow = '';
+                }
+            });
+        }
     }
     
     // Rating-System mit Debug-Ausgaben
@@ -556,7 +737,7 @@ document.addEventListener('DOMContentLoaded', function() {
         
         lazyImages.forEach(img => imageObserver.observe(img));
     }
-});
+})(); // IIFE - sofort ausgeführt
 
 // AJAX-Funktionen
 async function saveUserRating(filmId, rating) {
@@ -1163,4 +1344,140 @@ function showNotification(message, type = 'info') {
         opacity: 1;
     }
 }
+/* Age Verification Modal Styles */
+.age-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.95);
+    backdrop-filter: blur(10px);
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.age-modal-content {
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+    border: 2px solid #f39c12;
+    border-radius: 16px;
+    max-width: 500px;
+    width: 90%;
+    padding: 2rem;
+    box-shadow: 0 10px 40px rgba(243, 156, 18, 0.3);
+    animation: slideUp 0.3s ease;
+}
+
+@keyframes slideUp {
+    from { transform: translateY(50px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
+.age-modal-header {
+    text-align: center;
+    margin-bottom: 1.5rem;
+}
+
+.age-modal-header i {
+    font-size: 3rem;
+    margin-bottom: 0.5rem;
+    display: block;
+}
+
+.age-modal-header h3 {
+    color: #fff;
+    margin: 0;
+    font-size: 1.5rem;
+}
+
+.age-modal-body {
+    text-align: center;
+    color: #bdc3c7;
+    margin-bottom: 1.5rem;
+}
+
+.age-warning {
+    background: rgba(243, 156, 18, 0.2);
+    border: 1px solid #f39c12;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    color: #f39c12;
+}
+
+.age-warning strong {
+    color: #fff;
+    font-size: 1.2rem;
+}
+
+.age-question {
+    font-size: 1.1rem;
+    margin-top: 1rem;
+    color: #fff;
+}
+
+.age-modal-actions {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.age-modal-actions .btn {
+    flex: 1;
+    padding: 0.75rem 1rem;
+    font-size: 1rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.age-confirm {
+    background: #27ae60;
+    color: white;
+}
+
+.age-confirm:hover {
+    background: #229954;
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(39, 174, 96, 0.4);
+}
+
+.age-deny {
+    background: #e74c3c;
+    color: white;
+}
+
+.age-deny:hover {
+    background: #c0392b;
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(231, 76, 60, 0.4);
+}
+
+.age-disclaimer {
+    text-align: center;
+    color: #7f8c8d;
+    font-size: 0.85rem;
+    margin: 0;
+}
+
+@media (max-width: 576px) {
+    .age-modal-content { padding: 1.5rem; }
+    .age-modal-actions { flex-direction: column; }
+    .age-modal-header i { font-size: 2.5rem; }
+}
+
 </style>

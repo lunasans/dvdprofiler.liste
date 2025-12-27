@@ -1,73 +1,49 @@
 <?php
-// admin/sidebar.php - Saubere Sidebar ohne Syntaxfehler
-$currentVersion = '1.4.7';
-$isUpdateAvailable = false;
-$latestVersion = 'Unbekannt';
-$tooltipText = "Version: {$currentVersion}";
+/**
+ * DVD Profiler Liste - Admin Sidebar (Clean)
+ * 
+ * @version 1.4.8
+ */
 
-try {
-    // Versuche version.php zu laden
-    if (file_exists(dirname(__DIR__) . '/includes/version.php')) {
-        require_once dirname(__DIR__) . '/includes/version.php';
-        $currentVersion = DVDPROFILER_VERSION;
-        
-        // GitHub Update-Check
-        if (function_exists('isGitHubUpdateAvailable')) {
-            $isUpdateAvailable = isGitHubUpdateAvailable();
-        }
-        
-        if (function_exists('getLatestGitHubRelease')) {
-            $latestRelease = getLatestGitHubRelease();
-            $latestVersion = $latestRelease['version'] ?? 'Unbekannt';
-        }
-        
-        $tooltipText = "Version: {$currentVersion}";
-        if ($isUpdateAvailable) {
-            $tooltipText .= "\nUpdate verfügbar: {$latestVersion}";
-        }
-    }
-} catch (Exception $e) {
-    error_log("Sidebar error: " . $e->getMessage());
-}
+require_once dirname(__DIR__) . '/includes/version.php';
 
-// DVD-Statistiken
-$totalFilms = 0;
-try {
-    if (isset($pdo)) {
-        $stmt = $pdo->query("SELECT COUNT(*) as total FROM dvds");
-        $result = $stmt->fetch();
-        $totalFilms = $result['total'] ?? 0;
-    }
-} catch (Exception $e) {
-    // Ignoriere DB-Fehler
-}
+$currentVersion = DVDPROFILER_VERSION;
+$isUpdateAvailable = isDVDProfilerUpdateAvailable();
+$latestRelease = getDVDProfilerLatestGitHubVersion();
+$latestVersion = $latestRelease['version'] ?? 'Unbekannt';
+$dvdProfilerStats = getDVDProfilerStatistics();
 ?>
 
 <aside class="sidebar">
+    <!-- Header -->
     <div class="sidebar-header">
         <h4>
             <i class="bi bi-film"></i>
             Admin Center
         </h4>
-        <div class="version-info-sidebar" title="<?= htmlspecialchars($tooltipText) ?>">
-            <span class="version-badge-small">
-                v<?= htmlspecialchars($currentVersion) ?>
-                <?php if ($isUpdateAvailable): ?>
-                    <span class="update-dot" title="Update verfügbar"></span>
-                <?php endif; ?>
-            </span>
-        </div>
+        <span class="version-badge">
+            v<?= $currentVersion ?>
+            <?php if ($isUpdateAvailable): ?>
+                <i class="bi bi-exclamation-circle text-warning ms-1" title="Update verfügbar: v<?= $latestVersion ?>"></i>
+            <?php endif; ?>
+        </span>
     </div>
     
+    <!-- Navigation -->
     <nav class="nav flex-column">
         <a href="?page=dashboard" class="nav-link <?= ($_GET['page'] ?? 'dashboard') === 'dashboard' ? 'active' : '' ?>">
             <i class="bi bi-speedometer2"></i>
             Dashboard
         </a>
         
+        <a href="?page=films" class="nav-link <?= ($_GET['page'] ?? '') === 'films' ? 'active' : '' ?>">
+            <i class="bi bi-film"></i>
+            Filme
+        </a>
+        
         <a href="?page=import" class="nav-link <?= ($_GET['page'] ?? '') === 'import' ? 'active' : '' ?>">
             <i class="bi bi-upload"></i>
-            Film Import
+            Import
         </a>
         
         <a href="?page=users" class="nav-link <?= ($_GET['page'] ?? '') === 'users' ? 'active' : '' ?>">
@@ -79,135 +55,175 @@ try {
             <i class="bi bi-gear"></i>
             Einstellungen
             <?php if ($isUpdateAvailable): ?>
-                <span class="badge rounded-pill bg-warning ms-2" title="Update verfügbar">
-                    Update!
-                </span>
+                <span class="badge bg-warning text-dark ms-auto">!</span>
             <?php endif; ?>
         </a>
         
-        <!-- Divider -->
         <hr class="sidebar-divider">
         
-        <!-- System Info -->
-        <div class="nav-item-info">
-            <small class="text-muted">
-                <i class="bi bi-info-circle"></i>
-                System-Status
-            </small>
-            <div class="system-stats">
-                <div class="stat-small">
-                    <i class="bi bi-database"></i>
-                    <span><?= number_format($totalFilms) ?> Filme</span>
-                </div>
-                <div class="stat-small">
-                    <i class="bi bi-memory"></i>
-                    <span><?= round(memory_get_usage(true) / 1024 / 1024, 1) ?>MB</span>
-                </div>
+        <!-- Stats -->
+        <div class="sidebar-stats">
+            <div class="stat-item">
+                <i class="bi bi-database"></i>
+                <span><?= number_format($dvdProfilerStats['total_films'] ?? 0) ?> Filme</span>
+            </div>
+            <div class="stat-item">
+                <i class="bi bi-collection"></i>
+                <span><?= number_format($dvdProfilerStats['total_boxsets'] ?? 0) ?> BoxSets</span>
+            </div>
+            <div class="stat-item">
+                <i class="bi bi-eye"></i>
+                <span><?= number_format($dvdProfilerStats['total_visits'] ?? 0) ?> Besucher</span>
             </div>
         </div>
         
         <!-- Spacer -->
         <div style="flex-grow: 1;"></div>
         
-        <!-- User Actions -->
-        <div class="nav-item-info border-top pt-3">
-            <div class="user-actions">
-                <a href="../" class="btn btn-outline-light btn-sm">
-                    <i class="bi bi-house"></i>
-                    Zur Website
-                </a>
-                <a href="logout.php" class="btn btn-outline-danger btn-sm">
-                    <i class="bi bi-box-arrow-right"></i>
-                    Logout
-                </a>
-            </div>
+        <!-- Actions -->
+        <div class="sidebar-actions">
+            <a href="../" class="btn btn-outline-light btn-sm" target="_blank">
+                <i class="bi bi-box-arrow-up-right"></i>
+                Website
+            </a>
+            <a href="logout.php" class="btn btn-outline-danger btn-sm">
+                <i class="bi bi-box-arrow-right"></i>
+                Logout
+            </a>
         </div>
     </nav>
 </aside>
 
 <style>
-/* Sidebar Styles */
+/* Sidebar Clean Styles */
 .sidebar {
-    --clr-bg: #1a1a2e;
-    --clr-accent: #3498db;
-    --clr-text: #ffffff;
-    --clr-text-muted: #bdc3c7;
-    --clr-border: #34495e;
-    --clr-warning: #f39c12;
+    width: 260px;
+    background: linear-gradient(135deg, var(--clr-secondary) 0%, var(--clr-card) 100%);
+    color: var(--clr-text);
+    display: flex;
+    flex-direction: column;
+    box-shadow: 2px 0 10px rgba(0, 0, 0, 0.3);
 }
 
 .sidebar-header {
-    position: relative;
-    padding: 2rem 1.5rem 1rem;
+    padding: 1.5rem;
     border-bottom: 1px solid var(--clr-border);
     background: rgba(255, 255, 255, 0.05);
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
 }
 
-.version-info-sidebar {
-    position: absolute;
-    top: 0.5rem;
-    right: 1rem;
-    cursor: help;
-}
-
-.version-badge-small {
-    background: var(--clr-accent);
-    color: white;
-    padding: 2px 6px;
-    border-radius: 4px;
-    font-size: 0.7rem;
-    font-weight: 600;
-    position: relative;
-    display: inline-block;
-}
-
-.update-dot {
-    position: absolute;
-    top: -2px;
-    right: -2px;
-    width: 8px;
-    height: 8px;
-    background: var(--clr-warning);
-    border-radius: 50%;
-    animation: pulse 2s ease-in-out infinite;
-}
-
-@keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.5; }
-}
-
-.sidebar-divider {
-    border-color: var(--clr-border);
-    margin: 1rem 0;
-}
-
-.nav-item-info {
-    padding: 0.75rem 1.5rem;
-    margin-bottom: 0.5rem;
-}
-
-.system-stats {
-    margin-top: 0.5rem;
-}
-
-.stat-small {
+.sidebar-header h4 {
+    font-size: 1.2rem;
+    margin: 0;
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    margin-bottom: 0.25rem;
+}
+
+.version-badge {
+    background: var(--clr-accent);
+    color: white;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    align-self: flex-start;
+}
+
+.nav {
+    padding: 1rem 0;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.nav-link {
+    padding: 0.75rem 1.5rem;
+    color: var(--clr-text-muted);
+    text-decoration: none;
+    transition: all 0.2s ease;
+    border-left: 3px solid transparent;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-weight: 500;
+}
+
+.nav-link:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--clr-text);
+    border-left-color: var(--clr-accent);
+}
+
+.nav-link.active {
+    background: rgba(52, 152, 219, 0.2);
+    color: var(--clr-accent);
+    border-left-color: var(--clr-accent);
+}
+
+.nav-link i {
+    width: 18px;
+    text-align: center;
+}
+
+.nav-link .badge {
+    font-size: 0.7rem;
+    padding: 0.15rem 0.35rem;
+}
+
+.sidebar-divider {
+    border: 0;
+    border-top: 1px solid var(--clr-border);
+    margin: 0.5rem 1.5rem;
+}
+
+.sidebar-stats {
+    padding: 0.5rem 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.stat-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
     font-size: 0.8rem;
     color: var(--clr-text-muted);
 }
 
-.user-actions {
-    display: flex;
-    gap: 0.5rem;
-    flex-direction: column;
+.stat-item i {
+    width: 16px;
+    text-align: center;
+    opacity: 0.7;
 }
 
-.user-actions .btn {
-    font-size: 0.8rem;
-    padding: 0.375rem 0.75rem;
+.sidebar-actions {
+    padding: 1rem 1.5rem;
+    border-top: 1px solid var(--clr-border);
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.sidebar-actions .btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+    padding: 0.5rem;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .sidebar {
+        width: 100%;
+        position: static;
+    }
 }
 </style>

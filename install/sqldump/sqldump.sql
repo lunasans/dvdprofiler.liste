@@ -62,4 +62,28 @@ CREATE TABLE `users` (
   UNIQUE KEY `email` (`email`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- ================================================================
+-- DVD Profiler Liste - Counter Tabelle
+-- Erstellt eine persistente Tabelle für den Besucherzähler
+-- ================================================================
+
+-- Counter Tabelle erstellen
+CREATE TABLE IF NOT EXISTS counter (
+    id INT PRIMARY KEY DEFAULT 1,
+    visits BIGINT UNSIGNED NOT NULL DEFAULT 0,
+    last_visit_date DATE NULL,
+    daily_visits BIGINT UNSIGNED NOT NULL DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Initialen Eintrag erstellen (falls nicht vorhanden)
+-- Hinweis: Verwende immer id=1 für den einzigen Counter-Eintrag
+INSERT IGNORE INTO counter (id, visits, last_visit_date, daily_visits) 
+VALUES (1, 0, CURDATE(), 0);
+
+-- Index für Performance
+CREATE INDEX idx_last_visit ON counter(last_visit_date);
+
+
 SET FOREIGN_KEY_CHECKS=1;

@@ -6,7 +6,7 @@
  * 
  * @package    dvdprofiler.liste
  * @author     René Neuhaus
- * @version    1.4.5
+ * @version    1.4.8
  */
 declare(strict_types=1);
 
@@ -81,6 +81,7 @@ if (!empty($search)) {
 $cspPolicy = "default-src 'self'; " .
              "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; " .
              "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; " .
+             "frame-src 'self' https://www.youtube.com https://player.vimeo.com https://www.dailymotion.com; " . 
              "img-src 'self' data: https:; " .
              "font-src 'self' https://cdn.jsdelivr.net; " .
              "connect-src 'self';";
