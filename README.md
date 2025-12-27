@@ -145,19 +145,9 @@ Bei Fragen, Problemen oder Verbesserungsvorschlägen:
 - Erstellen Sie ein [GitHub Issue](https://github.com/lunasans/dvdprofiler.liste/issues)
 - Nutzen Sie die Diskussionsfunktion im Repository
 
-## 📈 Roadmap
 
-- [ ] Multi-Language Support
-- [ ] API-Schnittstelle
-- [ ] Mobile App
-- [ ] Cloud-Synchronisation
-- [ ] Erweiterte Statistiken
-- [ ] Social Features
-
----
-
-**Version**: 1.3.5+  
-**Letztes Update**: Juli 2025  
+**Version**: 1.4.8  
+**Letztes Update**: Dezember 2025  
 **Status**: Aktiv entwickelt
 
 *Verwalten Sie Ihre Filmsammlung mit Stil und Effizienz!* 🎬✨
