@@ -23,6 +23,22 @@ class DVDApp {
         
         // Browser Navigation
         window.addEventListener('popstate', this.loadFromUrl.bind(this));
+        
+        // Search Form Handler
+        const searchForm = document.querySelector('.search-form');
+        if (searchForm) {
+            searchForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const searchInput = searchForm.querySelector('input[name="search"]');
+                const searchQuery = searchInput.value.trim();
+                
+                if (searchQuery) {
+                    this.loadSearch(searchQuery);
+                } else {
+                    this.loadLatest();
+                }
+            });
+        }
     }
 
     handleDocumentClick(e) {
@@ -486,6 +502,9 @@ class DVDApp {
             } else if (params.has('page')) {
                 await this.loadPage(params.get('page'));
                 
+            } else if (params.has('q')) {
+                await this.loadSearch(params.get('q'));
+                
             } else if (params.has('seite')) {
                 await this.loadLatestWithPagination(params.get('seite'));
                 
@@ -526,6 +545,22 @@ class DVDApp {
         this.container.innerHTML = html;
     }
 
+    async loadSearch(query) {
+        try {
+            const response = await fetch(`partials/film-list.php?q=${encodeURIComponent(query)}`);
+            const html = await response.text();
+            this.container.innerHTML = html;
+            
+            // URL aktualisieren
+            history.pushState({}, '', `?q=${encodeURIComponent(query)}`);
+            
+            console.log(`🔍 Suche nach: "${query}"`);
+        } catch (error) {
+            console.error('Suchfehler:', error);
+            this.container.innerHTML = '<div class="alert alert-danger">Fehler bei der Suche</div>';
+        }
+    }
+
     // Fancybox binden
     bindFancybox() {
         if (typeof Fancybox !== 'undefined') {
@@ -558,7 +593,32 @@ class DVDApp {
     }
     
     executeInlineScripts(container) {
-        // Bestehende Script-Ausführung
+        if (!container) return;
+        
+        // Finde alle <script> Tags im Container
+        const scripts = container.querySelectorAll('script');
+        
+        scripts.forEach(oldScript => {
+            // Erstelle neues Script-Element
+            const newScript = document.createElement('script');
+            
+            // Kopiere alle Attribute
+            Array.from(oldScript.attributes).forEach(attr => {
+                newScript.setAttribute(attr.name, attr.value);
+            });
+            
+            // Kopiere Inline-Code oder src
+            if (oldScript.src) {
+                newScript.src = oldScript.src;
+            } else {
+                newScript.textContent = oldScript.textContent;
+            }
+            
+            // Ersetze altes Script mit neuem (damit es ausgeführt wird)
+            oldScript.parentNode.replaceChild(newScript, oldScript);
+        });
+        
+        console.log(`✅ ${scripts.length} Inline-Scripts ausgeführt`);
     }
 }
 
