@@ -1,27 +1,15 @@
 <?php
-// Funktioniert garantiert - basierend auf deinem erfolgreichen Test
+// 10-latest-fragment.php - Zeigt nur die 10 neuesten Filme (OHNE Pagination)
 require_once __DIR__ . '/includes/bootstrap.php';
 
-// Pagination
-$page = 1;
-if (isset($_GET['seite']) && is_numeric($_GET['seite']) && $_GET['seite'] > 0) {
-    $page = (int)$_GET['seite'];
-}
-
-$perPage = 15;
-$offset = ($page - 1) * $perPage;
-
-// Total Count
-$countStmt = $pdo->query("SELECT COUNT(*) FROM dvds");
-$totalRecords = (int)$countStmt->fetchColumn();
-$totalPages = (int)ceil($totalRecords / $perPage);
-
-// Load DVDs - Sichere MySQL-Syntax ohne Prepared Statements für LIMIT
-$sql = "SELECT * FROM dvds ORDER BY id DESC LIMIT " . (int)$offset . ", " . (int)$perPage;
-echo "<!-- DEBUG SQL: $sql -->";
+// Nur die 10 neuesten Filme laden
+$sql = "SELECT * FROM dvds ORDER BY id DESC LIMIT 10";
 $stmt = $pdo->query($sql);
 $latest = $stmt->fetchAll();
-echo "<!-- DEBUG: Loaded " . count($latest) . " films -->";
+
+// Total Count für Anzeige
+$countStmt = $pdo->query("SELECT COUNT(*) FROM dvds");
+$totalRecords = (int)$countStmt->fetchColumn();
 
 // Helper function
 function safeFormatRuntime($minutes) {
@@ -36,10 +24,9 @@ function safeFormatRuntime($minutes) {
     <h2>
         <i class="bi bi-stars"></i>
         Neu hinzugefügt 
-        <span class="item-count">(<?= number_format($totalRecords) ?> Filme)</span>
+        <span class="item-count">(<?= count($latest) ?> neueste von <?= number_format($totalRecords) ?> Filmen)</span>
     </h2>
 </header>
-
 <section class="latest-grid">
     <?php if (empty($latest)): ?>
         <div class="empty-state">

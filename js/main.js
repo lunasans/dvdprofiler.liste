@@ -79,6 +79,30 @@ class DVDApp {
             return;
         }
 
+        // Pagination Links (in film-list.php)
+        const paginationLink = e.target.closest('.pagination a');
+        if (paginationLink) {
+            const href = paginationLink.getAttribute('href');
+            if (href && href.startsWith('?')) {
+                e.preventDefault();
+                history.pushState({}, '', href);
+                this.loadFromUrl();
+            }
+            return;
+        }
+
+        // Tabs/Filter Links (in film-list.php)
+        const tabLink = e.target.closest('.tabs a');
+        if (tabLink) {
+            const href = tabLink.getAttribute('href');
+            if (href && href.startsWith('?')) {
+                e.preventDefault();
+                history.pushState({}, '', href);
+                this.loadFromUrl();
+            }
+            return;
+        }
+
         // YouTube Trailer
         const placeholder = e.target.closest('.trailer-placeholder');
         if (placeholder) {
@@ -502,13 +526,12 @@ class DVDApp {
             } else if (params.has('page')) {
                 await this.loadPage(params.get('page'));
                 
-            } else if (params.has('q')) {
-                await this.loadSearch(params.get('q'));
-                
-            } else if (params.has('seite')) {
-                await this.loadLatestWithPagination(params.get('seite'));
+            } else if (params.has('q') || params.has('type') || params.has('seite')) {
+                // Suche, Filter oder Pagination → lade film-list.php
+                await this.loadFilmList(params);
                 
             } else {
+                // Keine Parameter → lade 10 neueste
                 await this.loadLatest();
             }
         } catch (error) {
@@ -561,6 +584,24 @@ class DVDApp {
         }
     }
 
+    async loadFilmList(params) {
+        try {
+            // Baue URL mit allen Parametern (q, type, seite)
+            const queryString = params.toString();
+            const response = await fetch(`partials/film-list.php?${queryString}`);
+            const html = await response.text();
+            this.container.innerHTML = html;
+            
+            // Restore View Mode nach Laden
+            this.restoreViewMode();
+            
+            console.log(`📋 Film-Liste geladen: ${queryString}`);
+        } catch (error) {
+            console.error('Film-List Fehler:', error);
+            this.container.innerHTML = '<div class="alert alert-danger">Fehler beim Laden</div>';
+        }
+    }
+
     // Fancybox binden
     bindFancybox() {
         if (typeof Fancybox !== 'undefined') {
@@ -585,11 +626,42 @@ class DVDApp {
 
     // Restliche Methoden (updateNavigation, restoreViewMode, executeInlineScripts) bleiben unverändert...
     updateNavigation() {
-        // Bestehende Navigation-Logik
+        const links = document.querySelectorAll('.main-nav a');
+        const current = window.location.search;
+
+        links.forEach(link => {
+            link.classList.remove('active');
+            if (link.getAttribute('href') === current) {
+                link.classList.add('active');
+            }
+        });
+    }
+    
+    setViewMode(mode) {
+        const list = document.querySelector('.film-list');
+        if (!list) return;
+
+        // Entferne alte Klassen
+        list.classList.remove('grid-mode', 'list-mode');
+        list.classList.add(mode + '-mode');
+
+        // Speichere Präferenz
+        localStorage.setItem('viewMode', mode);
+        
+        // Update Button States
+        document.querySelectorAll('.view-btn').forEach(btn => {
+            btn.classList.remove('active');
+            if (btn.dataset.mode === mode) {
+                btn.classList.add('active');
+            }
+        });
+        
+        console.log(`📋 View-Modus: ${mode}`);
     }
     
     restoreViewMode() {
-        // Bestehende ViewMode-Logik  
+        const savedMode = localStorage.getItem('viewMode') || 'grid';
+        this.setViewMode(savedMode);
     }
     
     executeInlineScripts(container) {

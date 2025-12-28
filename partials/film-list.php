@@ -126,6 +126,16 @@ try {
       </li>
     <?php endforeach; ?>
   </ul>
+  
+  <!-- View Mode Toggle -->
+  <div class="view-toggle">
+    <button onclick="window.dvdApp.setViewMode('grid')" class="view-btn" data-mode="grid" title="Kachel-Ansicht">
+      <i class="bi bi-grid-3x3-gap"></i>
+    </button>
+    <button onclick="window.dvdApp.setViewMode('list')" class="view-btn" data-mode="list" title="Listen-Ansicht">
+      <i class="bi bi-list-ul"></i>
+    </button>
+  </div>
 </div>
 
 <!-- Film-Liste -->
@@ -151,14 +161,29 @@ try {
   <?php endif; ?>
 </div>
 
-<!-- Einfache Pagination -->
+<!-- Intelligente Pagination mit Fenster -->
 <?php if ($totalPages > 1): ?>
   <nav class="pagination">
     <?php if ($page > 1): ?>
-      <a href="?<?= buildQuery(['seite' => $page - 1]) ?>">« Zurück</a>
+      <a href="?<?= buildQuery(['seite' => 1]) ?>">« Erste</a>
+      <a href="?<?= buildQuery(['seite' => $page - 1]) ?>">‹ Zurück</a>
     <?php endif; ?>
     
-    <?php for ($i = 1; $i <= min(10, $totalPages); $i++): ?>
+    <?php
+    // Intelligente Pagination: Zeige Fenster um aktuelle Seite
+    $window = 2; // Zeige 2 Seiten vor und nach aktueller Seite
+    $start = max(1, $page - $window);
+    $end = min($totalPages, $page + $window);
+    
+    // Erste Seite immer zeigen
+    if ($start > 1): ?>
+      <a href="?<?= buildQuery(['seite' => 1]) ?>">1</a>
+      <?php if ($start > 2): ?>
+        <span class="dots">...</span>
+      <?php endif; ?>
+    <?php endif; ?>
+    
+    <?php for ($i = $start; $i <= $end; $i++): ?>
       <?php if ($i === $page): ?>
         <span class="current"><?= $i ?></span>
       <?php else: ?>
@@ -166,13 +191,17 @@ try {
       <?php endif; ?>
     <?php endfor; ?>
     
-    <?php if ($totalPages > 10): ?>
-      <span>...</span>
+    <?php // Letzte Seite immer zeigen
+    if ($end < $totalPages): ?>
+      <?php if ($end < $totalPages - 1): ?>
+        <span class="dots">...</span>
+      <?php endif; ?>
       <a href="?<?= buildQuery(['seite' => $totalPages]) ?>"><?= $totalPages ?></a>
     <?php endif; ?>
     
     <?php if ($page < $totalPages): ?>
-      <a href="?<?= buildQuery(['seite' => $page + 1]) ?>">Weiter »</a>
+      <a href="?<?= buildQuery(['seite' => $page + 1]) ?>">Weiter ›</a>
+      <a href="?<?= buildQuery(['seite' => $totalPages]) ?>">Letzte »</a>
     <?php endif; ?>
   </nav>
   
