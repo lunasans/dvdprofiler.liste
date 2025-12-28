@@ -9,7 +9,8 @@
       <a href="?page=stats" class="route-link">Statistik</a>
       </nav>
     <form class="search-form" method="get" action="index.php">
-      <input type="text" name="search" placeholder="Suche...">
+      <input type="text" name="q" placeholder="Suche..." autocomplete="off">
+      <button type="submit" style="display: none;">Suchen</button>
     </form>
     <button class="burger" onclick="document.querySelector('.main-nav').classList.toggle('show')">☰</button>
   </div>

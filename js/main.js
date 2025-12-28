@@ -29,7 +29,7 @@ class DVDApp {
         if (searchForm) {
             searchForm.addEventListener('submit', (e) => {
                 e.preventDefault();
-                const searchInput = searchForm.querySelector('input[name="search"]');
+                const searchInput = searchForm.querySelector('input[name="q"]');
                 const searchQuery = searchInput.value.trim();
                 
                 if (searchQuery) {
