@@ -79,26 +79,37 @@ class DVDApp {
             return;
         }
 
-        // Pagination Links (in film-list.php)
-        const paginationLink = e.target.closest('.pagination a');
-        if (paginationLink) {
-            const href = paginationLink.getAttribute('href');
-            if (href && href.startsWith('?')) {
-                e.preventDefault();
-                history.pushState({}, '', href);
-                this.loadFromUrl();
-            }
-            return;
-        }
-
-        // Tabs/Filter Links (in film-list.php)
+        // Tabs/Filter Links (in film-list.php) - laden in LINKE Seite
         const tabLink = e.target.closest('.tabs a');
         if (tabLink) {
             const href = tabLink.getAttribute('href');
             if (href && href.startsWith('?')) {
                 e.preventDefault();
                 history.pushState({}, '', href);
-                this.loadFromUrl();
+                this.loadPaginationPage(href);
+            }
+            return;
+        }
+
+        // Pagination Links - laden in LINKE Seite (film-list-area)
+        const paginationLink = e.target.closest('.pagination a');
+        if (paginationLink) {
+            const href = paginationLink.getAttribute('href');
+            if (href && href.startsWith('?')) {
+                e.preventDefault();
+                history.pushState({}, '', href);
+                this.loadPaginationPage(href);
+            }
+            return;
+        }
+
+        // View Mode Toggle Buttons
+        const viewBtn = e.target.closest('.view-btn');
+        if (viewBtn) {
+            e.preventDefault();
+            const mode = viewBtn.dataset.mode;
+            if (mode) {
+                this.setViewMode(mode);
             }
             return;
         }
@@ -570,27 +581,47 @@ class DVDApp {
 
     async loadSearch(query) {
         try {
+            // Lade in film-list-area (LINKE Seite)
+            const filmListArea = document.querySelector('.film-list-area');
+            if (!filmListArea) {
+                console.error('film-list-area nicht gefunden');
+                return;
+            }
+            
             const response = await fetch(`partials/film-list.php?q=${encodeURIComponent(query)}`);
             const html = await response.text();
-            this.container.innerHTML = html;
+            filmListArea.innerHTML = html;
             
             // URL aktualisieren
             history.pushState({}, '', `?q=${encodeURIComponent(query)}`);
             
+            // Restore View Mode
+            this.restoreViewMode();
+            
             console.log(`🔍 Suche nach: "${query}"`);
         } catch (error) {
             console.error('Suchfehler:', error);
-            this.container.innerHTML = '<div class="alert alert-danger">Fehler bei der Suche</div>';
+            const filmListArea = document.querySelector('.film-list-area');
+            if (filmListArea) {
+                filmListArea.innerHTML = '<div class="alert alert-danger">Fehler bei der Suche</div>';
+            }
         }
     }
 
     async loadFilmList(params) {
         try {
+            // Lade in film-list-area (LINKE Seite)
+            const filmListArea = document.querySelector('.film-list-area');
+            if (!filmListArea) {
+                console.error('film-list-area nicht gefunden');
+                return;
+            }
+            
             // Baue URL mit allen Parametern (q, type, seite)
             const queryString = params.toString();
             const response = await fetch(`partials/film-list.php?${queryString}`);
             const html = await response.text();
-            this.container.innerHTML = html;
+            filmListArea.innerHTML = html;
             
             // Restore View Mode nach Laden
             this.restoreViewMode();
@@ -598,7 +629,32 @@ class DVDApp {
             console.log(`📋 Film-Liste geladen: ${queryString}`);
         } catch (error) {
             console.error('Film-List Fehler:', error);
-            this.container.innerHTML = '<div class="alert alert-danger">Fehler beim Laden</div>';
+            const filmListArea = document.querySelector('.film-list-area');
+            if (filmListArea) {
+                filmListArea.innerHTML = '<div class="alert alert-danger">Fehler beim Laden</div>';
+            }
+        }
+    }
+
+    async loadPaginationPage(href) {
+        try {
+            // Lade in film-list-area (LINKE Seite), nicht in detail-container!
+            const filmListArea = document.querySelector('.film-list-area');
+            if (!filmListArea) {
+                console.error('film-list-area nicht gefunden');
+                return;
+            }
+            
+            const response = await fetch(`partials/film-list.php${href}`);
+            const html = await response.text();
+            filmListArea.innerHTML = html;
+            
+            // Restore View Mode
+            this.restoreViewMode();
+            
+            console.log(`📄 Pagination geladen: ${href}`);
+        } catch (error) {
+            console.error('Pagination Fehler:', error);
         }
     }
 
@@ -706,3 +762,16 @@ function closeDetail() {
         window.dvdApp.closeDetail();
     }
 }
+
+// Global verfügbare Funktion für setViewMode
+window.setViewMode = function(mode) {
+    if (window.dvdApp) {
+        window.dvdApp.setViewMode(mode);
+    }
+};
+// Globale Funktionen für View Mode (für onclick-Handler)
+window.setViewMode = function(mode) {
+    if (window.dvdApp) {
+        window.dvdApp.setViewMode(mode);
+    }
+};

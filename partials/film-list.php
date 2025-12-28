@@ -1,6 +1,11 @@
 <?php
 // Minimale, sichere Version von partials/film-list.php
 
+// Bootstrap laden für Datenbankverbindung
+if (!isset($pdo)) {
+    require_once __DIR__ . '/../includes/bootstrap.php';
+}
+
 // Bootstrap ist bereits geladen durch index.php, nur sicherstellen dass functions da ist
 if (!function_exists('renderFilmCard')) {
     // Temporäre renderFilmCard Funktion falls functions.php nicht geladen
@@ -15,9 +20,9 @@ if (!function_exists('renderFilmCard')) {
         if (!empty($dvd['cover_id'])) {
             $extensions = ['.jpg', '.jpeg', '.png'];
             foreach ($extensions as $ext) {
-                $file = "cover/{$dvd['cover_id']}f{$ext}";
+                $file = __DIR__ . "/../cover/{$dvd['cover_id']}f{$ext}";
                 if (file_exists($file)) {
-                    $cover = $file;
+                    $cover = "cover/{$dvd['cover_id']}f{$ext}";
                     break;
                 }
             }
@@ -129,10 +134,10 @@ try {
   
   <!-- View Mode Toggle -->
   <div class="view-toggle">
-    <button onclick="window.dvdApp.setViewMode('grid')" class="view-btn" data-mode="grid" title="Kachel-Ansicht">
+    <button class="view-btn" data-mode="grid" title="Kachel-Ansicht">
       <i class="bi bi-grid-3x3-gap"></i>
     </button>
-    <button onclick="window.dvdApp.setViewMode('list')" class="view-btn" data-mode="list" title="Listen-Ansicht">
+    <button class="view-btn" data-mode="list" title="Listen-Ansicht">
       <i class="bi bi-list-ul"></i>
     </button>
   </div>
