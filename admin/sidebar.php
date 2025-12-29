@@ -8,8 +8,6 @@
 require_once dirname(__DIR__) . '/includes/version.php';
 
 $currentVersion = DVDPROFILER_VERSION;
-$isUpdateAvailable = isDVDProfilerUpdateAvailable();
-$latestRelease = getDVDProfilerLatestGitHubVersion();
 $latestVersion = $latestRelease['version'] ?? 'Unbekannt';
 $dvdProfilerStats = getDVDProfilerStatistics();
 ?>

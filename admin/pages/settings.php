@@ -291,9 +291,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             if (!$error) {
                 $success = "✅ {$savedCount} Einstellung(en) erfolgreich gespeichert.";
-                // Settings neu laden
-                header('Location: ?page=settings&saved=1');
-                exit;
+                // KEIN Redirect bei AJAX! Success-Message wird im Response angezeigt
             }
         }
         
@@ -1076,5 +1074,104 @@ $showSaved = isset($_GET['saved']) && $_GET['saved'] === '1';
     });
     
     console.log('DVD Profiler Liste Settings v<?= DVDPROFILER_VERSION ?> loaded');
+})();
+
+// Settings Form AJAX Handler
+// Füge dieses Script am Ende von admin/pages/settings.php ein
+
+(function() {
+    'use strict';
+    
+    // Warte bis DOM geladen ist
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initAjaxForms);
+    } else {
+        initAjaxForms();
+    }
+    
+    function initAjaxForms() {
+        const forms = document.querySelectorAll('form[method="post"]');
+        
+        forms.forEach(form => {
+            form.addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                const formData = new FormData(this);
+                const submitBtn = this.querySelector('button[type="submit"]');
+                
+                // Button disablen
+                if (submitBtn) {
+                    submitBtn.disabled = true;
+                    const originalText = submitBtn.innerHTML;
+                    submitBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Wird gespeichert...';
+                    
+                    // AJAX Submit
+                    fetch('?page=settings', {
+                        method: 'POST',
+                        body: formData
+                    })
+                    .then(response => response.text())
+                    .then(html => {
+                        // Parse Response für Success/Error Messages
+                        const parser = new DOMParser();
+                        const doc = parser.parseFromString(html, 'text/html');
+                        
+                        // Finde Alert-Messages
+                        const alerts = doc.querySelectorAll('.alert');
+                        
+                        // Zeige Success/Error
+                        if (alerts.length > 0) {
+                            // Entferne alte Alerts
+                            document.querySelectorAll('.alert').forEach(a => a.remove());
+                            
+                            // Füge neue Alerts ein (vor dem Form)
+                            alerts.forEach(alert => {
+                                form.parentNode.insertBefore(alert, form);
+                            });
+                            
+                            // Scroll to alert
+                            alerts[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            
+                            // Success: Reload nach 2 Sekunden
+                            const hasSuccess = Array.from(alerts).some(a => a.classList.contains('alert-success'));
+                            if (hasSuccess) {
+                                setTimeout(() => {
+                                    location.reload();
+                                }, 2000);
+                            }
+                        } else {
+                            // Keine Alert gefunden - zeige generische Success
+                            const successDiv = document.createElement('div');
+                            successDiv.className = 'alert alert-success';
+                            successDiv.innerHTML = '✅ Einstellungen erfolgreich gespeichert!';
+                            form.parentNode.insertBefore(successDiv, form);
+                            
+                            setTimeout(() => {
+                                location.reload();
+                            }, 2000);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Save error:', error);
+                        
+                        // Zeige Error
+                        const errorDiv = document.createElement('div');
+                        errorDiv.className = 'alert alert-danger';
+                        errorDiv.innerHTML = '❌ Fehler beim Speichern. Bitte versuchen Sie es erneut.';
+                        form.parentNode.insertBefore(errorDiv, form);
+                    })
+                    .finally(() => {
+                        // Button wieder enablen
+                        if (submitBtn) {
+                            submitBtn.disabled = false;
+                            submitBtn.innerHTML = originalText;
+                        }
+                    });
+                }
+            });
+        });
+        
+        console.log('✅ AJAX Form Handler für Settings aktiviert');
+    }
 })();
 </script>

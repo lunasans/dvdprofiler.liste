@@ -134,11 +134,22 @@ function setSetting(string $key, string $value): bool
     }
     
     try {
-        $stmt = $pdo->prepare("INSERT INTO settings (`key`, `value`) VALUES (?, ?) ON DUPLICATE KEY UPDATE `value` = VALUES(`value`)");
-        $result = $stmt->execute([$key, $value]);
+        // Named Parameters statt VALUES() (MySQL 8+ kompatibel)
+        $stmt = $pdo->prepare("
+            INSERT INTO settings (`key`, `value`) 
+            VALUES (:key, :value) 
+            ON DUPLICATE KEY UPDATE `value` = :value_update
+        ");
+        
+        $result = $stmt->execute([
+            'key' => $key,
+            'value' => $value,
+            'value_update' => $value
+        ]);
         
         if ($result) {
             $settings[$key] = $value; // Cache aktualisieren
+            error_log("Setting saved: {$key}");
         }
         
         return $result;
@@ -339,22 +350,6 @@ function getDVDProfilerStatistics(): array
     }
     
     return $stats;
-}
-
-/**
- * GitHub Update-Funktionen (Fallback)
- */
-function getDVDProfilerLatestGitHubVersion(): array
-{
-    if (function_exists('getLatestGitHubRelease')) {
-        return getLatestGitHubRelease();
-    }
-    
-    return [
-        'version' => 'Unbekannt',
-        'published_at' => '',
-        'html_url' => ''
-    ];
 }
 
 /**
