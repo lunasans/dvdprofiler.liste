@@ -78,11 +78,7 @@ try {
         $version = DVDPROFILER_VERSION;
     }
     
-    // System-Informationen für Debugging (nur im Development)
-    if (getSetting('environment', 'production') === 'development') {
-        error_log('DVD Profiler Liste ' . getDVDProfilerVersionFull() . ' loaded');
-        error_log('Features enabled: ' . count(array_filter(DVDPROFILER_FEATURES)));
-    }
+    // Debug-Logs werden in includes/debug.php behandelt
     
 } catch (Exception $e) {
     error_log('Version system loading failed: ' . $e->getMessage());
@@ -414,6 +410,11 @@ initializeSecureSession();
 // CSRF-Token für Forms verfügbar machen
 $csrf_token = generateCSRFToken();
 
+// Debug & Wartungsmodus laden (VOR allem anderen!)
+if (file_exists(__DIR__ . '/debug.php')) {
+    require_once __DIR__ . '/debug.php';
+}
+
 // System-Health Check (nur im Admin-Bereich)
 if (strpos($_SERVER['REQUEST_URI'] ?? '', '/admin/') !== false) {
     $systemHealth = getSystemHealth();
@@ -430,14 +431,7 @@ if (strpos($_SERVER['REQUEST_URI'] ?? '', '/admin/') !== false) {
     }
 }
 
-// Performance Monitoring (nur im Development)
-if (getSetting('environment', 'production') === 'development') {
-    register_shutdown_function(function() {
-        $memory = memory_get_peak_usage(true);
-        $time = microtime(true) - $_SERVER['REQUEST_TIME_FLOAT'];
-        error_log(sprintf('Performance: %.3fs, %s memory', $time, formatBytes($memory)));
-    });
-}
+// Performance Monitoring wird in includes/debug.php behandelt
 
 // Version-Kompatibilität sicherstellen
 if (!function_exists('getDVDProfilerVersion')) {
@@ -446,12 +440,4 @@ if (!function_exists('getDVDProfilerVersion')) {
     }
 }
 
-// Bootstrap-Abschluss-Log
-if (getSetting('environment', 'production') === 'development') {
-    error_log('Bootstrap completed successfully - DVD Profiler Liste ' . getDVDProfilerVersion());
-}
-
-// Debug & Wartungsmodus laden (ganz am Ende von bootstrap.php)
-if (file_exists(__DIR__ . '/debug.php')) {
-    require_once __DIR__ . '/debug.php';
-}
+// Bootstrap-Abschluss-Log wird in includes/debug.php behandelt
