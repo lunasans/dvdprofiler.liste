@@ -6,7 +6,7 @@
  * 
  * @package    dvdprofiler.liste
  * @author     René Neuhaus
- * @version    1.4.5
+ * @version    1.4.8
  */
 declare(strict_types=1);
 
@@ -81,6 +81,7 @@ if (!empty($search)) {
 $cspPolicy = "default-src 'self'; " .
              "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; " .
              "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; " .
+             "frame-src 'self' https://www.youtube.com https://player.vimeo.com https://www.dailymotion.com; " . 
              "img-src 'self' data: https:; " .
              "font-src 'self' https://cdn.jsdelivr.net; " .
              "connect-src 'self';";
@@ -129,10 +130,12 @@ $schema = [
     
     <!-- Preload critical resources -->
     <link rel="preload" href="css/style.css" as="style">
+    <link rel="preload" href="css/theme.css" as="style">
     <link rel="preload" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css" as="style">
     
     <!-- CSS -->
     <link href="css/style.css" rel="stylesheet">
+    <link href="css/theme.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css">
     <link href="libs/fancybox/dist/fancybox/fancybox.css" rel="stylesheet">
     
@@ -145,8 +148,7 @@ $schema = [
     </script>
 </head>
 <body>
-    <!-- Skip Link für Accessibility -->
-    <a href="#main-content" class="skip-link">Zum Hauptinhalt springen</a>
+    
 
     <?php
     // Header laden

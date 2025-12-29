@@ -1,6 +1,6 @@
 <?php
 /**
- * DVD Profiler Liste - Versionsverwaltung
+ * DVD Profiler Liste - Versionsverwaltung (GitHub-basiert)
  * Zentrale Stelle für alle Versionsinformationen
  * 
  * @package    dvdprofiler.liste
@@ -9,17 +9,17 @@
  */
 
 // Version Information
-define('DVDPROFILER_VERSION', '1.4.6');
+define('DVDPROFILER_VERSION', '1.4.7');
 define('DVDPROFILER_CODENAME', 'Cinephile');
-define('DVDPROFILER_BUILD_DATE', '2025.07.24');
-define('DVDPROFILER_RELEASE_DATE', '24. Juli 2025');
+define('DVDPROFILER_BUILD_DATE', '2025.07.26');
+define('DVDPROFILER_RELEASE_DATE', '26. July 2025');
 
 // Build Information
 define('DVDPROFILER_BUILD_TYPE', 'Release'); // Release, Beta, Alpha, Development
 define('DVDPROFILER_BRANCH', 'main');
-define('DVDPROFILER_COMMIT', 'c8d9e1f'); // Git commit hash (ersten 7 Zeichen)
+define('DVDPROFILER_COMMIT', '207ece9'); // Git commit hash (ersten 7 Zeichen)
 
-// Repository Information
+// Repository Information (ZURÜCK AUF GITHUB)
 define('DVDPROFILER_REPOSITORY', 'lunasans/dvdprofiler.liste');
 define('DVDPROFILER_GITHUB_URL', 'https://github.com/lunasans/dvdprofiler.liste');
 define('DVDPROFILER_AUTHOR', 'René Neuhaus');
@@ -79,162 +79,65 @@ define('DVDPROFILER_REQUIREMENTS', [
     'mysql_recommended' => '8.0.0',
     'apache_min' => '2.4.0',
     'nginx_min' => '1.18.0',
+    'php_extensions' => [
+        'required' => ['mysqli', 'json', 'mbstring'],
+        'optional' => ['zip', 'curl', 'gd', 'imagick']
+    ],
     'browser_support' => [
         'Chrome' => '90+',
         'Firefox' => '88+',
         'Safari' => '14+',
         'Edge' => '90+',
         'Opera' => '76+'
-    ],
-    'php_extensions' => [
-        'required' => ['pdo', 'pdo_mysql', 'json', 'mbstring'],
-        'optional' => ['zip', 'curl', 'gd', 'xml']
     ]
 ]);
 
-// Technology Stack
+// Technologie-Stack Information
 define('DVDPROFILER_TECH_STACK', [
-    'backend' => [
-        'language' => 'PHP',
-        'database' => 'MySQL/MariaDB',
-        'architecture' => 'MVC Pattern'
-    ],
-    'frontend' => [
-        'html' => 'HTML5',
-        'css' => 'CSS3 (Glass-Morphism)',
-        'javascript' => 'Vanilla JavaScript',
-        'icons' => 'Bootstrap Icons',
-        'libraries' => ['Fancybox', 'Chart.js']
-    ],
-    'security' => [
-        'authentication' => 'Session-based',
-        'encryption' => 'PHP password_hash',
-        'protection' => 'CSP, XSS Protection',
-        'compliance' => 'DSGVO/GDPR'
-    ]
+    'backend' => 'PHP 7.4+',
+    'database' => 'MySQL/MariaDB',
+    'frontend' => 'HTML5, CSS3, JavaScript',
+    'ui_framework' => 'Bootstrap Icons, Fancybox, Chart.js',
+    'architecture' => 'MVC-ähnlich',
+    'security' => 'CSRF, XSS Protection, Content Security Policy'
 ]);
 
-// Changelog (letzten 10 Versionen)
+// Version-History (letzten Versionen)
 define('DVDPROFILER_CHANGELOG', [
-    '1.3.0' => [
-        'date' => '2025-06-15',
-        'type' => 'major',
-        'changes' => [
-            'Initial release with modern web interface',
-            'XML import functionality for DVD Profiler collection.xml',
-            'Database-driven film management',
-            'Responsive grid and list views',
-            'Basic search functionality',
-            'Bootstrap Icons integration',
-            'Glass-Morphism design implementation'
-        ]
-    ],
-
-    '1.3.1' => [
-        'date' => '2025-06-22',
+    '1.4.7' => [
+        'date' => '2025-07-26',
         'type' => 'minor',
         'changes' => [
-            'Enhanced BoxSet support with expandable sub-films',
-            'Improved XML import with better error handling',
-            'Database optimization for large collections',
-            'Mobile responsiveness improvements',
-            'Added trailer integration functionality',
-            'Security enhancements and input validation'
+            'FIXED: Update system zurück zu GitHub migriert',
+            'FIXED: Bootstrap include-Probleme behoben',
+            'FIXED: Film-Fragment Fallback-System implementiert', 
+            'IMPROVED: Robuste Fehlerbehandlung in allen Kernkomponenten',
+            'IMPROVED: Cache-Management für GitHub API',
+            'IMPROVED: Backup-System vor Updates',
+            'SECURITY: Rate-Limiting für API-Aufrufe',
+            'DOCS: Vollständige Update-Dokumentation'
         ]
     ],
-
-    '1.3.2' => [
-        'date' => '2025-07-01',
-        'type' => 'minor',
-        'changes' => [
-            'Added comprehensive film detail view',
-            'Fancybox lightbox integration for covers',
-            'Enhanced search with filter options',
-            'Visitor counter implementation',
-            'Performance optimizations',
-            'Bug fixes in pagination system'
-        ]
-    ],
-
-    '1.3.3' => [
-        'date' => '2025-07-08',
+    
+    '1.4.6' => [
+        'date' => '2025-07-25',
         'type' => 'patch',
         'changes' => [
-            'Chart.js integration for statistics page',
-            'Improved admin panel functionality',
-            'GDPR compliance features',
-            'Content Security Policy implementation',
-            'Enhanced error handling and logging',
-            'UI/UX improvements across all pages'
-        ]
-    ],
-
-    '1.3.4' => [
-        'date' => '2025-07-15',
-        'type' => 'minor',
-        'changes' => [
-            'Advanced admin panel with system management',
-            'Automatic update system implementation',
-            'User authentication and session management',
-            'Database maintenance tools',
-            'Backup and restore functionality',
-            'Improved security measures'
-        ]
-    ],
-
-    '1.3.5' => [
-        'date' => '2025-07-20',
-        'type' => 'minor',
-        'changes' => [
-            'Enhanced update system with GitHub integration',
-            'Improved backup functionality',
-            'Advanced user management',
-            'System health monitoring',
-            'Performance optimizations',
-            'Bug fixes and stability improvements',
-            'Enhanced admin dashboard',
-            'Better error reporting'
-        ]
-    ],
-
-    '1.4.5' => [
-        'date' => '2025-07-23',
-        'type' => 'minor',
-        'changes' => [
-            'Comprehensive version management system',
-            'Enhanced footer with extended functionality',
-            'System statistics and monitoring',
-            'Feature flags implementation',
-            'Technology stack documentation',
-            'Improved changelog management',
-            'Build information tracking',
-            'System requirements validation',
-            'Enhanced GitHub integration',
-            'Performance monitoring tools'
-        ]
-        ],
-
-    '1.4.6' => [
-        'date' => '2025-07-24',
-        'type'=> 'patch',
-        'changes' => [
-            'Bug fixes in 2FA implementation',
-            'Improved security measures for user authentication',
             'Enhanced session management',
             'Performance optimizations for large collections',
             'UI/UX improvements in admin panel',
-            'Updated documentation and code comments'
+            'Bug fixes in Charts.js integration'
         ]
-        ],
+    ]
 ]);
 
 // Helper Functions
-function getDVDProfilerVersion()
+function getDVDProfilerVersion(): string
 {
     return DVDPROFILER_VERSION;
 }
 
-function getDVDProfilerVersionFull()
+function getDVDProfilerVersionFull(): string
 {
     $version = DVDPROFILER_VERSION;
     $codename = DVDPROFILER_CODENAME;
@@ -248,7 +151,7 @@ function getDVDProfilerVersionFull()
     return "{$version} \"{$codename}\"";
 }
 
-function getDVDProfilerBuildInfo()
+function getDVDProfilerBuildInfo(): array
 {
     return [
         'version' => DVDPROFILER_VERSION,
@@ -266,17 +169,12 @@ function getDVDProfilerBuildInfo()
     ];
 }
 
-function isDVDProfilerFeatureEnabled($feature)
+function isDVDProfilerFeatureEnabled(string $feature): bool
 {
     return DVDPROFILER_FEATURES[$feature] ?? false;
 }
 
-function getDVDProfilerLatestChangelog($limit = 5)
-{
-    return array_slice(DVDPROFILER_CHANGELOG, 0, $limit, true);
-}
-
-function checkDVDProfilerSystemRequirements()
+function checkDVDProfilerSystemRequirements(): array
 {
     $requirements = DVDPROFILER_REQUIREMENTS;
     $results = [
@@ -298,143 +196,207 @@ function checkDVDProfilerSystemRequirements()
         $results['extensions'][$ext] = extension_loaded($ext);
     }
 
-    $results['mysql'] = true; // Wird zur Laufzeit geprüft
-    $results['overall'] = $results['php'] && $results['mysql'] && 
-                         !in_array(false, array_slice($results['extensions'], 0, count($requirements['php_extensions']['required'])));
-
     return $results;
 }
 
-// GitHub Integration Functions
-function getDVDProfilerLatestGitHubVersion()
+// ═══════════════════════════════════════════════════════════════════════════════
+// GITHUB UPDATE SYSTEM
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * GitHub API Konfiguration
+ */
+function getGitHubUpdateConfig(): array
 {
-    $repo = DVDPROFILER_REPOSITORY;
-    $apiUrl = "https://api.github.com/repos/$repo/releases/latest";
-    $opts = [
+    return [
+        'repository' => DVDPROFILER_REPOSITORY,
+        'api_url' => 'https://api.github.com/repos/' . DVDPROFILER_REPOSITORY . '/releases/latest',
+        'timeout' => 30,
+        'user_agent' => 'DVD-Profiler-Updater/' . DVDPROFILER_VERSION,
+        'cache_duration' => 3600, // 1 Stunde
+        'rate_limit_safe' => true
+    ];
+}
+
+/**
+ * GitHub API Rate-Limit sicher aufrufen
+ */
+function callGitHubAPISecure(string $url): ?array
+{
+    $config = getGitHubUpdateConfig();
+    
+    // Cache prüfen
+    $cacheKey = 'github_api_' . md5($url);
+    $cached = getSetting($cacheKey . '_data', '');
+    $cacheTime = (int)getSetting($cacheKey . '_time', '0');
+    
+    if ($cached && (time() - $cacheTime < $config['cache_duration'])) {
+        error_log("GitHub API: Using cached data for $url");
+        return json_decode($cached, true);
+    }
+    
+    // Rate Limit prüfen
+    $lastCall = (int)getSetting('github_api_last_call', '0');
+    $callsInHour = (int)getSetting('github_api_calls_hour', '0');
+    $hourStart = (int)getSetting('github_api_hour_start', '0');
+    
+    // Reset counter after 1 hour
+    if (time() - $hourStart > 3600) {
+        $callsInHour = 0;
+        $hourStart = time();
+        setSetting('github_api_hour_start', (string)$hourStart);
+        setSetting('github_api_calls_hour', '0');
+    }
+    
+    // Rate limit check (60 calls per hour for unauthenticated requests)
+    if ($callsInHour >= 50) { // Safety margin
+        error_log("GitHub API: Rate limit approaching, using cache");
+        return $cached ? json_decode($cached, true) : null;
+    }
+    
+    // Minimum delay between calls (1 second)
+    if (time() - $lastCall < 1) {
+        sleep(1);
+    }
+    
+    $context = stream_context_create([
         'http' => [
             'method' => 'GET',
-            'header' => "User-Agent: DVDProfiler-Updater/1.0\r\n",
-            'timeout' => 10
+            'header' => "User-Agent: {$config['user_agent']}\r\n",
+            'timeout' => $config['timeout'],
+            'ignore_errors' => true
         ]
-    ];
-    $context = stream_context_create($opts);
+    ]);
     
     try {
-        $json = @file_get_contents($apiUrl, false, $context);
-        if (!$json) return null;
+        $json = @file_get_contents($url, false, $context);
         
+        // Update rate limiting counters
+        setSetting('github_api_last_call', (string)time());
+        setSetting('github_api_calls_hour', (string)($callsInHour + 1));
+        
+        if ($json === false) {
+            error_log("GitHub API: Request failed for $url");
+            return $cached ? json_decode($cached, true) : null;
+        }
+        
+        // Check for GitHub API errors
         $data = json_decode($json, true);
-        return [
-            'version' => $data['tag_name'] ?? null,
-            'name' => $data['name'] ?? null,
-            'description' => $data['body'] ?? null,
-            'published_at' => $data['published_at'] ?? null,
-            'download_url' => $data['zipball_url'] ?? null
-        ];
+        if (!$data) {
+            error_log("GitHub API: Invalid JSON response");
+            return null;
+        }
+        
+        if (isset($data['message'])) {
+            error_log("GitHub API Error: " . $data['message']);
+            
+            // If rate limited, use cache if available
+            if (strpos($data['message'], 'rate limit') !== false && $cached) {
+                return json_decode($cached, true);
+            }
+            
+            return null;
+        }
+        
+        // Cache successful response
+        setSetting($cacheKey . '_data', $json);
+        setSetting($cacheKey . '_time', (string)time());
+        
+        error_log("GitHub API: Successfully fetched $url");
+        return $data;
+        
     } catch (Exception $e) {
-        error_log('GitHub API error: ' . $e->getMessage());
-        return null;
+        error_log("GitHub API Exception: " . $e->getMessage());
+        return $cached ? json_decode($cached, true) : null;
     }
 }
 
-function isDVDProfilerUpdateAvailable()
+/**
+ * Neueste Version von GitHub abrufen
+ */
+function getLatestGitHubRelease(): ?array
 {
-    $latestRelease = getDVDProfilerLatestGitHubVersion();
-    if (!$latestRelease || !$latestRelease['version']) {
+    $config = getGitHubUpdateConfig();
+    $data = callGitHubAPISecure($config['api_url']);
+    
+    if (!$data || !isset($data['tag_name'])) {
+        return null;
+    }
+    
+    return [
+        'version' => $data['tag_name'],
+        'name' => $data['name'] ?? '',
+        'body' => $data['body'] ?? '',
+        'published_at' => $data['published_at'] ?? '',
+        'zipball_url' => $data['zipball_url'] ?? '',
+        'tarball_url' => $data['tarball_url'] ?? '',
+        'html_url' => $data['html_url'] ?? ''
+    ];
+}
+
+/**
+ * Prüfen ob Update verfügbar ist
+ */
+function isGitHubUpdateAvailable(): bool
+{
+    $latest = getLatestGitHubRelease();
+    if (!$latest) {
         return false;
     }
     
-    return version_compare($latestRelease['version'], DVDPROFILER_VERSION, '>');
+    $latestVersion = ltrim($latest['version'], 'v');
+    $currentVersion = ltrim(DVDPROFILER_VERSION, 'v');
+    
+    return version_compare($latestVersion, $currentVersion, '>');
 }
 
-// Statistics Functions
-function getDVDProfilerStatistics()
+/**
+ * GitHub Update-URL für Download
+ */
+function getGitHubDownloadUrl(?string $version = null): string
 {
-    global $pdo;
+    $repo = DVDPROFILER_REPOSITORY;
     
-    $stats = [
-        'total_films' => 0,
-        'total_boxsets' => 0,
-        'total_visits' => 0,
-        'total_genres' => 0,
-        'total_actors' => 0,
-        'storage_size' => 0,
-        'avg_rating' => 0,
-        'newest_film' => null,
-        'most_viewed' => null
-    ];
-    
-    try {
-        if (isset($pdo) && $pdo instanceof PDO) {
-            // Total films
-            $stmt = $pdo->query("SELECT COUNT(*) as count FROM dvds");
-            $result = $stmt->fetch(PDO::FETCH_ASSOC);
-            $stats['total_films'] = (int)($result['count'] ?? 0);
-            
-            // BoxSets
-            $stmt = $pdo->query("SELECT COUNT(DISTINCT boxset_name) as count FROM dvds WHERE boxset_name IS NOT NULL AND boxset_name != ''");
-            $result = $stmt->fetch(PDO::FETCH_ASSOC);
-            $stats['total_boxsets'] = (int)($result['count'] ?? 0);
-            
-            // Visitors (if counter table exists)
-            $stmt = $pdo->query("SHOW TABLES LIKE 'counter'");
-            if ($stmt->fetch()) {
-                $stmt = $pdo->query("SELECT visits FROM counter WHERE id = 1");
-                $result = $stmt->fetch(PDO::FETCH_ASSOC);
-                $stats['total_visits'] = (int)($result['visits'] ?? 0);
-            }
-            
-            // Unique genres
-            $stmt = $pdo->query("SELECT COUNT(DISTINCT genre) as count FROM dvds WHERE genre IS NOT NULL AND genre != ''");
-            $result = $stmt->fetch(PDO::FETCH_ASSOC);
-            $stats['total_genres'] = (int)($result['count'] ?? 0);
-            
-            // Unique actors
-            $stmt = $pdo->query("SELECT COUNT(DISTINCT actors) as count FROM dvds WHERE actors IS NOT NULL AND actors != ''");
-            $result = $stmt->fetch(PDO::FETCH_ASSOC);
-            $stats['total_actors'] = (int)($result['count'] ?? 0);
-            
-            // Newest film
-            $stmt = $pdo->query("SELECT title, created_at FROM dvds ORDER BY created_at DESC LIMIT 1");
-            $result = $stmt->fetch(PDO::FETCH_ASSOC);
-            $stats['newest_film'] = $result;
-            
-            // Storage size calculation (estimated)
-            $stats['storage_size'] = $stats['total_films'] * 4.7; // GB (average DVD size)
-        }
-    } catch (Exception $e) {
-        error_log('DVDProfiler Statistics error: ' . $e->getMessage());
+    if ($version) {
+        return "https://github.com/{$repo}/archive/refs/tags/{$version}.zip";
     }
     
-    return $stats;
+    // Neueste Version
+    $latest = getLatestGitHubRelease();
+    return $latest['zipball_url'] ?? "https://github.com/{$repo}/archive/refs/heads/main.zip";
 }
 
-function getDVDProfilerSystemInfo()
+/**
+ * Cache für GitHub API leeren
+ */
+function clearGitHubAPICache(): void
 {
-    return [
-        'php_version' => PHP_VERSION,
-        'php_sapi' => PHP_SAPI,
-        'server_software' => $_SERVER['SERVER_SOFTWARE'] ?? 'Unknown',
-        'document_root' => $_SERVER['DOCUMENT_ROOT'] ?? '',
-        'memory_limit' => ini_get('memory_limit'),
-        'max_execution_time' => ini_get('max_execution_time'),
-        'post_max_size' => ini_get('post_max_size'),
-        'upload_max_filesize' => ini_get('upload_max_filesize'),
-        'timezone' => date_default_timezone_get(),
-        'extensions' => get_loaded_extensions()
-    ];
+    $keys = ['github_api_calls_hour', 'github_api_hour_start', 'github_api_last_call'];
+    
+    // Alle cached API responses löschen
+    global $pdo;
+    try {
+        $stmt = $pdo->prepare("DELETE FROM settings WHERE `key` LIKE 'github_api_%'");
+        $stmt->execute();
+        error_log("GitHub API cache cleared");
+    } catch (Exception $e) {
+        error_log("Failed to clear GitHub API cache: " . $e->getMessage());
+    }
 }
 
-// Export important variables for templates
-$version = DVDPROFILER_VERSION;
-$buildDate = DVDPROFILER_BUILD_DATE;
-$codename = DVDPROFILER_CODENAME;
-$buildType = DVDPROFILER_BUILD_TYPE;
-$fullVersion = getDVDProfilerVersionFull();
-$buildInfo = getDVDProfilerBuildInfo();
-$dvdProfilerStats = getDVDProfilerStatistics();
-$systemInfo = getDVDProfilerSystemInfo();
+/**
+ * Legacy-Kompatibilität
+ * @deprecated Use getLatestGitHubRelease() instead
+ */
+function getDVDProfilerLatestVersion(): ?array
+{
+    return getLatestGitHubRelease();
+}
 
-// Legacy compatibility
-$dvdStats = $dvdProfilerStats; // For backward compatibility with existing templates
-?>
+/**
+ * @deprecated Use isGitHubUpdateAvailable() instead  
+ */
+function isDVDProfilerUpdateAvailable(): bool
+{
+    return isGitHubUpdateAvailable();
+}

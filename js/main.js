@@ -1,3 +1,5 @@
+// main.js - Erweitert mit Film-Rating Funktionalität
+
 class DVDApp {
     constructor() {
         this.container = document.getElementById('detail-container');
@@ -21,6 +23,22 @@ class DVDApp {
         
         // Browser Navigation
         window.addEventListener('popstate', this.loadFromUrl.bind(this));
+        
+        // Search Form Handler
+        const searchForm = document.querySelector('.search-form');
+        if (searchForm) {
+            searchForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const searchInput = searchForm.querySelector('input[name="q"]');
+                const searchQuery = searchInput.value.trim();
+                
+                if (searchQuery) {
+                    this.loadSearch(searchQuery);
+                } else {
+                    this.loadLatest();
+                }
+            });
+        }
     }
 
     handleDocumentClick(e) {
@@ -61,6 +79,41 @@ class DVDApp {
             return;
         }
 
+        // Tabs/Filter Links (in film-list.php) - laden in LINKE Seite
+        const tabLink = e.target.closest('.tabs a');
+        if (tabLink) {
+            const href = tabLink.getAttribute('href');
+            if (href && href.startsWith('?')) {
+                e.preventDefault();
+                history.pushState({}, '', href);
+                this.loadPaginationPage(href);
+            }
+            return;
+        }
+
+        // Pagination Links - laden in LINKE Seite (film-list-area)
+        const paginationLink = e.target.closest('.pagination a');
+        if (paginationLink) {
+            const href = paginationLink.getAttribute('href');
+            if (href && href.startsWith('?')) {
+                e.preventDefault();
+                history.pushState({}, '', href);
+                this.loadPaginationPage(href);
+            }
+            return;
+        }
+
+        // View Mode Toggle Buttons
+        const viewBtn = e.target.closest('.view-btn');
+        if (viewBtn) {
+            e.preventDefault();
+            const mode = viewBtn.dataset.mode;
+            if (mode) {
+                this.setViewMode(mode);
+            }
+            return;
+        }
+
         // YouTube Trailer
         const placeholder = e.target.closest('.trailer-placeholder');
         if (placeholder) {
@@ -75,15 +128,15 @@ class DVDApp {
         }
     }
 
-    // Film Detail laden
+    // Film Detail laden mit Rating-Integration
     async loadFilmDetail(filmId) {
         try {
-            console.log('Film-ID wird geladen:', filmId); // DEBUG
+            console.log('🎬 Film-ID wird geladen:', filmId);
             
             const response = await fetch(`film-fragment.php?id=${filmId}`);
             const html = await response.text();
             
-            console.log('Antwort erhalten, erste 100 Zeichen:', html.substring(0, 100)); // DEBUG
+            console.log('📄 Antwort erhalten, erste 100 Zeichen:', html.substring(0, 100));
             
             if (this.container) {
                 this.container.innerHTML = html;
@@ -91,13 +144,340 @@ class DVDApp {
                 
                 // Fancybox für neue Inhalte binden
                 this.bindFancybox();
+                
+                // 🌟 FILM-RATING INITIALISIEREN
+                this.initFilmRating();
             }
         } catch (error) {
-            console.error('Fehler beim Laden des Films:', error);
+            console.error('❌ Fehler beim Laden des Films:', error);
             if (this.container) {
                 this.container.innerHTML = '<div style="color: red;">Fehler beim Laden des Films.</div>';
             }
         }
+    }
+
+    // 🌟 NEUE METHODE: Film-Rating System initialisieren
+    initFilmRating() {
+        console.log('🌟 Film Rating wird initialisiert...');
+        
+        // Rating-System
+        const ratingStars = document.querySelectorAll('.rating-star');
+        const saveRatingBtn = document.querySelector('.save-rating');
+        const ratingDisplay = document.querySelector('.rating-display');
+        const ratingInput = document.querySelector('.star-rating-input');
+        
+        if (!ratingStars.length) {
+            console.log('ℹ️ Keine Rating-Sterne gefunden (User nicht eingeloggt oder keine Rating-Sektion)');
+            this.initOtherFilmFeatures(); // Andere Features trotzdem initialisieren
+            return;
+        }
+        
+        const currentRating = parseFloat(ratingInput?.dataset.currentRating || 0);
+        let selectedRating = currentRating;
+        
+        console.log('⭐ Rating System gefunden:', {
+            ratingStars: ratingStars.length,
+            saveRatingBtn: !!saveRatingBtn,
+            ratingDisplay: !!ratingDisplay,
+            currentRating: currentRating
+        });
+        
+        // Event-Listener für Sterne
+        ratingStars.forEach((star, index) => {
+            star.style.cursor = 'pointer';
+            
+            star.addEventListener('mouseenter', () => {
+                const rating = parseInt(star.dataset.rating);
+                this.highlightStars(ratingStars, rating);
+            });
+            
+            star.addEventListener('mouseleave', () => {
+                this.highlightStars(ratingStars, selectedRating);
+            });
+            
+            star.addEventListener('click', () => {
+                selectedRating = parseInt(star.dataset.rating);
+                console.log('⭐ Stern geklickt, gewählte Bewertung:', selectedRating);
+                
+                this.highlightStars(ratingStars, selectedRating);
+                
+                if (saveRatingBtn) {
+                    saveRatingBtn.style.display = 'inline-block';
+                }
+                if (ratingDisplay) {
+                    ratingDisplay.textContent = selectedRating + '/5';
+                }
+            });
+        });
+        
+        // Save-Button Event
+        if (saveRatingBtn) {
+            saveRatingBtn.addEventListener('click', () => {
+                const filmId = ratingInput?.dataset.filmId;
+                console.log('💾 Speichere Rating:', {filmId, selectedRating});
+                this.saveUserRating(filmId, selectedRating);
+            });
+        }
+        
+        // Andere Film-Features initialisieren
+        this.initOtherFilmFeatures();
+    }
+    
+    // Sterne hervorheben
+    highlightStars(stars, rating) {
+        stars.forEach((star, index) => {
+            if (index < rating) {
+                star.classList.remove('bi-star');
+                star.classList.add('bi-star-fill');
+            } else {
+                star.classList.remove('bi-star-fill');
+                star.classList.add('bi-star');
+            }
+        });
+    }
+    
+    // Andere Film-Features (Wishlist, Watched, Share, Trailer)
+    initOtherFilmFeatures() {
+        console.log('🎭 Andere Film-Features werden initialisiert...');
+        
+        // Wishlist-Button
+        const wishlistBtn = document.querySelector('.add-to-wishlist');
+        if (wishlistBtn) {
+            wishlistBtn.addEventListener('click', () => {
+                const filmId = wishlistBtn.dataset.filmId;
+                this.toggleWishlist(filmId, wishlistBtn);
+            });
+        }
+        
+        // Watched-Button
+        const watchedBtn = document.querySelector('.mark-as-watched');
+        if (watchedBtn) {
+            watchedBtn.addEventListener('click', () => {
+                const filmId = watchedBtn.dataset.filmId;
+                this.toggleWatched(filmId, watchedBtn);
+            });
+        }
+        
+        // Share-Button
+        const shareBtn = document.querySelector('.share-film');
+        if (shareBtn) {
+            shareBtn.addEventListener('click', () => {
+                const filmId = shareBtn.dataset.filmId;
+                const filmTitle = shareBtn.dataset.filmTitle;
+                this.shareFilm(filmId, filmTitle);
+            });
+        }
+        
+        // Trailer-Button - GEÄNDERT: Inline Wiedergabe
+        const trailerBox = document.querySelector('.trailer-box');
+        if (trailerBox) {
+            trailerBox.addEventListener('click', function(e) {
+                e.stopImmediatePropagation();
+                e.preventDefault();
+                
+                const trailerUrl = this.dataset.src;
+                if (trailerUrl) {
+                    // URL zu Embed-URL konvertieren
+                    let embedUrl = convertToEmbedUrl(trailerUrl);
+                    
+                    if (embedUrl) {
+                        // Erstelle iframe
+                        const iframe = document.createElement('iframe');
+                        iframe.src = embedUrl + '&autoplay=1';
+                        iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';
+                        iframe.allowFullscreen = true;
+                        iframe.style.cssText = `
+                            width: 100%;
+                            height: 100%;
+                            position: absolute;
+                            top: 0;
+                            left: 0;
+                            border: none;
+                            border-radius: 8px;
+                        `;
+                        
+                        // Ersetze Inhalt mit iframe
+                        this.innerHTML = '';
+                        this.appendChild(iframe);
+                        this.style.cursor = 'default';
+                    }
+                }
+            });
+        }
+        
+        // Helper-Funktion: URL zu Embed-URL konvertieren
+        function convertToEmbedUrl(url) {
+            // YouTube
+            let match = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]+)/);
+            if (match) {
+                return `https://www.youtube.com/embed/${match[1]}?autoplay=1`;
+            }
+            
+            // Vimeo
+            match = url.match(/vimeo\.com\/(\d+)/);
+            if (match) {
+                return `https://player.vimeo.com/video/${match[1]}?autoplay=1`;
+            }
+            
+            // Dailymotion
+            match = url.match(/dailymotion\.com\/video\/([a-zA-Z0-9]+)/);
+            if (match) {
+                return `https://www.dailymotion.com/embed/video/${match[1]}?autoplay=1`;
+            }
+            
+            return null;
+        }
+    }
+    
+    // AJAX: User-Rating speichern
+    async saveUserRating(filmId, rating) {
+        console.log('📡 AJAX: saveUserRating aufgerufen', {filmId, rating});
+        
+        try {
+            const response = await fetch('api/save-rating.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ film_id: filmId, rating: rating })
+            });
+            
+            console.log('📡 Response status:', response.status);
+            
+            if (response.ok) {
+                this.showNotification('Bewertung gespeichert!', 'success');
+                const saveBtn = document.querySelector('.save-rating');
+                if (saveBtn) saveBtn.style.display = 'none';
+                
+                // Seite nach kurzer Zeit neu laden um Community-Rating zu aktualisieren
+                setTimeout(() => {
+                    this.loadFilmDetail(filmId); // Reload der Film-Details
+                }, 1500);
+            } else {
+                const errorText = await response.text();
+                console.error('❌ Response error:', errorText);
+                this.showNotification('Fehler beim Speichern: ' + response.status, 'error');
+            }
+        } catch (error) {
+            console.error('❌ AJAX Error:', error);
+            this.showNotification('Fehler beim Speichern der Bewertung', 'error');
+        }
+    }
+    
+    // AJAX: Wishlist Toggle
+    async toggleWishlist(filmId, button) {
+        try {
+            const response = await fetch('api/toggle-wishlist.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ film_id: filmId })
+            });
+            
+            if (response.ok) {
+                const result = await response.json();
+                if (result.added) {
+                    button.innerHTML = '<i class="bi bi-heart-fill"></i> Auf Wunschliste';
+                    button.classList.add('active');
+                    this.showNotification('Zur Wunschliste hinzugefügt!', 'success');
+                } else {
+                    button.innerHTML = '<i class="bi bi-heart"></i> Zur Wunschliste';
+                    button.classList.remove('active');
+                    this.showNotification('Von Wunschliste entfernt!', 'info');
+                }
+            }
+        } catch (error) {
+            this.showNotification('Fehler bei Wunschliste', 'error');
+        }
+    }
+    
+    // AJAX: Watched Toggle
+    async toggleWatched(filmId, button) {
+        try {
+            const response = await fetch('api/toggle-watched.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ film_id: filmId })
+            });
+            
+            if (response.ok) {
+                const result = await response.json();
+                if (result.watched) {
+                    button.innerHTML = '<i class="bi bi-check-circle-fill"></i> Gesehen';
+                    button.classList.add('active');
+                    this.showNotification('Als gesehen markiert!', 'success');
+                } else {
+                    button.innerHTML = '<i class="bi bi-check-circle"></i> Als gesehen markieren';
+                    button.classList.remove('active');
+                    this.showNotification('Markierung entfernt!', 'info');
+                }
+            }
+        } catch (error) {
+            this.showNotification('Fehler beim Markieren', 'error');
+        }
+    }
+    
+    // Share-Funktion
+    shareFilm(filmId, filmTitle) {
+        const url = window.location.origin + window.location.pathname + '?id=' + filmId;
+        
+        if (navigator.share) {
+            navigator.share({
+                title: filmTitle,
+                text: 'Schau dir diesen Film an: ' + filmTitle,
+                url: url
+            });
+        } else {
+            navigator.clipboard.writeText(url).then(() => {
+                this.showNotification('Link kopiert!', 'success');
+            }).catch(() => {
+                const textArea = document.createElement('textarea');
+                textArea.value = url;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+                this.showNotification('Link kopiert!', 'success');
+            });
+        }
+    }
+    
+    // Notification anzeigen
+    showNotification(message, type = 'info') {
+        console.log(`🔔 Notification: ${message} (${type})`);
+        
+        const notification = document.createElement('div');
+        notification.className = `notification notification-${type}`;
+        notification.textContent = message;
+        notification.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 1rem 1.5rem;
+            background: rgba(0,0,0,0.9);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-left: 4px solid ${type === 'success' ? '#28a745' : type === 'error' ? '#dc3545' : '#17a2b8'};
+            border-radius: 8px;
+            color: white;
+            z-index: 10000;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            font-weight: 500;
+            transform: translateX(100%);
+            transition: transform 0.3s ease-out;
+        `;
+        
+        document.body.appendChild(notification);
+        
+        setTimeout(() => {
+            notification.style.transform = 'translateX(0)';
+        }, 10);
+        
+        setTimeout(() => {
+            notification.style.transform = 'translateX(100%)';
+            setTimeout(() => {
+                notification.remove();
+            }, 300);
+        }, 3000);
     }
 
     // Detail schließen
@@ -157,10 +537,12 @@ class DVDApp {
             } else if (params.has('page')) {
                 await this.loadPage(params.get('page'));
                 
-            } else if (params.has('seite')) {
-                await this.loadLatestWithPagination(params.get('seite'));
+            } else if (params.has('q') || params.has('type') || params.has('seite')) {
+                // Suche, Filter oder Pagination → lade film-list.php
+                await this.loadFilmList(params);
                 
             } else {
+                // Keine Parameter → lade 10 neueste
                 await this.loadLatest();
             }
         } catch (error) {
@@ -197,6 +579,85 @@ class DVDApp {
         this.container.innerHTML = html;
     }
 
+    async loadSearch(query) {
+        try {
+            // Lade in film-list-area (LINKE Seite)
+            const filmListArea = document.querySelector('.film-list-area');
+            if (!filmListArea) {
+                console.error('film-list-area nicht gefunden');
+                return;
+            }
+            
+            const response = await fetch(`partials/film-list.php?q=${encodeURIComponent(query)}`);
+            const html = await response.text();
+            filmListArea.innerHTML = html;
+            
+            // URL aktualisieren
+            history.pushState({}, '', `?q=${encodeURIComponent(query)}`);
+            
+            // Restore View Mode
+            this.restoreViewMode();
+            
+            console.log(`🔍 Suche nach: "${query}"`);
+        } catch (error) {
+            console.error('Suchfehler:', error);
+            const filmListArea = document.querySelector('.film-list-area');
+            if (filmListArea) {
+                filmListArea.innerHTML = '<div class="alert alert-danger">Fehler bei der Suche</div>';
+            }
+        }
+    }
+
+    async loadFilmList(params) {
+        try {
+            // Lade in film-list-area (LINKE Seite)
+            const filmListArea = document.querySelector('.film-list-area');
+            if (!filmListArea) {
+                console.error('film-list-area nicht gefunden');
+                return;
+            }
+            
+            // Baue URL mit allen Parametern (q, type, seite)
+            const queryString = params.toString();
+            const response = await fetch(`partials/film-list.php?${queryString}`);
+            const html = await response.text();
+            filmListArea.innerHTML = html;
+            
+            // Restore View Mode nach Laden
+            this.restoreViewMode();
+            
+            console.log(`📋 Film-Liste geladen: ${queryString}`);
+        } catch (error) {
+            console.error('Film-List Fehler:', error);
+            const filmListArea = document.querySelector('.film-list-area');
+            if (filmListArea) {
+                filmListArea.innerHTML = '<div class="alert alert-danger">Fehler beim Laden</div>';
+            }
+        }
+    }
+
+    async loadPaginationPage(href) {
+        try {
+            // Lade in film-list-area (LINKE Seite), nicht in detail-container!
+            const filmListArea = document.querySelector('.film-list-area');
+            if (!filmListArea) {
+                console.error('film-list-area nicht gefunden');
+                return;
+            }
+            
+            const response = await fetch(`partials/film-list.php${href}`);
+            const html = await response.text();
+            filmListArea.innerHTML = html;
+            
+            // Restore View Mode
+            this.restoreViewMode();
+            
+            console.log(`📄 Pagination geladen: ${href}`);
+        } catch (error) {
+            console.error('Pagination Fehler:', error);
+        }
+    }
+
     // Fancybox binden
     bindFancybox() {
         if (typeof Fancybox !== 'undefined') {
@@ -219,37 +680,7 @@ class DVDApp {
         });
     }
 
-    // Inline Scripts ausführen
-    executeInlineScripts(container) {
-        container.querySelectorAll('script').forEach(script => {
-            const newScript = document.createElement('script');
-            if (script.src) {
-                newScript.src = script.src;
-            } else {
-                newScript.textContent = script.textContent;
-            }
-            document.head.appendChild(newScript);
-            document.head.removeChild(newScript);
-        });
-    }
-
-    // View Mode
-    setViewMode(mode) {
-        const list = document.querySelector('.film-list');
-        if (!list) return;
-
-        list.classList.remove('grid-mode', 'list-mode');
-        list.classList.add(mode + '-mode');
-
-        localStorage.setItem('viewMode', mode);
-    }
-
-    restoreViewMode() {
-        const savedMode = localStorage.getItem('viewMode') || 'grid';
-        this.setViewMode(savedMode);
-    }
-
-    // Navigation Update
+    // Restliche Methoden (updateNavigation, restoreViewMode, executeInlineScripts) bleiben unverändert...
     updateNavigation() {
         const links = document.querySelectorAll('.main-nav a');
         const current = window.location.search;
@@ -261,15 +692,85 @@ class DVDApp {
             }
         });
     }
+    
+    setViewMode(mode) {
+        const list = document.querySelector('.film-list');
+        if (!list) return;
+
+        // Entferne alte Klassen
+        list.classList.remove('grid-mode', 'list-mode');
+        list.classList.add(mode + '-mode');
+
+        // Speichere Präferenz
+        localStorage.setItem('viewMode', mode);
+        
+        // Update Button States
+        document.querySelectorAll('.view-btn').forEach(btn => {
+            btn.classList.remove('active');
+            if (btn.dataset.mode === mode) {
+                btn.classList.add('active');
+            }
+        });
+        
+        console.log(`📋 View-Modus: ${mode}`);
+    }
+    
+    restoreViewMode() {
+        const savedMode = localStorage.getItem('viewMode') || 'grid';
+        this.setViewMode(savedMode);
+    }
+    
+    executeInlineScripts(container) {
+        if (!container) return;
+        
+        // Finde alle <script> Tags im Container
+        const scripts = container.querySelectorAll('script');
+        
+        scripts.forEach(oldScript => {
+            // Erstelle neues Script-Element
+            const newScript = document.createElement('script');
+            
+            // Kopiere alle Attribute
+            Array.from(oldScript.attributes).forEach(attr => {
+                newScript.setAttribute(attr.name, attr.value);
+            });
+            
+            // Kopiere Inline-Code oder src
+            if (oldScript.src) {
+                newScript.src = oldScript.src;
+            } else {
+                newScript.textContent = oldScript.textContent;
+            }
+            
+            // Ersetze altes Script mit neuem (damit es ausgeführt wird)
+            oldScript.parentNode.replaceChild(newScript, oldScript);
+        });
+        
+        console.log(`✅ ${scripts.length} Inline-Scripts ausgeführt`);
+    }
 }
 
 // App initialisieren
-document.addEventListener('DOMContentLoaded', () => {
-    window.dvdApp = new DVDApp();
+ document.addEventListener('DOMContentLoaded', () => {
+//    console.log('🚀 DVD App wird initialisiert...');
+      window.dvdApp = new DVDApp();
 });
 
-// Für externe Nutzung verfügbar machen
-window.setViewMode = (mode) => {
+// Global verfügbare Funktion für closeDetail (für Backwards-Kompatibilität)
+function closeDetail() {
+    if (window.dvdApp) {
+        window.dvdApp.closeDetail();
+    }
+}
+
+// Global verfügbare Funktion für setViewMode
+window.setViewMode = function(mode) {
+    if (window.dvdApp) {
+        window.dvdApp.setViewMode(mode);
+    }
+};
+// Globale Funktionen für View Mode (für onclick-Handler)
+window.setViewMode = function(mode) {
     if (window.dvdApp) {
         window.dvdApp.setViewMode(mode);
     }

@@ -78,17 +78,13 @@ try {
         $version = DVDPROFILER_VERSION;
     }
     
-    // System-Informationen für Debugging (nur im Development)
-    if (getSetting('environment', 'production') === 'development') {
-        error_log('DVD Profiler Liste ' . getDVDProfilerVersionFull() . ' loaded');
-        error_log('Features enabled: ' . count(array_filter(DVDPROFILER_FEATURES)));
-    }
+    // Debug-Logs werden in includes/debug.php behandelt
     
 } catch (Exception $e) {
     error_log('Version system loading failed: ' . $e->getMessage());
     // Fallback-Werte definieren
     if (!defined('DVDPROFILER_VERSION')) {
-        define('DVDPROFILER_VERSION', '1.3.6');
+        define('DVDPROFILER_VERSION', '1.4.7');
         define('DVDPROFILER_CODENAME', 'Cinephile');
         define('DVDPROFILER_AUTHOR', 'René Neuhaus');
         define('DVDPROFILER_GITHUB_URL', 'https://github.com/lunasans/dvdprofiler.liste');
@@ -134,11 +130,30 @@ function setSetting(string $key, string $value): bool
     }
     
     try {
-        $stmt = $pdo->prepare("INSERT INTO settings (`key`, `value`) VALUES (?, ?) ON DUPLICATE KEY UPDATE `value` = VALUES(`value`)");
-        $result = $stmt->execute([$key, $value]);
+        // Named Parameters statt VALUES() (MySQL 8+ kompatibel)
+        $stmt = $pdo->prepare("
+            INSERT INTO settings (`key`, `value`) 
+            VALUES (:key, :value) 
+            ON DUPLICATE KEY UPDATE `value` = :value_update
+        ");
+        
+        error_log("DEBUG setSetting: key={$key}, value=" . substr($value, 0, 50));
+        
+        $result = $stmt->execute([
+            'key' => $key,
+            'value' => $value,
+            'value_update' => $value
+        ]);
+        
+        error_log("DEBUG execute result: " . ($result ? 'TRUE' : 'FALSE'));
+        error_log("DEBUG rowCount: " . $stmt->rowCount());
+        error_log("DEBUG affected rows check");
         
         if ($result) {
             $settings[$key] = $value; // Cache aktualisieren
+            error_log("Setting saved: {$key}");
+        } else {
+            error_log("Setting save FAILED: {$key}");
         }
         
         return $result;
@@ -153,75 +168,96 @@ function setSetting(string $key, string $value): bool
  */
 function initializeSecureSession(): void
 {
-    if (session_status() === PHP_SESSION_NONE) {
-        // Session-Sicherheit konfigurieren
-        ini_set('session.cookie_httponly', '1');
-        ini_set('session.cookie_secure', !empty($_SERVER['HTTPS']));
-        ini_set('session.cookie_samesite', 'Strict');
-        ini_set('session.use_strict_mode', '1');
+    // Session bereits gestartet?
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        return;
+    }
+    
+    // Sichere Session-Konfiguration
+    ini_set('session.cookie_httponly', '1');
+    ini_set('session.cookie_secure', '0'); // Auf 1 setzen wenn HTTPS verwendet wird
+    ini_set('session.use_strict_mode', '1');
+    ini_set('session.cookie_samesite', 'Strict');
+    ini_set('session.gc_maxlifetime', '7200'); // 2 Stunden
+    
+    // Session starten
+    session_start();
+    
+    // Session-Hijacking Schutz
+    if (!isset($_SESSION['initiated'])) {
+        session_regenerate_id(true);
+        $_SESSION['initiated'] = true;
+        $_SESSION['user_agent'] = $_SERVER['HTTP_USER_AGENT'] ?? '';
+        $_SESSION['ip_address'] = $_SERVER['REMOTE_ADDR'] ?? '';
+        $_SESSION['ip_subnet'] = getIPSubnet($_SERVER['REMOTE_ADDR'] ?? '');
+    } else {
+        // Lockere Session-Validierung (nur im Admin-Bereich)
+        $isAdmin = strpos($_SERVER['REQUEST_URI'] ?? '', '/admin/') !== false;
         
-        session_start();
-        
-        // Session-Hijacking Schutz
-        if (!isset($_SESSION['initiated'])) {
-            session_regenerate_id(true);
-            $_SESSION['initiated'] = true;
-            $_SESSION['user_agent'] = $_SERVER['HTTP_USER_AGENT'] ?? '';
-            $_SESSION['remote_addr'] = $_SERVER['REMOTE_ADDR'] ?? '';
-        }
-        
-        // Session-Validierung
-        if (isset($_SESSION['user_agent']) && $_SESSION['user_agent'] !== ($_SERVER['HTTP_USER_AGENT'] ?? '')) {
-            session_unset();
-            session_destroy();
-            session_start();
-            error_log('Session invalidated due to user agent mismatch');
+        if ($isAdmin && isset($_SESSION['user_id'])) {
+            $currentSubnet = getIPSubnet($_SERVER['REMOTE_ADDR'] ?? '');
+            $currentUA = $_SERVER['HTTP_USER_AGENT'] ?? '';
+            
+            // Prüfe nur IP-Subnet (erlaubt IP-Wechsel im gleichen Netzwerk)
+            // User-Agent wird NUR gewarnt, nicht ausgeloggt
+            if (($_SESSION['ip_subnet'] ?? '') !== $currentSubnet) {
+                // IP-Subnet hat sich geändert - kritisch!
+                error_log("Security Warning: IP subnet changed for user {$_SESSION['user_id']}");
+                session_destroy();
+                header('Location: /admin/login.php?reason=ip_changed');
+                exit;
+            }
+            
+            // User-Agent Warnung (nur loggen, nicht ausloggen)
+            if (($_SESSION['user_agent'] ?? '') !== $currentUA) {
+                error_log("Security Notice: User-Agent changed for user {$_SESSION['user_id']}");
+                // Update User-Agent, aber Session bleibt aktiv
+                $_SESSION['user_agent'] = $currentUA;
+            }
         }
     }
 }
 
 /**
- * CSRF-Token generieren und validieren
+ * IP-Subnet extrahieren (erste 3 Oktette für IPv4)
+ */
+function getIPSubnet(string $ip): string
+{
+    if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+        $parts = explode('.', $ip);
+        return implode('.', array_slice($parts, 0, 3)) . '.0';
+    }
+    
+    // IPv6: Verwende ersten Block
+    if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6)) {
+        $parts = explode(':', $ip);
+        return implode(':', array_slice($parts, 0, 4)) . '::';
+    }
+    
+    return $ip;
+}
+
+/**
+ * CSRF-Token generieren
  */
 function generateCSRFToken(): string
 {
-    if (!isset($_SESSION['csrf_token']) || strlen($_SESSION['csrf_token']) < 32) {
+    if (!isset($_SESSION['csrf_token'])) {
         $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
     }
     return $_SESSION['csrf_token'];
 }
 
+/**
+ * CSRF-Token validieren
+ */
 function validateCSRFToken(string $token): bool
 {
     return isset($_SESSION['csrf_token']) && hash_equals($_SESSION['csrf_token'], $token);
 }
 
 /**
- * Input-Sanitization
- */
-function sanitizeInput(string $input, int $maxLength = 255): string
-{
-    $input = trim($input);
-    $input = strip_tags($input);
-    $input = htmlspecialchars($input, ENT_QUOTES, 'UTF-8');
-    
-    if (strlen($input) > $maxLength) {
-        $input = substr($input, 0, $maxLength);
-    }
-    
-    return $input;
-}
-
-/**
- * SQL Injection Schutz für LIKE-Queries
- */
-function escapeLikeValue(string $value): string
-{
-    return str_replace(['%', '_'], ['\\%', '\\_'], $value);
-}
-
-/**
- * Rate-Limiting für API-Aufrufe
+ * Rate-Limiting für Requests
  */
 function checkRateLimit(string $identifier, int $maxRequests = 60, int $timeWindow = 3600): bool
 {
@@ -258,7 +294,8 @@ function getSystemHealth(): array
         'extensions' => [],
         'permissions' => [],
         'disk_space' => 0,
-        'memory_usage' => 0
+        'memory_usage' => 0,
+        'overall' => true
     ];
     
     // Database Check
@@ -267,12 +304,17 @@ function getSystemHealth(): array
         $health['database'] = true;
     } catch (Exception $e) {
         error_log('Database health check failed: ' . $e->getMessage());
+        $health['database'] = false;
+        $health['overall'] = false;
     }
     
     // PHP Extensions Check
     $requiredExtensions = ['pdo', 'pdo_mysql', 'json', 'mbstring'];
     foreach ($requiredExtensions as $ext) {
         $health['extensions'][$ext] = extension_loaded($ext);
+        if (!$health['extensions'][$ext]) {
+            $health['overall'] = false;
+        }
     }
     
     // File Permissions Check
@@ -283,14 +325,83 @@ function getSystemHealth(): array
     ];
     
     foreach ($paths as $name => $path) {
-        $health['permissions'][$name] = is_writable($path);
+        $health['permissions'][$name] = is_dir($path) && is_writable($path);
+        if (!$health['permissions'][$name]) {
+            $health['overall'] = false;
+        }
     }
     
     // System Resources
-    $health['disk_space'] = disk_free_space(BASE_PATH);
+    $health['disk_space'] = disk_free_space(BASE_PATH) ?: 0;
     $health['memory_usage'] = memory_get_usage(true);
     
     return $health;
+}
+
+/**
+ * DVD Profiler Statistiken sammeln
+ */
+function getDVDProfilerStatistics(): array
+{
+    global $pdo;
+    
+    $stats = [
+        'total_films' => 0,
+        'total_boxsets' => 0,
+        'total_genres' => 0,
+        'total_visits' => 0,
+        'storage_size' => 0
+    ];
+    
+    try {
+        // Filme zählen
+        $stmt = $pdo->query("SELECT COUNT(*) as count FROM dvds");
+        $result = $stmt->fetch();
+        $stats['total_films'] = $result['count'] ?? 0;
+        
+        // BoxSets zählen
+        $stmt = $pdo->query("SELECT COUNT(*) as count FROM dvds WHERE boxset_parent IS NOT NULL");
+        $result = $stmt->fetch();
+        $stats['total_boxsets'] = $result['count'] ?? 0;
+        
+        // Genres zählen
+        $stmt = $pdo->query("SELECT COUNT(DISTINCT genre) as count FROM dvds WHERE genre IS NOT NULL AND genre != ''");
+        $result = $stmt->fetch();
+        $stats['total_genres'] = $result['count'] ?? 0;
+        
+        // Geschätzte Speichergröße
+        $stmt = $pdo->query("SELECT AVG(runtime) as avg_runtime, COUNT(*) as total FROM dvds WHERE runtime > 0");
+        $result = $stmt->fetch();
+        if ($result && $result['avg_runtime']) {
+            $avgSize = ($result['avg_runtime'] / 60) * 4.5; // ~4.5GB pro Stunde geschätzt
+            $stats['storage_size'] = round($avgSize * $result['total'], 1);
+        }
+        
+    } catch (Exception $e) {
+        error_log('Statistics error: ' . $e->getMessage());
+    }
+    
+    // Besucher aus Counter-Datei
+    $counterFile = dirname(__DIR__) . '/counter.txt';
+    if (file_exists($counterFile)) {
+        $stats['total_visits'] = (int)file_get_contents($counterFile);
+    }
+    
+    return $stats;
+}
+
+/**
+ * Byte-Formatierung
+ */
+function formatBytes(int|float $bytes, int $precision = 2): string
+{
+    $units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    
+    for ($i = 0; $bytes > 1024 && $i < count($units) - 1; $i++) {
+        $bytes /= 1024;
+    }
+    
+    return round($bytes, $precision) . ' ' . $units[$i];
 }
 
 // Session initialisieren
@@ -298,6 +409,11 @@ initializeSecureSession();
 
 // CSRF-Token für Forms verfügbar machen
 $csrf_token = generateCSRFToken();
+
+// Debug & Wartungsmodus laden (VOR allem anderen!)
+if (file_exists(__DIR__ . '/debug.php')) {
+    require_once __DIR__ . '/debug.php';
+}
 
 // System-Health Check (nur im Admin-Bereich)
 if (strpos($_SERVER['REQUEST_URI'] ?? '', '/admin/') !== false) {
@@ -315,37 +431,13 @@ if (strpos($_SERVER['REQUEST_URI'] ?? '', '/admin/') !== false) {
     }
 }
 
-// Performance Monitoring (nur im Development)
-if (getSetting('environment', 'production') === 'development') {
-    register_shutdown_function(function() {
-        $memory = memory_get_peak_usage(true);
-        $time = microtime(true) - $_SERVER['REQUEST_TIME_FLOAT'];
-        error_log(sprintf('Performance: %.3fs, %s memory', $time, formatBytes($memory)));
-    });
-}
-
-/**
- * Helper-Funktion für Byte-Formatierung
- */
-function formatBytes(int|float $bytes, int $precision = 2): string
-{
-    $units = ['B', 'KB', 'MB', 'GB'];
-    
-    for ($i = 0; $bytes > 1024 && $i < count($units) - 1; $i++) {
-        $bytes /= 1024;
-    }
-    
-    return round($bytes, $precision) . ' ' . $units[$i];
-}
+// Performance Monitoring wird in includes/debug.php behandelt
 
 // Version-Kompatibilität sicherstellen
 if (!function_exists('getDVDProfilerVersion')) {
     function getDVDProfilerVersion(): string {
-        return defined('DVDPROFILER_VERSION') ? DVDPROFILER_VERSION : '1.3.6';
+        return defined('DVDPROFILER_VERSION') ? DVDPROFILER_VERSION : '1.4.7';
     }
 }
 
-// Bootstrap-Abschluss-Log
-if (getSetting('environment', 'production') === 'development') {
-    error_log('Bootstrap completed successfully - DVD Profiler Liste ' . getDVDProfilerVersion());
-}
+// Bootstrap-Abschluss-Log wird in includes/debug.php behandelt

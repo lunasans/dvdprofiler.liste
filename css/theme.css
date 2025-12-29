@@ -1,0 +1,246 @@
+/* Theme System - Füge das am Ende von css/style.css ein oder als separate themes.css */
+
+/* ============================================
+   THEME SYSTEM - CSS Variables
+   ============================================ */
+
+/* Default Theme (Standard) */
+:root,
+[data-theme="default"] {
+    --bg-primary: #0f0f23;
+    --bg-secondary: #1a1a2e;
+    --bg-tertiary: #16213e;
+    
+    --text-primary: #e4e4e7;
+    --text-secondary: rgba(228, 228, 231, 0.8);
+    --text-muted: rgba(228, 228, 231, 0.6);
+    
+    --accent-primary: #3498db;
+    --accent-hover: #2980b9;
+    --accent-light: rgba(52, 152, 219, 0.1);
+    
+    --border-color: rgba(255, 255, 255, 0.1);
+    --border-hover: rgba(255, 255, 255, 0.2);
+    
+    --gradient-primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    --gradient-secondary: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    
+    --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.4);
+    --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+/* Dark Theme (Schwarz/Dunkelgrau) */
+[data-theme="dark"] {
+    --bg-primary: #000000;
+    --bg-secondary: #0a0a0a;
+    --bg-tertiary: #141414;
+    
+    --text-primary: #ffffff;
+    --text-secondary: rgba(255, 255, 255, 0.9);
+    --text-muted: rgba(255, 255, 255, 0.6);
+    
+    --accent-primary: #bb86fc;
+    --accent-hover: #9965f4;
+    --accent-light: rgba(187, 134, 252, 0.1);
+    
+    --border-color: rgba(255, 255, 255, 0.15);
+    --border-hover: rgba(255, 255, 255, 0.3);
+    
+    --gradient-primary: linear-gradient(135deg, #bb86fc 0%, #3700b3 100%);
+    --gradient-secondary: linear-gradient(135deg, #cf6679 0%, #b00020 100%);
+    
+    --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.8);
+    --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.9);
+    --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.95);
+}
+
+/* Blue Theme (Blau/Cyan) */
+[data-theme="blue"] {
+    --bg-primary: #001f3f;
+    --bg-secondary: #002b54;
+    --bg-tertiary: #003d6b;
+    
+    --text-primary: #e0f2ff;
+    --text-secondary: rgba(224, 242, 255, 0.9);
+    --text-muted: rgba(224, 242, 255, 0.6);
+    
+    --accent-primary: #00d4ff;
+    --accent-hover: #00b8e6;
+    --accent-light: rgba(0, 212, 255, 0.1);
+    
+    --border-color: rgba(0, 212, 255, 0.2);
+    --border-hover: rgba(0, 212, 255, 0.4);
+    
+    --gradient-primary: linear-gradient(135deg, #00d4ff 0%, #0080ff 100%);
+    --gradient-secondary: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+    
+    --shadow-sm: 0 2px 8px rgba(0, 212, 255, 0.2);
+    --shadow-md: 0 4px 16px rgba(0, 212, 255, 0.3);
+    --shadow-lg: 0 8px 32px rgba(0, 212, 255, 0.4);
+}
+
+/* Green Theme (Grün/Matrix) */
+[data-theme="green"] {
+    --bg-primary: #0a1f0a;
+    --bg-secondary: #0f2b0f;
+    --bg-tertiary: #143d14;
+    
+    --text-primary: #00ff41;
+    --text-secondary: rgba(0, 255, 65, 0.9);
+    --text-muted: rgba(0, 255, 65, 0.6);
+    
+    --accent-primary: #00ff41;
+    --accent-hover: #00cc33;
+    --accent-light: rgba(0, 255, 65, 0.1);
+    
+    --border-color: rgba(0, 255, 65, 0.2);
+    --border-hover: rgba(0, 255, 65, 0.4);
+    
+    --gradient-primary: linear-gradient(135deg, #00ff41 0%, #00aa2b 100%);
+    --gradient-secondary: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+    
+    --shadow-sm: 0 2px 8px rgba(0, 255, 65, 0.2);
+    --shadow-md: 0 4px 16px rgba(0, 255, 65, 0.3);
+    --shadow-lg: 0 8px 32px rgba(0, 255, 65, 0.4);
+}
+
+/* Red Theme (Rot/Warm) */
+[data-theme="red"] {
+    --bg-primary: #1a0a0a;
+    --bg-secondary: #2b0f0f;
+    --bg-tertiary: #3d1414;
+    
+    --text-primary: #ffe0e0;
+    --text-secondary: rgba(255, 224, 224, 0.9);
+    --text-muted: rgba(255, 224, 224, 0.6);
+    
+    --accent-primary: #ff4757;
+    --accent-hover: #ee5a6f;
+    --accent-light: rgba(255, 71, 87, 0.1);
+    
+    --border-color: rgba(255, 71, 87, 0.2);
+    --border-hover: rgba(255, 71, 87, 0.4);
+    
+    --gradient-primary: linear-gradient(135deg, #ff4757 0%, #c0392b 100%);
+    --gradient-secondary: linear-gradient(135deg, #f5576c 0%, #f093fb 100%);
+    
+    --shadow-sm: 0 2px 8px rgba(255, 71, 87, 0.2);
+    --shadow-md: 0 4px 16px rgba(255, 71, 87, 0.3);
+    --shadow-lg: 0 8px 32px rgba(255, 71, 87, 0.4);
+}
+
+/* Purple Theme (Lila/Violett) */
+[data-theme="purple"] {
+    --bg-primary: #1a0a1f;
+    --bg-secondary: #2b0f3d;
+    --bg-tertiary: #3d1454;
+    
+    --text-primary: #f0e0ff;
+    --text-secondary: rgba(240, 224, 255, 0.9);
+    --text-muted: rgba(240, 224, 255, 0.6);
+    
+    --accent-primary: #9b59b6;
+    --accent-hover: #8e44ad;
+    --accent-light: rgba(155, 89, 182, 0.1);
+    
+    --border-color: rgba(155, 89, 182, 0.2);
+    --border-hover: rgba(155, 89, 182, 0.4);
+    
+    --gradient-primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    --gradient-secondary: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
+    
+    --shadow-sm: 0 2px 8px rgba(155, 89, 182, 0.2);
+    --shadow-md: 0 4px 16px rgba(155, 89, 182, 0.3);
+    --shadow-lg: 0 8px 32px rgba(155, 89, 182, 0.4);
+}
+
+/* ============================================
+   CSS Variables anwenden auf Elemente
+   ============================================ */
+
+body {
+    background: var(--bg-primary);
+    color: var(--text-primary);
+}
+
+header,
+.sidebar,
+.detail-panel {
+    background: var(--bg-secondary);
+    border-color: var(--border-color);
+}
+
+.dvd,
+.card,
+.form-control {
+    background: var(--bg-tertiary);
+    border-color: var(--border-color);
+    color: var(--text-primary);
+}
+
+.dvd:hover,
+.card:hover {
+    border-color: var(--border-hover);
+    box-shadow: var(--shadow-md);
+}
+
+a,
+.btn-primary {
+    color: var(--accent-primary);
+}
+
+a:hover,
+.btn-primary:hover {
+    color: var(--accent-hover);
+}
+
+.gradient-bg {
+    background: var(--gradient-primary);
+}
+
+button,
+.btn {
+    background: var(--accent-primary);
+    color: var(--text-primary);
+}
+
+button:hover,
+.btn:hover {
+    background: var(--accent-hover);
+}
+
+/* Theme Preview Boxes (für Settings) */
+.theme-preview {
+    display: inline-block;
+    width: 24px;
+    height: 24px;
+    border-radius: 4px;
+    margin-left: 8px;
+    vertical-align: middle;
+    border: 2px solid rgba(255, 255, 255, 0.2);
+}
+
+.theme-preview.default {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.theme-preview.dark {
+    background: linear-gradient(135deg, #bb86fc 0%, #3700b3 100%);
+}
+
+.theme-preview.blue {
+    background: linear-gradient(135deg, #00d4ff 0%, #0080ff 100%);
+}
+
+.theme-preview.green {
+    background: linear-gradient(135deg, #00ff41 0%, #00aa2b 100%);
+}
+
+.theme-preview.red {
+    background: linear-gradient(135deg, #ff4757 0%, #c0392b 100%);
+}
+
+.theme-preview.purple {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}

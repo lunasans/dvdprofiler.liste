@@ -7,13 +7,11 @@ if (!isset($dvd) || !is_array($dvd) || empty($dvd['id'])) {
     throw new InvalidArgumentException('Invalid DVD data provided to film-view.php');
 }
 
+
+
 // Cover-Pfade generieren
 $frontCover = findCoverImage($dvd['cover_id'] ?? '', 'f');
 $backCover = findCoverImage($dvd['cover_id'] ?? '', 'b');
-
-// Zusätzliche Cover (falls vorhanden)
-$sideCover = findCoverImage($dvd['cover_id'] ?? '', 's');
-$discCover = findCoverImage($dvd['cover_id'] ?? '', 'd');
 
 // Schauspieler laden
 $actors = getActorsByDvdId($pdo, (int)$dvd['id']);
@@ -54,21 +52,79 @@ $filmStats = [
     'updated_at' => $dvd['updated_at'] ?? null,
 ];
 
-// Bewertung berechnen (falls vorhanden)
+// Bewertung berechnen (falls vorhanden) - Robuster mit Tabellen-Check
 $averageRating = 0;
 $ratingCount = 0;
+$userRating = 0;
+$userHasRated = false;
+
 try {
-    $ratingStmt = $pdo->prepare("
-        SELECT AVG(rating) as avg_rating, COUNT(*) as count 
-        FROM user_ratings 
-        WHERE film_id = ?
-    ");
-    $ratingStmt->execute([$dvd['id']]);
-    $ratingData = $ratingStmt->fetch(PDO::FETCH_ASSOC);
-    $averageRating = round((float)($ratingData['avg_rating'] ?? 0), 1);
-    $ratingCount = (int)($ratingData['count'] ?? 0);
+    // Prüfen ob user_ratings Tabelle existiert
+    $tableCheck = $pdo->query("SHOW TABLES LIKE 'user_ratings'");
+    if ($tableCheck && $tableCheck->rowCount() > 0) {
+        // Allgemeine Bewertungen laden
+        $ratingStmt = $pdo->prepare("
+            SELECT AVG(rating) as avg_rating, COUNT(*) as count 
+            FROM user_ratings 
+            WHERE film_id = ?
+        ");
+        $ratingStmt->execute([$dvd['id']]);
+        $ratingData = $ratingStmt->fetch(PDO::FETCH_ASSOC);
+        $averageRating = round((float)($ratingData['avg_rating'] ?? 0), 1);
+        $ratingCount = (int)($ratingData['count'] ?? 0);
+        
+        // User-spezifische Bewertung laden (falls eingeloggt)
+        if (isset($_SESSION['user_id'])) {
+            $userRatingStmt = $pdo->prepare("
+                SELECT rating FROM user_ratings 
+                WHERE film_id = ? AND user_id = ?
+            ");
+            $userRatingStmt->execute([$dvd['id'], $_SESSION['user_id']]);
+            $userRatingData = $userRatingStmt->fetch();
+            if ($userRatingData) {
+                $userRating = (float)$userRatingData['rating'];
+                $userHasRated = true;
+            }
+        }
+    }
 } catch (PDOException $e) {
     error_log("Rating query error: " . $e->getMessage());
+}
+
+// User-Status laden (Wishlist, Watched) falls eingeloggt
+$isOnWishlist = false;
+$isWatched = false;
+if (isset($_SESSION['user_id'])) {
+    try {
+        // Wishlist-Status
+        $wishCheck = $pdo->query("SHOW TABLES LIKE 'user_wishlist'");
+        if ($wishCheck && $wishCheck->rowCount() > 0) {
+            $wishStmt = $pdo->prepare("SELECT COUNT(*) FROM user_wishlist WHERE user_id = ? AND film_id = ?");
+            $wishStmt->execute([$_SESSION['user_id'], $dvd['id']]);
+            $isOnWishlist = $wishStmt->fetchColumn() > 0;
+        }
+        
+        // Watched-Status
+        $watchedCheck = $pdo->query("SHOW TABLES LIKE 'user_watched'");
+        if ($watchedCheck && $watchedCheck->rowCount() > 0) {
+            $watchedStmt = $pdo->prepare("SELECT COUNT(*) FROM user_watched WHERE user_id = ? AND film_id = ?");
+            $watchedStmt->execute([$_SESSION['user_id'], $dvd['id']]);
+            $isWatched = $watchedStmt->fetchColumn() > 0;
+        }
+    } catch (PDOException $e) {
+        error_log("User status query error: " . $e->getMessage());
+    }
+}
+
+// View-Count erhöhen
+try {
+    if (!empty($dvd['id'])) {
+        $updateViewStmt = $pdo->prepare("UPDATE dvds SET view_count = COALESCE(view_count, 0) + 1 WHERE id = ?");
+        $updateViewStmt->execute([$dvd['id']]);
+        $filmStats['view_count']++; // Lokale Variable aktualisieren
+    }
+} catch (PDOException $e) {
+    error_log("View count update error: " . $e->getMessage());
 }
 
 // Helper-Funktionen
@@ -111,6 +167,22 @@ function generateStarRating(float $rating, int $maxStars = 5): string {
             <span class="film-year" itemprop="datePublished">(<?= htmlspecialchars((string)($dvd['year'] ?? '')) ?>)</span>
         </h2>
         
+        <!-- User-Status Badges -->
+        <?php if (isset($_SESSION['user_id'])): ?>
+            <div class="user-status-badges">
+                <?php if ($isOnWishlist): ?>
+                    <span class="badge badge-wishlist">
+                        <i class="bi bi-heart-fill"></i> Auf Wunschliste
+                    </span>
+                <?php endif; ?>
+                <?php if ($isWatched): ?>
+                    <span class="badge badge-watched">
+                        <i class="bi bi-check-circle-fill"></i> Gesehen
+                    </span>
+                <?php endif; ?>
+            </div>
+        <?php endif; ?>
+        
         <?php if ($boxsetParent): ?>
             <div class="boxset-breadcrumb">
                 <i class="bi bi-collection"></i>
@@ -121,15 +193,30 @@ function generateStarRating(float $rating, int $maxStars = 5): string {
             </div>
         <?php endif; ?>
         
-        <?php if ($averageRating > 0): ?>
+        <?php if ($averageRating > 0 || $userHasRated): ?>
             <div class="film-rating">
-                <div class="stars">
-                    <?= generateStarRating($averageRating) ?>
-                </div>
-                <span class="rating-text">
-                    <?= $averageRating ?>/5 
-                    <small>(<?= $ratingCount ?> Bewertung<?= $ratingCount !== 1 ? 'en' : '' ?>)</small>
-                </span>
+                <?php if ($averageRating > 0): ?>
+                    <div class="community-rating">
+                        <span class="rating-label">Community:</span>
+                        <div class="stars">
+                            <?= generateStarRating($averageRating) ?>
+                        </div>
+                        <span class="rating-text">
+                            <?= $averageRating ?>/5 
+                            <small>(<?= $ratingCount ?> Bewertung<?= $ratingCount !== 1 ? 'en' : '' ?>)</small>
+                        </span>
+                    </div>
+                <?php endif; ?>
+                
+                <?php if ($userHasRated): ?>
+                    <div class="user-rating">
+                        <span class="rating-label">Ihre Bewertung:</span>
+                        <div class="stars">
+                            <?= generateStarRating($userRating) ?>
+                        </div>
+                        <span class="rating-text"><?= $userRating ?>/5</span>
+                    </div>
+                <?php endif; ?>
             </div>
         <?php endif; ?>
     </header>
@@ -147,6 +234,11 @@ function generateStarRating(float $rating, int $maxStars = 5): string {
                          itemprop="image"
                          loading="lazy">
                 </a>
+            <?php else: ?>
+                <div class="no-cover">
+                    <i class="bi bi-film"></i>
+                    <span>Kein Cover</span>
+                </div>
             <?php endif; ?>
             
             <?php if ($backCover): ?>
@@ -160,9 +252,7 @@ function generateStarRating(float $rating, int $maxStars = 5): string {
                 </a>
             <?php endif; ?>
         </div>
-    </div>
-
-</section>
+    </section>
 
     <!-- Film-Informationen in Grid-Layout -->
     <section class="film-info-grid">
@@ -181,7 +271,20 @@ function generateStarRating(float $rating, int $maxStars = 5): string {
         <?php if (!empty($dvd['rating_age'])): ?>
             <div class="film-info-item">
                 <span class="label">Altersfreigabe</span>
-                <span class="value">ab <?= htmlspecialchars((string)$dvd['rating_age']) ?> Jahren</span>
+                <span class="value fsk-badge">
+                    <?php
+                    $fskAge = (int)$dvd['rating_age'];
+                    $fskSvgPath = "assets/svg/fsk/fsk-{$fskAge}.svg";
+                    
+                    if (file_exists($fskSvgPath)): ?>
+                        <img src="<?= htmlspecialchars($fskSvgPath) ?>" 
+                             alt="FSK <?= $fskAge ?>" 
+                             class="fsk-logo"
+                             title="Freigegeben ab <?= $fskAge ?> Jahren">
+                    <?php else: ?>
+                        <span class="fsk-text">FSK <?= $fskAge ?></span>
+                    <?php endif; ?>
+                </span>
             </div>
         <?php endif; ?>
         
@@ -267,7 +370,9 @@ function generateStarRating(float $rating, int $maxStars = 5): string {
         <section class="meta-card">
             <h3><i class="bi bi-play-circle"></i> Trailer</h3>
             <div class="trailer-container">
-                <div class="trailer-box" data-src="<?= htmlspecialchars($dvd['trailer_url']) ?>">
+                <div class="trailer-box" 
+                     data-src="<?= htmlspecialchars($dvd['trailer_url']) ?>"
+                     data-rating-age="<?= (int)($dvd['rating_age'] ?? 0) ?>">
                     <img src="<?= htmlspecialchars($frontCover) ?>" 
                          alt="Trailer Thumbnail"
                          loading="lazy">
@@ -282,25 +387,71 @@ function generateStarRating(float $rating, int $maxStars = 5): string {
         </section>
     <?php endif; ?>
 
+    <!-- Age Verification Modal für FSK 18+ -->
+    <?php if (!empty($dvd['trailer_url']) && (int)($dvd['rating_age'] ?? 0) >= 18): ?>
+    <div id="ageVerificationModal" class="age-modal" style="display: none;">
+        <div class="age-modal-content">
+            <div class="age-modal-header">
+                <i class="bi bi-exclamation-triangle-fill text-warning"></i>
+                <h3>Altersbeschränkung</h3>
+            </div>
+            <div class="age-modal-body">
+                <p class="age-warning">
+                    Dieser Film ist <strong>FSK <?= (int)$dvd['rating_age'] ?></strong> eingestuft.
+                </p>
+                <p>
+                    Der Trailer enthält möglicherweise Inhalte, die für Personen unter <?= (int)$dvd['rating_age'] ?> Jahren nicht geeignet sind.
+                </p>
+                <p class="age-question">
+                    <strong>Bist du mindestens <?= (int)$dvd['rating_age'] ?> Jahre alt?</strong>
+                </p>
+            </div>
+            <div class="age-modal-actions">
+                <button class="btn btn-success age-confirm" id="ageConfirmBtn">
+                    <i class="bi bi-check-circle"></i> Ja, ich bin <?= (int)$dvd['rating_age'] ?>+
+                </button>
+                <button class="btn btn-danger age-deny" id="ageDenyBtn">
+                    <i class="bi bi-x-circle"></i> Nein, abbrechen
+                </button>
+            </div>
+            <p class="age-disclaimer">
+                <small>
+                    <i class="bi bi-info-circle"></i>
+                    Mit der Bestätigung erklärst du, dass du das gesetzliche Mindestalter erreicht hast.
+                </small>
+            </p>
+        </div>
+    </div>
+    <?php endif; ?>
+
     <!-- User-Bewertung (falls eingeloggt) -->
-    <?php if (isset($_SESSION['user_id'])): ?>
-        <section class="meta-card">
-            <h3><i class="bi bi-star"></i> Bewertung</h3>
-            <div class="user-rating-section">
+    <section class="meta-card">
+        <h3><i class="bi bi-star"></i> Bewertung abgeben</h3>
+        <div class="user-rating-section">
+            <?php if (isset($_SESSION['user_id'])): ?>
                 <div class="rating-input">
                     <span>Ihre Bewertung:</span>
-                    <div class="star-rating-input" data-film-id="<?= $dvd['id'] ?>">
+                    <div class="star-rating-input" data-film-id="<?= $dvd['id'] ?>" data-current-rating="<?= $userRating ?>">
                         <?php for ($i = 1; $i <= 5; $i++): ?>
-                            <i class="bi bi-star rating-star" data-rating="<?= $i ?>"></i>
+                            <i class="bi bi-star rating-star <?= $i <= $userRating ? 'bi-star-fill' : '' ?>" 
+                               data-rating="<?= $i ?>"></i>
                         <?php endfor; ?>
                     </div>
+                    <span class="rating-display"><?= $userHasRated ? $userRating . '/5' : 'Noch nicht bewertet' ?></span>
                 </div>
                 <button class="btn btn-primary save-rating" style="display: none;">
                     <i class="bi bi-check"></i> Bewertung speichern
                 </button>
-            </div>
-        </section>
-    <?php endif; ?>
+            <?php else: ?>
+                <div class="login-required">
+                    <p><i class="bi bi-info-circle"></i> Melden Sie sich an, um Filme zu bewerten.</p>
+                    <a href="login.php" class="btn btn-outline-primary">
+                        <i class="bi bi-person"></i> Anmelden
+                    </a>
+                </div>
+            <?php endif; ?>
+        </div>
+    </section>
 
     <!-- Film-Aktionen -->
     <section class="film-actions">
@@ -309,16 +460,20 @@ function generateStarRating(float $rating, int $maxStars = 5): string {
         </button>
         
         <?php if (isset($_SESSION['user_id'])): ?>
-            <button class="btn btn-outline-primary add-to-wishlist" data-film-id="<?= $dvd['id'] ?>">
-                <i class="bi bi-heart"></i> Zur Wunschliste
+            <button class="btn btn-outline-primary add-to-wishlist <?= $isOnWishlist ? 'active' : '' ?>" 
+                    data-film-id="<?= $dvd['id'] ?>">
+                <i class="bi bi-heart<?= $isOnWishlist ? '-fill' : '' ?>"></i>
+                <?= $isOnWishlist ? 'Auf Wunschliste' : 'Zur Wunschliste' ?>
             </button>
             
-            <button class="btn btn-outline-secondary mark-as-watched" data-film-id="<?= $dvd['id'] ?>">
-                <i class="bi bi-check-circle"></i> Als gesehen markieren
+            <button class="btn btn-outline-secondary mark-as-watched <?= $isWatched ? 'active' : '' ?>" 
+                    data-film-id="<?= $dvd['id'] ?>">
+                <i class="bi bi-check-circle<?= $isWatched ? '-fill' : '' ?>"></i>
+                <?= $isWatched ? 'Gesehen' : 'Als gesehen markieren' ?>
             </button>
         <?php endif; ?>
         
-        <button class="btn btn-outline-info share-film" data-film-id="<?= $dvd['id'] ?>">
+        <button class="btn btn-outline-info share-film" data-film-id="<?= $dvd['id'] ?>" data-film-title="<?= htmlspecialchars($dvd['title']) ?>">
             <i class="bi bi-share"></i> Teilen
         </button>
     </section>
@@ -326,35 +481,196 @@ function generateStarRating(float $rating, int $maxStars = 5): string {
 
 <!-- Enhanced JavaScript -->
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Trailer-Funktionalität
-    const trailerBox = document.querySelector('.trailer-box');
-    if (trailerBox) {
-        trailerBox.addEventListener('click', function() {
-            const trailerUrl = this.dataset.src;
-            if (trailerUrl) {
-                // Fancybox oder direktes Popup für Trailer
-                window.open(trailerUrl, 'trailer', 'width=800,height=600');
+(function() {
+    // Trailer-Funktionalität mit Age-Verification (sofort ausgeführt)
+    const trailerContainer = document.querySelector('.trailer-container');
+    const ageModal = document.getElementById('ageVerificationModal');
+    const ageConfirmBtn = document.getElementById('ageConfirmBtn');
+    const ageDenyBtn = document.getElementById('ageDenyBtn');
+    
+    if (trailerContainer) {
+        // Event Delegation - fängt Clicks auf Child-Elemente
+        trailerContainer.addEventListener('click', function(e) {
+            const trailerBox = e.target.closest('.trailer-box');
+            if (!trailerBox) return; // Nicht auf trailer-box geklickt
+            
+            e.preventDefault();
+            e.stopPropagation();
+            
+            const ratingAge = parseInt(trailerBox.dataset.ratingAge || 0);
+            const trailerUrl = trailerBox.dataset.src;
+            
+            // Cookie-Check
+            function hasAgeConfirmation() {
+                return document.cookie.includes('age_confirmed_18=true');
+            }
+            
+            // Cookie setzen (30 Tage)
+            function setAgeConfirmation() {
+                const expires = new Date();
+                expires.setDate(expires.getDate() + 30);
+                document.cookie = `age_confirmed_18=true; expires=${expires.toUTCString()}; path=/; SameSite=Strict`;
+            }
+            
+            if (ratingAge >= 18 && !hasAgeConfirmation()) {
+                // Zeige Age-Verification
+                if (ageModal) {
+                    ageModal.style.display = 'flex';
+                    document.body.style.overflow = 'hidden';
+                }
+            } else {
+                // Spiele Trailer ab
+                playTrailer(trailerBox, trailerUrl);
+            }
+            
+            function playTrailer(box, url) {
+                if (!url) return;
+                
+                const container = box.closest('.trailer-container');
+                const embedUrl = convertToEmbedUrl(url);
+                
+                const iframe = document.createElement('iframe');
+                iframe.src = embedUrl;
+                iframe.width = '100%';
+                iframe.style.aspectRatio = '16/9';
+                iframe.style.border = 'none';
+                iframe.style.borderRadius = '8px';
+                iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture';
+                iframe.allowFullscreen = true;
+                
+                box.style.display = 'none';
+                container.appendChild(iframe);
+            }
+            
+            function convertToEmbedUrl(url) {
+                // YouTube
+                if (url.includes('youtube.com') || url.includes('youtu.be')) {
+                    const videoId = url.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/)?.[1];
+                    if (videoId) return `https://www.youtube.com/embed/${videoId}?autoplay=1`;
+                }
+                // Vimeo
+                if (url.includes('vimeo.com')) {
+                    const videoId = url.match(/vimeo\.com\/(\d+)/)?.[1];
+                    if (videoId) return `https://player.vimeo.com/video/${videoId}?autoplay=1`;
+                }
+                // Dailymotion
+                if (url.includes('dailymotion.com')) {
+                    const videoId = url.match(/dailymotion\.com\/video\/([^_]+)/)?.[1];
+                    if (videoId) return `https://www.dailymotion.com/embed/video/${videoId}?autoplay=1`;
+                }
+                return url;
             }
         });
+        
+        // Bestätigen
+        if (ageConfirmBtn) {
+            ageConfirmBtn.addEventListener('click', function() {
+                const expires = new Date();
+                expires.setDate(expires.getDate() + 30);
+                document.cookie = `age_confirmed_18=true; expires=${expires.toUTCString()}; path=/; SameSite=Strict`;
+                
+                if (ageModal) {
+                    ageModal.style.display = 'none';
+                    document.body.style.overflow = '';
+                }
+                
+                // Spiele Trailer ab
+                const trailerBox = document.querySelector('.trailer-box');
+                const trailerUrl = trailerBox?.dataset.src;
+                if (trailerBox && trailerUrl) {
+                    const container = trailerBox.closest('.trailer-container');
+                    const embedUrl = (function(url) {
+                        if (url.includes('youtube.com') || url.includes('youtu.be')) {
+                            const videoId = url.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/)?.[1];
+                            if (videoId) return `https://www.youtube.com/embed/${videoId}?autoplay=1`;
+                        }
+                        if (url.includes('vimeo.com')) {
+                            const videoId = url.match(/vimeo\.com\/(\d+)/)?.[1];
+                            if (videoId) return `https://player.vimeo.com/video/${videoId}?autoplay=1`;
+                        }
+                        return url;
+                    })(trailerUrl);
+                    
+                    const iframe = document.createElement('iframe');
+                    iframe.src = embedUrl;
+                    iframe.width = '100%';
+                    iframe.style.aspectRatio = '16/9';
+                    iframe.style.border = 'none';
+                    iframe.style.borderRadius = '8px';
+                    iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture';
+                    iframe.allowFullscreen = true;
+                    
+                    trailerBox.style.display = 'none';
+                    container.appendChild(iframe);
+                }
+            });
+        }
+        
+        // Ablehnen
+        if (ageDenyBtn) {
+            ageDenyBtn.addEventListener('click', function() {
+                if (ageModal) {
+                    ageModal.style.display = 'none';
+                    document.body.style.overflow = '';
+                }
+            });
+        }
+        
+        // ESC-Taste
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && ageModal && ageModal.style.display === 'flex') {
+                ageModal.style.display = 'none';
+                document.body.style.overflow = '';
+            }
+        });
+        
+        // Click außerhalb
+        if (ageModal) {
+            ageModal.addEventListener('click', function(e) {
+                if (e.target === ageModal) {
+                    ageModal.style.display = 'none';
+                    document.body.style.overflow = '';
+                }
+            });
+        }
     }
     
-    // Rating-System
+    // Rating-System mit Debug-Ausgaben
     const ratingStars = document.querySelectorAll('.rating-star');
     const saveRatingBtn = document.querySelector('.save-rating');
-    let selectedRating = 0;
+    const ratingDisplay = document.querySelector('.rating-display');
+    const currentRating = parseFloat(document.querySelector('.star-rating-input')?.dataset.currentRating || 0);
+    let selectedRating = currentRating;
     
-    ratingStars.forEach(star => {
+    console.log('Rating System Debug:', {
+        ratingStars: ratingStars.length,
+        saveRatingBtn: !!saveRatingBtn,
+        ratingDisplay: !!ratingDisplay,
+        currentRating: currentRating
+    });
+    
+    ratingStars.forEach((star, index) => {
         star.addEventListener('mouseenter', function() {
+            console.log('Mouse enter star:', index + 1);
             const rating = parseInt(this.dataset.rating);
             highlightStars(rating);
         });
         
+        star.addEventListener('mouseleave', function() {
+            console.log('Mouse leave star');
+            highlightStars(selectedRating);
+        });
+        
         star.addEventListener('click', function() {
             selectedRating = parseInt(this.dataset.rating);
+            console.log('Star clicked, selected rating:', selectedRating);
             highlightStars(selectedRating);
             if (saveRatingBtn) {
                 saveRatingBtn.style.display = 'inline-block';
+                console.log('Save button shown');
+            }
+            if (ratingDisplay) {
+                ratingDisplay.textContent = selectedRating + '/5';
             }
         });
     });
@@ -384,7 +700,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (wishlistBtn) {
         wishlistBtn.addEventListener('click', function() {
             const filmId = this.dataset.filmId;
-            toggleWishlist(filmId);
+            toggleWishlist(filmId, this);
         });
     }
     
@@ -393,7 +709,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (watchedBtn) {
         watchedBtn.addEventListener('click', function() {
             const filmId = this.dataset.filmId;
-            markAsWatched(filmId);
+            toggleWatched(filmId, this);
         });
     }
     
@@ -402,7 +718,8 @@ document.addEventListener('DOMContentLoaded', function() {
     if (shareBtn) {
         shareBtn.addEventListener('click', function() {
             const filmId = this.dataset.filmId;
-            shareFilm(filmId);
+            const filmTitle = this.dataset.filmTitle;
+            shareFilm(filmId, filmTitle);
         });
     }
     
@@ -420,12 +737,12 @@ document.addEventListener('DOMContentLoaded', function() {
         
         lazyImages.forEach(img => imageObserver.observe(img));
     }
-});
+})(); // IIFE - sofort ausgeführt
 
 // AJAX-Funktionen
 async function saveUserRating(filmId, rating) {
     try {
-        const response = await fetch('ajax/save-rating.php', {
+        const response = await fetch('api/save-rating.php', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -436,15 +753,20 @@ async function saveUserRating(filmId, rating) {
         if (response.ok) {
             showNotification('Bewertung gespeichert!', 'success');
             document.querySelector('.save-rating').style.display = 'none';
+            
+            // Seite nach kurzer Zeit neu laden um Community-Rating zu aktualisieren
+            setTimeout(() => {
+                location.reload();
+            }, 1500);
         }
     } catch (error) {
         showNotification('Fehler beim Speichern der Bewertung', 'error');
     }
 }
 
-async function toggleWishlist(filmId) {
+async function toggleWishlist(filmId, button) {
     try {
-        const response = await fetch('ajax/toggle-wishlist.php', {
+        const response = await fetch('api/toggle-wishlist.php', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -454,13 +776,15 @@ async function toggleWishlist(filmId) {
         
         if (response.ok) {
             const result = await response.json();
-            const btn = document.querySelector('.add-to-wishlist');
+            const icon = button.querySelector('i');
             if (result.added) {
-                btn.innerHTML = '<i class="bi bi-heart-fill"></i> Auf Wunschliste';
-                btn.classList.add('active');
+                button.innerHTML = '<i class="bi bi-heart-fill"></i> Auf Wunschliste';
+                button.classList.add('active');
+                showNotification('Zur Wunschliste hinzugefügt!', 'success');
             } else {
-                btn.innerHTML = '<i class="bi bi-heart"></i> Zur Wunschliste';
-                btn.classList.remove('active');
+                button.innerHTML = '<i class="bi bi-heart"></i> Zur Wunschliste';
+                button.classList.remove('active');
+                showNotification('Von Wunschliste entfernt!', 'info');
             }
         }
     } catch (error) {
@@ -468,9 +792,9 @@ async function toggleWishlist(filmId) {
     }
 }
 
-async function markAsWatched(filmId) {
+async function toggleWatched(filmId, button) {
     try {
-        const response = await fetch('ajax/mark-watched.php', {
+        const response = await fetch('api/toggle-watched.php', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -479,26 +803,43 @@ async function markAsWatched(filmId) {
         });
         
         if (response.ok) {
-            showNotification('Als gesehen markiert!', 'success');
-            const btn = document.querySelector('.mark-as-watched');
-            btn.innerHTML = '<i class="bi bi-check-circle-fill"></i> Gesehen';
-            btn.classList.add('active');
+            const result = await response.json();
+            if (result.watched) {
+                button.innerHTML = '<i class="bi bi-check-circle-fill"></i> Gesehen';
+                button.classList.add('active');
+                showNotification('Als gesehen markiert!', 'success');
+            } else {
+                button.innerHTML = '<i class="bi bi-check-circle"></i> Als gesehen markieren';
+                button.classList.remove('active');
+                showNotification('Markierung entfernt!', 'info');
+            }
         }
     } catch (error) {
         showNotification('Fehler beim Markieren', 'error');
     }
 }
 
-function shareFilm(filmId) {
+function shareFilm(filmId, filmTitle) {
+    const url = window.location.origin + window.location.pathname + '?id=' + filmId;
+    
     if (navigator.share) {
         navigator.share({
-            title: document.querySelector('h2[itemprop="name"]').textContent,
-            url: window.location.href + '?id=' + filmId
+            title: filmTitle,
+            text: 'Schau dir diesen Film an: ' + filmTitle,
+            url: url
         });
     } else {
         // Fallback: URL in Zwischenablage kopieren
-        const url = window.location.href + '?id=' + filmId;
         navigator.clipboard.writeText(url).then(() => {
+            showNotification('Link kopiert!', 'success');
+        }).catch(() => {
+            // Fallback für ältere Browser
+            const textArea = document.createElement('textarea');
+            textArea.value = url;
+            document.body.appendChild(textArea);
+            textArea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textArea);
             showNotification('Link kopiert!', 'success');
         });
     }
@@ -530,19 +871,33 @@ function showNotification(message, type = 'info') {
         position: fixed;
         top: 20px;
         right: 20px;
-        padding: 1rem;
+        padding: 1rem 1.5rem;
         background: var(--glass-bg-strong);
         border: 1px solid var(--glass-border);
+        border-left: 4px solid ${type === 'success' ? '#28a745' : type === 'error' ? '#dc3545' : '#17a2b8'};
         border-radius: var(--radius-md);
         color: var(--text-white);
         z-index: 10000;
         backdrop-filter: blur(10px);
+        box-shadow: var(--shadow-lg);
+        font-weight: 500;
     `;
     
     document.body.appendChild(notification);
     
+    // Animation
+    notification.style.transform = 'translateX(100%)';
+    notification.style.transition = 'transform 0.3s ease-out';
+    
     setTimeout(() => {
-        notification.remove();
+        notification.style.transform = 'translateX(0)';
+    }, 10);
+    
+    setTimeout(() => {
+        notification.style.transform = 'translateX(100%)';
+        setTimeout(() => {
+            notification.remove();
+        }, 300);
     }, 3000);
 }
 </script>
@@ -560,6 +915,33 @@ function showNotification(message, type = 'info') {
     font-weight: 400;
 }
 
+.user-status-badges {
+    display: flex;
+    gap: var(--space-sm);
+    justify-content: center;
+    margin-top: var(--space-md);
+}
+
+.badge {
+    padding: var(--space-xs) var(--space-sm);
+    border-radius: var(--radius-lg);
+    font-size: 0.85rem;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+}
+
+.badge-wishlist {
+    background: linear-gradient(135deg, #e91e63, #ad1457);
+    color: white;
+}
+
+.badge-watched {
+    background: linear-gradient(135deg, #4caf50, #2e7d32);
+    color: white;
+}
+
 .boxset-breadcrumb {
     margin-top: var(--space-sm);
     font-size: 0.9rem;
@@ -573,11 +955,24 @@ function showNotification(message, type = 'info') {
 
 .film-rating {
     display: flex;
+    flex-direction: column;
     align-items: center;
-    justify-content: center;
     gap: var(--space-md);
     margin-top: var(--space-md);
+}
+
+.community-rating, .user-rating {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
     flex-wrap: wrap;
+    justify-content: center;
+}
+
+.rating-label {
+    font-size: 0.9rem;
+    color: var(--text-glass);
+    font-weight: 500;
 }
 
 .stars {
@@ -597,24 +992,24 @@ function showNotification(message, type = 'info') {
     color: rgba(255, 255, 255, 0.3);
 }
 
-.additional-covers {
+.no-cover {
     display: flex;
-    gap: var(--space-sm);
+    flex-direction: column;
+    align-items: center;
     justify-content: center;
-    margin-top: var(--space-md);
+    background: var(--glass-bg);
+    border: 2px dashed var(--glass-border);
+    border-radius: var(--radius-md);
+    height: 240px;
+    width: 160px;
+    color: var(--text-glass);
+    margin: 0 auto;
 }
 
-.small-cover {
-    width: 60px;
-    height: 80px;
-    object-fit: cover;
-    border-radius: var(--radius-sm);
-    border: 1px solid var(--glass-border);
-    transition: transform var(--transition-fast);
-}
-
-.small-cover:hover {
-    transform: scale(1.1);
+.no-cover i {
+    font-size: 3rem;
+    margin-bottom: var(--space-sm);
+    opacity: 0.5;
 }
 
 .meta-card.full-width {
@@ -645,6 +1040,12 @@ function showNotification(message, type = 'info') {
     background: var(--glass-bg);
     border-radius: var(--radius-sm);
     border: 1px solid var(--glass-border);
+    transition: all var(--transition-fast);
+}
+
+.actor-item:hover {
+    background: var(--glass-bg-strong);
+    transform: translateY(-1px);
 }
 
 .actor-name {
@@ -708,6 +1109,18 @@ function showNotification(message, type = 'info') {
     position: relative;
 }
 
+.trailer-box {
+    position: relative;
+    cursor: pointer;
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    transition: transform var(--transition-fast);
+}
+
+.trailer-box:hover {
+    transform: scale(1.02);
+}
+
 .trailer-overlay {
     position: absolute;
     bottom: var(--space-md);
@@ -727,10 +1140,38 @@ function showNotification(message, type = 'info') {
     opacity: 1;
 }
 
-.user-rating-section {
+.play-icon {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 60px;
+    height: 60px;
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: 50%;
     display: flex;
     align-items: center;
-    gap: var(--space-lg);
+    justify-content: center;
+    font-size: 2rem;
+    color: var(--color-primary);
+    transition: all var(--transition-fast);
+}
+
+.trailer-box:hover .play-icon {
+    background: rgba(255, 255, 255, 1);
+    transform: translate(-50%, -50%) scale(1.1);
+}
+
+.user-rating-section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+}
+
+.rating-input {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
     flex-wrap: wrap;
 }
 
@@ -751,6 +1192,12 @@ function showNotification(message, type = 'info') {
     color: #ffd700;
 }
 
+.rating-display {
+    font-weight: 600;
+    color: var(--text-white);
+    min-width: 120px;
+}
+
 .film-actions {
     display: flex;
     gap: var(--space-md);
@@ -764,15 +1211,88 @@ function showNotification(message, type = 'info') {
 .btn.active {
     background: var(--gradient-primary);
     color: var(--text-white);
+    border-color: transparent;
+}
+
+/* Film-Info Grid Styles */
+.film-info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: var(--space-md);
+    margin: var(--space-lg) 0;
+}
+
+.film-info-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-md);
+    gap: var(--space-xs);
+    transition: all var(--transition-fast);
+}
+
+.film-info-item:hover {
+    background: var(--glass-bg-strong);
+    transform: translateY(-2px);
+}
+
+.film-info-item .label {
+    font-size: 0.9rem;
+    color: var(--text-glass);
+    opacity: 0.8;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.film-info-item .value {
+    font-size: 1rem;
+    color: var(--text-white);
+    font-weight: 600;
+}
+
+/* FSK-Logo Styles */
+.fsk-badge {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.fsk-logo {
+    height: 24px;
+    width: auto;
+    max-width: 40px;
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
+}
+
+.fsk-text {
+    background: var(--gradient-primary);
+    color: var(--text-white);
+    padding: 2px 8px;
+    border-radius: var(--radius-sm);
+    font-size: 0.8rem;
+    font-weight: 600;
 }
 
 @media (max-width: 768px) {
     .film-rating {
-        flex-direction: column;
         gap: var(--space-sm);
     }
     
+    .community-rating, .user-rating {
+        flex-direction: column;
+        gap: var(--space-xs);
+    }
+    
     .user-rating-section {
+        align-items: flex-start;
+    }
+    
+    .rating-input {
         flex-direction: column;
         align-items: flex-start;
     }
@@ -788,6 +1308,16 @@ function showNotification(message, type = 'info') {
     .boxset-children-grid {
         grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
         gap: var(--space-sm);
+    }
+    
+    .film-info-grid {
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: var(--space-sm);
+    }
+    
+    .user-status-badges {
+        flex-direction: column;
+        align-items: center;
     }
 }
 
@@ -814,4 +1344,140 @@ function showNotification(message, type = 'info') {
         opacity: 1;
     }
 }
+/* Age Verification Modal Styles */
+.age-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.95);
+    backdrop-filter: blur(10px);
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.age-modal-content {
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+    border: 2px solid #f39c12;
+    border-radius: 16px;
+    max-width: 500px;
+    width: 90%;
+    padding: 2rem;
+    box-shadow: 0 10px 40px rgba(243, 156, 18, 0.3);
+    animation: slideUp 0.3s ease;
+}
+
+@keyframes slideUp {
+    from { transform: translateY(50px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
+.age-modal-header {
+    text-align: center;
+    margin-bottom: 1.5rem;
+}
+
+.age-modal-header i {
+    font-size: 3rem;
+    margin-bottom: 0.5rem;
+    display: block;
+}
+
+.age-modal-header h3 {
+    color: #fff;
+    margin: 0;
+    font-size: 1.5rem;
+}
+
+.age-modal-body {
+    text-align: center;
+    color: #bdc3c7;
+    margin-bottom: 1.5rem;
+}
+
+.age-warning {
+    background: rgba(243, 156, 18, 0.2);
+    border: 1px solid #f39c12;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    color: #f39c12;
+}
+
+.age-warning strong {
+    color: #fff;
+    font-size: 1.2rem;
+}
+
+.age-question {
+    font-size: 1.1rem;
+    margin-top: 1rem;
+    color: #fff;
+}
+
+.age-modal-actions {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.age-modal-actions .btn {
+    flex: 1;
+    padding: 0.75rem 1rem;
+    font-size: 1rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.age-confirm {
+    background: #27ae60;
+    color: white;
+}
+
+.age-confirm:hover {
+    background: #229954;
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(39, 174, 96, 0.4);
+}
+
+.age-deny {
+    background: #e74c3c;
+    color: white;
+}
+
+.age-deny:hover {
+    background: #c0392b;
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(231, 76, 60, 0.4);
+}
+
+.age-disclaimer {
+    text-align: center;
+    color: #7f8c8d;
+    font-size: 0.85rem;
+    margin: 0;
+}
+
+@media (max-width: 576px) {
+    .age-modal-content { padding: 1.5rem; }
+    .age-modal-actions { flex-direction: column; }
+    .age-modal-header i { font-size: 2.5rem; }
+}
+
 </style>

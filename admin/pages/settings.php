@@ -4,7 +4,7 @@
  * 
  * @package    dvdprofiler.liste
  * @author     René Neuhaus
- * @version    1.4.5
+ * @version    1.4.8
  */
 
 // Sicherheitscheck
@@ -23,218 +23,6 @@ $csrfToken = generateCSRFToken();
 $error = '';
 $success = '';
 
-// GitHub Update System
-class GitHubUpdater {
-    private $pdo;
-    private $repo = 'lunasans/dvdprofiler.liste';
-    
-    public function __construct($pdo) {
-        $this->pdo = $pdo;
-    }
-    
-    public function getLatestRelease(): ?array {
-        // Cache für 1 Stunde
-        $cacheKey = 'github_latest_release';
-        $cached = getSetting($cacheKey . '_data', '');
-        $cacheTime = (int)getSetting($cacheKey . '_time', '0');
-        
-        if ($cached && (time() - $cacheTime < 3600)) {
-            return json_decode($cached, true);
-        }
-        
-        $apiUrl = "https://api.github.com/repos/{$this->repo}/releases/latest";
-        $opts = [
-            'http' => [
-                'method' => 'GET',
-                'header' => "User-Agent: DVD-Profiler-Updater/1.0\r\n",
-                'timeout' => 10
-            ]
-        ];
-        
-        $context = stream_context_create($opts);
-        $json = @file_get_contents($apiUrl, false, $context);
-        
-        if ($json) {
-            $data = json_decode($json, true);
-            if ($data && isset($data['tag_name'])) {
-                // Cache speichern
-                setSetting($cacheKey . '_data', $json);
-                setSetting($cacheKey . '_time', (string)time());
-                return $data;
-            }
-        }
-        
-        return null;
-    }
-    
-    public function createBackup(): string {
-        $backupDir = dirname(__DIR__, 2) . '/admin/backups/';
-        if (!is_dir($backupDir)) {
-            mkdir($backupDir, 0755, true);
-        }
-        
-        $timestamp = date('Ymd_His');
-        $backupFile = $backupDir . "backup_{$timestamp}.zip";
-        
-        $zip = new ZipArchive();
-        if ($zip->open($backupFile, ZipArchive::CREATE) !== TRUE) {
-            throw new Exception('Backup-Datei konnte nicht erstellt werden.');
-        }
-        
-        $baseDir = dirname(__DIR__, 2);
-        $excludeDirs = ['admin/backups', 'uploads', 'cache', 'logs', '.git'];
-        $excludeFiles = ['.env', 'config/config.php'];
-        
-        $iterator = new RecursiveIteratorIterator(
-            new RecursiveDirectoryIterator($baseDir, RecursiveDirectoryIterator::SKIP_DOTS),
-            RecursiveIteratorIterator::SELF_FIRST
-        );
-        
-        foreach ($iterator as $file) {
-            $relativePath = str_replace($baseDir . '/', '', $file->getPathname());
-            
-            // Prüfung auf ausgeschlossene Pfade
-            $skip = false;
-            foreach ($excludeDirs as $excludeDir) {
-                if (str_starts_with($relativePath, $excludeDir)) {
-                    $skip = true;
-                    break;
-                }
-            }
-            
-            if ($skip || in_array($relativePath, $excludeFiles)) {
-                continue;
-            }
-            
-            if ($file->isDir()) {
-                $zip->addEmptyDir($relativePath);
-            } else {
-                $zip->addFile($file->getPathname(), $relativePath);
-            }
-        }
-        
-        $zip->close();
-        return $backupFile;
-    }
-    
-    public function performUpdate($releaseData): array {
-        try {
-            // 1. Backup erstellen
-            $backupFile = $this->createBackup();
-            
-            // 2. Update-Dateien herunterladen
-            $result = $this->downloadAndExtractUpdate($releaseData['zipball_url']);
-            if (!$result['success']) {
-                return $result;
-            }
-            
-            // 3. Datenbank-Updates (falls vorhanden)
-            $this->runUpdateSQL();
-            
-            // 4. Version in Datenbank aktualisieren
-            setSetting('version', ltrim($releaseData['tag_name'], 'v'));
-            setSetting('last_update', date('Y-m-d H:i:s'));
-            
-            return [
-                'success' => true,
-                'message' => "✅ Update erfolgreich! Backup erstellt: " . basename($backupFile)
-            ];
-            
-        } catch (Exception $e) {
-            error_log('Update failed: ' . $e->getMessage());
-            return [
-                'success' => false,
-                'message' => '❌ Update fehlgeschlagen: ' . $e->getMessage()
-            ];
-        }
-    }
-    
-    private function downloadAndExtractUpdate(string $zipUrl): array {
-        $tempFile = sys_get_temp_dir() . '/dvd_update_' . uniqid() . '.zip';
-        
-        // Download mit Timeout
-        $context = stream_context_create([
-            'http' => [
-                'timeout' => 300, // 5 Minuten
-                'user_agent' => 'DVD-Profiler-Updater/1.0'
-            ]
-        ]);
-        
-        if (!copy($zipUrl, $tempFile, $context)) {
-            return ['success' => false, 'message' => 'Download fehlgeschlagen.'];
-        }
-        
-        $zip = new ZipArchive();
-        if ($zip->open($tempFile) !== TRUE) {
-            unlink($tempFile);
-            return ['success' => false, 'message' => 'ZIP-Datei konnte nicht geöffnet werden.'];
-        }
-        
-        $baseDir = dirname(__DIR__, 2);
-        $repoPrefix = null;
-        
-        // Repository-Prefix ermitteln
-        for ($i = 0; $i < $zip->numFiles; $i++) {
-            $filename = $zip->getNameIndex($i);
-            if (str_contains($filename, '/')) {
-                $repoPrefix = explode('/', $filename)[0];
-                break;
-            }
-        }
-        
-        if (!$repoPrefix) {
-            $zip->close();
-            unlink($tempFile);
-            return ['success' => false, 'message' => 'Ungültiges ZIP-Format.'];
-        }
-        
-        // Dateien extrahieren
-        for ($i = 0; $i < $zip->numFiles; $i++) {
-            $filename = $zip->getNameIndex($i);
-            $relativePath = preg_replace("#^{$repoPrefix}/#", '', $filename);
-            
-            if (empty($relativePath) || $relativePath === $filename) {
-                continue;
-            }
-            
-            $targetPath = $baseDir . '/' . $relativePath;
-            
-            if (str_ends_with($filename, '/')) {
-                @mkdir($targetPath, 0755, true);
-            } else {
-                @mkdir(dirname($targetPath), 0755, true);
-                file_put_contents($targetPath, $zip->getFromIndex($i));
-            }
-        }
-        
-        $zip->close();
-        unlink($tempFile);
-        
-        return ['success' => true, 'message' => 'Update-Dateien erfolgreich extrahiert.'];
-    }
-    
-    private function runUpdateSQL(): void {
-        $sqlFile = dirname(__DIR__, 2) . '/update.sql';
-        if (file_exists($sqlFile)) {
-            try {
-                $sql = file_get_contents($sqlFile);
-                $this->pdo->exec($sql);
-                unlink($sqlFile);
-            } catch (PDOException $e) {
-                error_log('Update SQL failed: ' . $e->getMessage());
-                throw $e;
-            }
-        }
-    }
-}
-
-// Update System initialisieren
-$updater = new GitHubUpdater($pdo);
-$latestData = $updater->getLatestRelease();
-$latestVersion = $latestData['tag_name'] ?? 'unbekannt';
-$localVersion = DVDPROFILER_VERSION;
-
-$isUpdateAvailable = $latestData && version_compare(ltrim($latestVersion, 'v'), $localVersion, '>');
 
 // POST-Handler mit CSRF-Schutz
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -243,8 +31,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!validateCSRFToken($submittedToken)) {
         $error = '❌ Ungültiger CSRF-Token. Bitte versuchen Sie es erneut.';
     } else {
-        // Einstellungen speichern
-        if (isset($_POST['save_settings'])) {
+        // Einstellungen speichern (POST mit csrf_token = Settings-Form)
+        if (isset($_POST['site_title']) || isset($_POST['environment'])) {
             $allowedSettings = [
                 'site_title' => ['maxlength' => 255, 'required' => true],
                 'site_description' => ['maxlength' => 500],
@@ -252,6 +40,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'environment' => ['maxlength' => 20],
                 'theme' => ['maxlength' => 50],
                 'items_per_page' => ['filter' => FILTER_VALIDATE_INT, 'options' => ['min_range' => 5, 'max_range' => 100]],
+                'latest_films_count' => ['filter' => FILTER_VALIDATE_INT, 'options' => ['min_range' => 5, 'max_range' => 50]],
                 'enable_2fa' => ['filter' => FILTER_VALIDATE_BOOLEAN],
                 'login_attempts_max' => ['filter' => FILTER_VALIDATE_INT, 'options' => ['min_range' => 1, 'max_range' => 10]],
                 'login_lockout_time' => ['filter' => FILTER_VALIDATE_INT, 'options' => ['min_range' => 60, 'max_range' => 3600]],
@@ -291,43 +80,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             if (!$error) {
                 $success = "✅ {$savedCount} Einstellung(en) erfolgreich gespeichert.";
-                // Settings neu laden
-                header('Location: ?page=settings&saved=1');
-                exit;
-            }
-        }
-        
-        // Update durchführen
-        if (isset($_POST['start_update']) && $latestData) {
-            $result = $updater->performUpdate($latestData);
-            if ($result['success']) {
-                $success = $result['message'];
-                $localVersion = ltrim($latestVersion, 'v'); // Version aktualisieren
-                $isUpdateAvailable = false;
-            } else {
-                $error = $result['message'];
-            }
-        }
-        
-        // Backup löschen
-        if (isset($_POST['delete_backup'])) {
-            $backupFile = basename($_POST['delete_backup']); // Path traversal verhindern
-            $backupPath = dirname(__DIR__, 2) . '/admin/backups/' . $backupFile;
-            
-            if (file_exists($backupPath) && str_starts_with($backupFile, 'backup_') && str_ends_with($backupFile, '.zip')) {
-                if (unlink($backupPath)) {
-                    $success = '✅ Backup erfolgreich gelöscht.';
-                } else {
-                    $error = '❌ Backup konnte nicht gelöscht werden.';
-                }
-            } else {
-                $error = '❌ Backup-Datei nicht gefunden oder ungültig.';
+                // KEIN Redirect bei AJAX! Success-Message wird im Response angezeigt
             }
         }
         
         // Cache leeren
         if (isset($_POST['clear_cache'])) {
             $cacheDir = dirname(__DIR__, 2) . '/cache/';
+            
             if (is_dir($cacheDir)) {
                 $files = glob($cacheDir . '*');
                 $deleted = 0;
@@ -384,12 +144,7 @@ $showSaved = isset($_GET['saved']) && $_GET['saved'] === '1';
                 </p>
             </div>
             <div class="col-md-4 text-md-end">
-                <?php if ($isUpdateAvailable): ?>
-                    <div class="update-alert">
-                        <i class="bi bi-arrow-up-circle text-warning"></i>
-                        <span>Update verfügbar: <?= htmlspecialchars($latestVersion) ?></span>
-                    </div>
-                <?php endif; ?>
+                <!-- Platz für Quick Actions -->
             </div>
         </div>
     </div>
@@ -431,14 +186,6 @@ $showSaved = isset($_GET['saved']) && $_GET['saved'] === '1';
             <li class="nav-item" role="presentation">
                 <button class="nav-link" id="system-tab" data-bs-toggle="tab" data-bs-target="#system" type="button" role="tab">
                     <i class="bi bi-cpu"></i> System
-                </button>
-            </li>
-            <li class="nav-item" role="presentation">
-                <button class="nav-link" id="updates-tab" data-bs-toggle="tab" data-bs-target="#updates" type="button" role="tab">
-                    <i class="bi bi-arrow-up-circle"></i> Updates
-                    <?php if ($isUpdateAvailable): ?>
-                        <span class="badge bg-warning text-dark ms-1">!</span>
-                    <?php endif; ?>
                 </button>
             </li>
         </ul>
@@ -484,20 +231,52 @@ $showSaved = isset($_GET['saved']) && $_GET['saved'] === '1';
                             <div class="row">
                                 <div class="col-md-4">
                                     <div class="mb-3">
-                                        <label for="theme" class="form-label">Theme</label>
+                                        <label for="theme" class="form-label">
+                                            <i class="bi bi-palette"></i> Theme / Farbschema
+                                        </label>
                                         <select name="theme" id="theme" class="form-select">
-                                            <option value="default" <?= getSetting('theme', 'default') === 'default' ? 'selected' : '' ?>>Standard</option>
-                                            <option value="dark" <?= getSetting('theme', 'default') === 'dark' ? 'selected' : '' ?>>Dark Mode</option>
-                                            <option value="blue" <?= getSetting('theme', 'default') === 'blue' ? 'selected' : '' ?>>Blau</option>
+                                            <option value="default" <?= getSetting('theme', 'default') === 'default' ? 'selected' : '' ?>>
+                                                🎨 Standard (Lila/Blau)
+                                            </option>
+                                            <option value="dark" <?= getSetting('theme', 'default') === 'dark' ? 'selected' : '' ?>>
+                                                🌙 Dark Mode (Pure Black)
+                                            </option>
+                                            <option value="blue" <?= getSetting('theme', 'default') === 'blue' ? 'selected' : '' ?>>
+                                                💙 Blue (Ocean)
+                                            </option>
+                                            <option value="green" <?= getSetting('theme', 'default') === 'green' ? 'selected' : '' ?>>
+                                                💚 Green (Matrix)
+                                            </option>
+                                            <option value="red" <?= getSetting('theme', 'default') === 'red' ? 'selected' : '' ?>>
+                                                ❤️ Red (Warm)
+                                            </option>
+                                            <option value="purple" <?= getSetting('theme', 'default') === 'purple' ? 'selected' : '' ?>>
+                                                💜 Purple (Royal)
+                                            </option>
                                         </select>
+                                        <small class="text-muted">Ändert Farben der gesamten Website</small>
                                     </div>
                                 </div>
                                 <div class="col-md-4">
                                     <div class="mb-3">
-                                        <label for="items_per_page" class="form-label">Filme pro Seite</label>
+                                        <label for="items_per_page" class="form-label">
+                                            <i class="bi bi-grid"></i> Filme pro Seite (Pagination)
+                                        </label>
                                         <input type="number" name="items_per_page" id="items_per_page" class="form-control" 
-                                               value="<?= htmlspecialchars(getSetting('items_per_page', '12')) ?>" 
+                                               value="<?= htmlspecialchars(getSetting('items_per_page', '20')) ?>" 
                                                min="5" max="100">
+                                        <small class="text-muted">Anzahl Filme in der linken Liste</small>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label for="latest_films_count" class="form-label">
+                                            <i class="bi bi-stars"></i> Neueste Filme anzeigen
+                                        </label>
+                                        <input type="number" name="latest_films_count" id="latest_films_count" class="form-control" 
+                                               value="<?= htmlspecialchars(getSetting('latest_films_count', '10')) ?>" 
+                                               min="5" max="50">
+                                        <small class="text-muted">Anzahl neuester Filme rechts (5-50)</small>
                                     </div>
                                 </div>
                                 <div class="col-md-4">
@@ -608,7 +387,6 @@ $showSaved = isset($_GET['saved']) && $_GET['saved'] === '1';
                                     </div>
                                     <div class="info-row">
                                         <strong>Repository:</strong> 
-                                        <a href="<?= DVDPROFILER_GITHUB_URL ?>" target="_blank"><?= DVDPROFILER_REPOSITORY ?></a>
                                     </div>
                                     <div class="info-row">
                                         <strong>PHP Version:</strong> <?= PHP_VERSION ?>
@@ -662,7 +440,7 @@ $showSaved = isset($_GET['saved']) && $_GET['saved'] === '1';
                         </h5>
                     </div>
                     <div class="card-body">
-                        <p class="text-muted">Leeren Sie den Cache bei Problemen oder nach Updates.</p>
+                        <p class="text-muted">Leeren Sie den Cache bei Problemen.</p>
                         
                         <form method="post" class="d-inline">
                             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
@@ -722,114 +500,15 @@ $showSaved = isset($_GET['saved']) && $_GET['saved'] === '1';
                     </div>
                 </div>
             </div>
-
-            <!-- Tab: Updates -->
-            <div class="tab-pane fade" id="updates" role="tabpanel">
-                <div class="card">
-                    <div class="card-header">
-                        <h5 class="mb-0">
-                            <i class="bi bi-arrow-up-circle"></i>
-                            Update-System
-                            <?php if ($isUpdateAvailable): ?>
-                                <span class="badge bg-warning text-dark ms-2">Update verfügbar</span>
-                            <?php endif; ?>
-                        </h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="row">
-                            <div class="col-md-6">
-                                <h6>Aktuelle Version</h6>
-                                <div class="version-display">
-                                    <span class="version-badge current">v<?= DVDPROFILER_VERSION ?></span>
-                                    <div class="version-details">
-                                        <small>
-                                            "<?= DVDPROFILER_CODENAME ?>" | Build <?= DVDPROFILER_BUILD_DATE ?>
-                                        </small>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <div class="col-md-6">
-                                <h6>Neueste Version</h6>
-                                <div class="version-display">
-                                    <?php if ($latestData): ?>
-                                        <span class="version-badge <?= $isUpdateAvailable ? 'available' : 'current' ?>">
-                                            <?= htmlspecialchars($latestVersion) ?>
-                                        </span>
-                                        <div class="version-details">
-                                            <small>
-                                                <?php if (isset($latestData['published_at'])): ?>
-                                                    Veröffentlicht: <?= date('d.m.Y', strtotime($latestData['published_at'])) ?>
-                                                <?php endif; ?>
-                                            </small>
-                                        </div>
-                                    <?php else: ?>
-                                        <span class="text-muted">Nicht verfügbar</span>
-                                    <?php endif; ?>
-                                </div>
-                            </div>
-                        </div>
-
-                        <?php if ($isUpdateAvailable && $latestData): ?>
-                            <div class="alert alert-info mt-4">
-                                <h6>
-                                    <i class="bi bi-info-circle"></i>
-                                    Update verfügbar: <?= htmlspecialchars($latestVersion) ?>
-                                </h6>
-                                
-                                <?php if (!empty($latestData['body'])): ?>
-                                    <div class="changelog mt-3">
-                                        <h6>Changelog:</h6>
-                                        <div class="changelog-content">
-                                            <?= nl2br(htmlspecialchars(substr($latestData['body'], 0, 500))) ?>
-                                            <?php if (strlen($latestData['body']) > 500): ?>
-                                                <p><em>... (gekürzt)</em></p>
-                                            <?php endif; ?>
-                                        </div>
-                                    </div>
-                                <?php endif; ?>
-                                
-                                <div class="mt-3">
-                                    <form method="post" class="d-inline">
-                                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
-                                        <button type="submit" name="start_update" class="btn btn-warning" 
-                                                onclick="return confirm('Update starten? Ein Backup wird automatisch erstellt.')">
-                                            <i class="bi bi-download"></i>
-                                            Update jetzt installieren
-                                        </button>
-                                    </form>
-                                    
-                                    <a href="<?= DVDPROFILER_GITHUB_URL ?>/releases/latest" target="_blank" class="btn btn-outline-info ms-2">
-                                        <i class="bi bi-github"></i>
-                                        Details auf GitHub
-                                    </a>
-                                </div>
-                            </div>
-                        <?php else: ?>
-                            <div class="alert alert-success mt-4">
-                                <i class="bi bi-check-circle"></i>
-                                Sie verwenden die neueste Version von DVD Profiler Liste.
-                            </div>
-                        <?php endif; ?>
-                    </div>
-                </div>
-            </div>
         </div>
     </div>
 </div>
 
 <style>
-/* Settings-spezifische Styles */
+/* Settings Page Styling */
 .settings-container {
-    padding: 0;
-}
-
-.settings-header {
-    background: var(--glass-bg, rgba(255, 255, 255, 0.1));
-    backdrop-filter: blur(10px);
-    border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.2));
-    border-radius: var(--radius-lg, 16px);
-    padding: var(--space-xl, 24px);
+    max-width: 1400px;
+    margin: 0 auto;
 }
 
 .settings-title {
@@ -845,18 +524,15 @@ $showSaved = isset($_GET['saved']) && $_GET['saved'] === '1';
     font-size: 0.9rem;
 }
 
-.update-alert {
-    background: var(--glass-bg-strong, rgba(255, 255, 255, 0.15));
-    border: 1px solid rgba(255, 193, 7, 0.3);
-    border-radius: var(--radius-md, 12px);
-    padding: var(--space-md, 16px);
-    text-align: center;
-    font-size: 0.9rem;
-    animation: pulse 2s ease-in-out infinite;
-}
-
 .settings-tabs .nav-tabs {
     border-bottom: 2px solid var(--glass-border, rgba(255, 255, 255, 0.2));
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: wrap !important;
+}
+
+.settings-tabs .nav-tabs .nav-item {
+    margin-bottom: 0 !important;
 }
 
 .settings-tabs .nav-link {
@@ -866,6 +542,7 @@ $showSaved = isset($_GET['saved']) && $_GET['saved'] === '1';
     margin-right: var(--space-sm, 8px);
     border-radius: var(--radius-md, 12px) var(--radius-md, 12px) 0 0;
     transition: all var(--transition-fast, 0.3s);
+    display: inline-block !important;
 }
 
 .settings-tabs .nav-link:hover {
@@ -1025,7 +702,17 @@ $showSaved = isset($_GET['saved']) && $_GET['saved'] === '1';
 </style>
 
 <script>
-document.addEventListener('DOMContentLoaded', function() {
+// IIFE für AJAX-Kompatibilität (sofortige Ausführung)
+(function() {
+    // Bootstrap Tabs manuell initialisieren
+    const triggerTabList = document.querySelectorAll('#settingsTabs button[data-bs-toggle="tab"]');
+    if (triggerTabList.length > 0 && typeof bootstrap !== 'undefined') {
+        triggerTabList.forEach(triggerEl => {
+            new bootstrap.Tab(triggerEl);
+        });
+        console.log('Bootstrap Tabs initialisiert:', triggerTabList.length);
+    }
+    
     // Form validation enhancement
     const forms = document.querySelectorAll('form');
     forms.forEach(form => {
@@ -1058,5 +745,110 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     
     console.log('DVD Profiler Liste Settings v<?= DVDPROFILER_VERSION ?> loaded');
-});
+})();
+
+// Settings Form AJAX Handler
+// Füge dieses Script am Ende von admin/pages/settings.php ein
+
+(function() {
+    'use strict';
+    
+    // Warte bis DOM geladen ist
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initAjaxForms);
+    } else {
+        initAjaxForms();
+    }
+    
+    function initAjaxForms() {
+        const forms = document.querySelectorAll('form[method="post"]');
+        
+        forms.forEach(form => {
+            form.addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                const formData = new FormData(this);
+                const submitBtn = this.querySelector('button[type="submit"]');
+                
+                // WICHTIG: Button-Name wird bei FormData nicht automatisch mitgeschickt
+                // Füge ihn manuell hinzu, damit PHP weiß dass es ein Settings-Save ist
+                if (submitBtn && submitBtn.name) {
+                    formData.append(submitBtn.name, '1');
+                }
+                
+                // Button disablen
+                if (submitBtn) {
+                    submitBtn.disabled = true;
+                    const originalText = submitBtn.innerHTML;
+                    submitBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Wird gespeichert...';
+                    
+                    // AJAX Submit
+                    fetch('?page=settings', {
+                        method: 'POST',
+                        body: formData
+                    })
+                    .then(response => response.text())
+                    .then(html => {
+                        // Parse Response für Success/Error Messages
+                        const parser = new DOMParser();
+                        const doc = parser.parseFromString(html, 'text/html');
+                        
+                        // Finde Alert-Messages
+                        const alerts = doc.querySelectorAll('.alert');
+                        
+                        // Zeige Success/Error
+                        if (alerts.length > 0) {
+                            // Entferne alte Alerts
+                            document.querySelectorAll('.alert').forEach(a => a.remove());
+                            
+                            // Füge neue Alerts ein (vor dem Form)
+                            alerts.forEach(alert => {
+                                form.parentNode.insertBefore(alert, form);
+                            });
+                            
+                            // Scroll to alert
+                            alerts[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            
+                            // Success: Reload nach 2 Sekunden
+                            const hasSuccess = Array.from(alerts).some(a => a.classList.contains('alert-success'));
+                            if (hasSuccess) {
+                                setTimeout(() => {
+                                    location.reload();
+                                }, 2000);
+                            }
+                        } else {
+                            // Keine Alert gefunden - zeige generische Success
+                            const successDiv = document.createElement('div');
+                            successDiv.className = 'alert alert-success';
+                            successDiv.innerHTML = '✅ Einstellungen erfolgreich gespeichert!';
+                            form.parentNode.insertBefore(successDiv, form);
+                            
+                            setTimeout(() => {
+                                location.reload();
+                            }, 2000);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Save error:', error);
+                        
+                        // Zeige Error
+                        const errorDiv = document.createElement('div');
+                        errorDiv.className = 'alert alert-danger';
+                        errorDiv.innerHTML = '❌ Fehler beim Speichern. Bitte versuchen Sie es erneut.';
+                        form.parentNode.insertBefore(errorDiv, form);
+                    })
+                    .finally(() => {
+                        // Button wieder enablen
+                        if (submitBtn) {
+                            submitBtn.disabled = false;
+                            submitBtn.innerHTML = originalText;
+                        }
+                    });
+                }
+            });
+        });
+        
+        console.log('✅ AJAX Form Handler für Settings aktiviert');
+    }
+})();
 </script>

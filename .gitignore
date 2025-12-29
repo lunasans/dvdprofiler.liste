@@ -29,3 +29,13 @@ admin/xml/import_20250720_090919.xml
 admin/xml/import_20250720_110633.xml
 update.sql
 test.php
+admin/debug_backup.php
+admin/debug_update.php
+admin/debug-emergency.php
+idee.md
+sync_config.jsonc
+release-notes-v1.4.7.html
+debug-update.php
+debug-500.php
+debug-index.php
+admin/.install.lock
