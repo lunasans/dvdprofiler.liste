@@ -33,11 +33,9 @@ admin/debug_backup.php
 admin/debug_update.php
 admin/debug-emergency.php
 idee.md
-
 sync_config.jsonc
 release-notes-v1.4.7.html
 debug-update.php
 debug-500.php
 debug-index.php
-debug.php
 admin/.install.lock

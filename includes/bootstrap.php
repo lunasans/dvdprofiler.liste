@@ -141,15 +141,23 @@ function setSetting(string $key, string $value): bool
             ON DUPLICATE KEY UPDATE `value` = :value_update
         ");
         
+        error_log("DEBUG setSetting: key={$key}, value=" . substr($value, 0, 50));
+        
         $result = $stmt->execute([
             'key' => $key,
             'value' => $value,
             'value_update' => $value
         ]);
         
+        error_log("DEBUG execute result: " . ($result ? 'TRUE' : 'FALSE'));
+        error_log("DEBUG rowCount: " . $stmt->rowCount());
+        error_log("DEBUG affected rows check");
+        
         if ($result) {
             $settings[$key] = $value; // Cache aktualisieren
             error_log("Setting saved: {$key}");
+        } else {
+            error_log("Setting save FAILED: {$key}");
         }
         
         return $result;
@@ -185,18 +193,52 @@ function initializeSecureSession(): void
         $_SESSION['initiated'] = true;
         $_SESSION['user_agent'] = $_SERVER['HTTP_USER_AGENT'] ?? '';
         $_SESSION['ip_address'] = $_SERVER['REMOTE_ADDR'] ?? '';
+        $_SESSION['ip_subnet'] = getIPSubnet($_SERVER['REMOTE_ADDR'] ?? '');
     } else {
-        // Validierung der Session-Integrität
-        if (($_SESSION['user_agent'] ?? '') !== ($_SERVER['HTTP_USER_AGENT'] ?? '') ||
-            ($_SESSION['ip_address'] ?? '') !== ($_SERVER['REMOTE_ADDR'] ?? '')) {
+        // Lockere Session-Validierung (nur im Admin-Bereich)
+        $isAdmin = strpos($_SERVER['REQUEST_URI'] ?? '', '/admin/') !== false;
+        
+        if ($isAdmin && isset($_SESSION['user_id'])) {
+            $currentSubnet = getIPSubnet($_SERVER['REMOTE_ADDR'] ?? '');
+            $currentUA = $_SERVER['HTTP_USER_AGENT'] ?? '';
             
-            session_destroy();
-            session_start();
-            $_SESSION['initiated'] = true;
-            $_SESSION['user_agent'] = $_SERVER['HTTP_USER_AGENT'] ?? '';
-            $_SESSION['ip_address'] = $_SERVER['REMOTE_ADDR'] ?? '';
+            // Prüfe nur IP-Subnet (erlaubt IP-Wechsel im gleichen Netzwerk)
+            // User-Agent wird NUR gewarnt, nicht ausgeloggt
+            if (($_SESSION['ip_subnet'] ?? '') !== $currentSubnet) {
+                // IP-Subnet hat sich geändert - kritisch!
+                error_log("Security Warning: IP subnet changed for user {$_SESSION['user_id']}");
+                session_destroy();
+                header('Location: /admin/login.php?reason=ip_changed');
+                exit;
+            }
+            
+            // User-Agent Warnung (nur loggen, nicht ausloggen)
+            if (($_SESSION['user_agent'] ?? '') !== $currentUA) {
+                error_log("Security Notice: User-Agent changed for user {$_SESSION['user_id']}");
+                // Update User-Agent, aber Session bleibt aktiv
+                $_SESSION['user_agent'] = $currentUA;
+            }
         }
     }
+}
+
+/**
+ * IP-Subnet extrahieren (erste 3 Oktette für IPv4)
+ */
+function getIPSubnet(string $ip): string
+{
+    if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+        $parts = explode('.', $ip);
+        return implode('.', array_slice($parts, 0, 3)) . '.0';
+    }
+    
+    // IPv6: Verwende ersten Block
+    if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6)) {
+        $parts = explode(':', $ip);
+        return implode(':', array_slice($parts, 0, 4)) . '::';
+    }
+    
+    return $ip;
 }
 
 /**
@@ -407,4 +449,9 @@ if (!function_exists('getDVDProfilerVersion')) {
 // Bootstrap-Abschluss-Log
 if (getSetting('environment', 'production') === 'development') {
     error_log('Bootstrap completed successfully - DVD Profiler Liste ' . getDVDProfilerVersion());
+}
+
+// Debug & Wartungsmodus laden (ganz am Ende von bootstrap.php)
+if (file_exists(__DIR__ . '/debug.php')) {
+    require_once __DIR__ . '/debug.php';
 }
