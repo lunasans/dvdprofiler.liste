@@ -107,6 +107,62 @@ $baseUrl = defined('BASE_URL') ? BASE_URL : '';
     <div class="scroll-progress" role="progressbar" aria-label="Scroll-Fortschritt"></div>
 </footer>
 
+<!-- Theme Switcher -->
+<div class="theme-switcher" id="themeSwitcher">
+    <button class="theme-toggle-btn" id="themeToggleBtn" aria-label="Theme wechseln" title="Theme wechseln">
+        <i class="bi bi-palette-fill"></i>
+    </button>
+    
+    <div class="theme-picker" id="themePicker">
+        <div class="theme-picker-header">
+            <span>🎨 Theme wählen</span>
+            <button class="close-picker" aria-label="Schließen">×</button>
+        </div>
+        
+        <div class="theme-options">
+            <button class="theme-option" data-theme="default" title="Standard Theme">
+                <div class="theme-preview" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);"></div>
+                <span class="theme-name">Standard</span>
+                <i class="bi bi-check-circle-fill theme-check"></i>
+            </button>
+            
+            <button class="theme-option" data-theme="dark" title="Dark Mode">
+                <div class="theme-preview" style="background: linear-gradient(135deg, #bb86fc 0%, #3700b3 100%);"></div>
+                <span class="theme-name">Dark</span>
+                <i class="bi bi-check-circle-fill theme-check"></i>
+            </button>
+            
+            <button class="theme-option" data-theme="blue" title="Blue Ocean">
+                <div class="theme-preview" style="background: linear-gradient(135deg, #00d4ff 0%, #0080ff 100%);"></div>
+                <span class="theme-name">Blue</span>
+                <i class="bi bi-check-circle-fill theme-check"></i>
+            </button>
+            
+            <button class="theme-option" data-theme="green" title="Matrix Green">
+                <div class="theme-preview" style="background: linear-gradient(135deg, #00ff41 0%, #00aa2b 100%);"></div>
+                <span class="theme-name">Green</span>
+                <i class="bi bi-check-circle-fill theme-check"></i>
+            </button>
+            
+            <button class="theme-option" data-theme="red" title="Warm Red">
+                <div class="theme-preview" style="background: linear-gradient(135deg, #ff4757 0%, #c0392b 100%);"></div>
+                <span class="theme-name">Red</span>
+                <i class="bi bi-check-circle-fill theme-check"></i>
+            </button>
+            
+            <button class="theme-option" data-theme="purple" title="Royal Purple">
+                <div class="theme-preview" style="background: linear-gradient(135deg, #9b59b6 0%, #8e44ad 100%);"></div>
+                <span class="theme-name">Purple</span>
+                <i class="bi bi-check-circle-fill theme-check"></i>
+            </button>
+        </div>
+        
+        <div class="theme-picker-footer">
+            <small>Theme wird automatisch gespeichert</small>
+        </div>
+    </div>
+</div>
+
 <script>
 // Footer JavaScript - Scroll Progress
 (function() {
@@ -365,6 +421,301 @@ $baseUrl = defined('BASE_URL') ? BASE_URL : '';
     
     .footer-content {
         display: block;
+    }
+}
+</style>
+<script>
+// Theme Switcher JavaScript
+(function() {
+    const themeSwitcher = document.getElementById('themeSwitcher');
+    const toggleBtn = document.getElementById('themeToggleBtn');
+    const themePicker = document.getElementById('themePicker');
+    const themeOptions = document.querySelectorAll('.theme-option');
+    const closeBtn = document.querySelector('.close-picker');
+    const html = document.documentElement;
+    
+    // Zeige Theme Switcher erst wenn alles geladen ist
+    setTimeout(() => {
+        themeSwitcher.style.opacity = '1';
+        themeSwitcher.style.visibility = 'visible';
+    }, 300);
+    
+    // Aktuelles Theme aus HTML-Attribut lesen
+    let currentTheme = html.getAttribute('data-theme') || 'default';
+    
+    // Aktives Theme markieren
+    function updateActiveTheme() {
+        themeOptions.forEach(option => {
+            const theme = option.getAttribute('data-theme');
+            option.classList.toggle('active', theme === currentTheme);
+        });
+    }
+    
+    // Initial aktives Theme setzen
+    updateActiveTheme();
+    
+    // Theme Picker öffnen/schließen
+    toggleBtn.addEventListener('click', () => {
+        themePicker.classList.toggle('show');
+    });
+    
+    closeBtn.addEventListener('click', () => {
+        themePicker.classList.remove('show');
+    });
+    
+    // Außerhalb klicken schließt Picker
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.theme-switcher')) {
+            themePicker.classList.remove('show');
+        }
+    });
+    
+    // Theme wechseln
+    themeOptions.forEach(option => {
+        option.addEventListener('click', async () => {
+            const newTheme = option.getAttribute('data-theme');
+            
+            if (newTheme === currentTheme) return;
+            
+            // Theme sofort visuell anwenden
+            html.setAttribute('data-theme', newTheme);
+            currentTheme = newTheme;
+            updateActiveTheme();
+            
+            // Theme in Datenbank speichern (AJAX)
+            try {
+                const formData = new FormData();
+                formData.append('csrf_token', '<?= $csrf_token ?? "" ?>');
+                formData.append('theme', newTheme);
+                
+                const response = await fetch('admin/pages/settings.php', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (response.ok) {
+                    console.log('Theme saved:', newTheme);
+                }
+            } catch (error) {
+                console.error('Theme save error:', error);
+            }
+            
+            // Picker nach 500ms schließen
+            setTimeout(() => {
+                themePicker.classList.remove('show');
+            }, 500);
+        });
+    });
+})();
+</script>
+
+<style>
+/* Theme Switcher Styles */
+.theme-switcher {
+    position: fixed;
+    bottom: 80px;
+    right: 20px;
+    z-index: 9998;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+.theme-toggle-btn {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent-primary, #667eea), var(--accent-hover, #764ba2));
+    border: none;
+    color: white;
+    font-size: 24px;
+    cursor: pointer;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3), 0 0 0 0 rgba(102, 126, 234, 0.5);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: pulse-shadow 2s infinite;
+}
+
+.theme-toggle-btn:hover {
+    transform: scale(1.1) rotate(15deg);
+    box-shadow: 0 6px 30px rgba(0, 0, 0, 0.4), 0 0 0 8px rgba(102, 126, 234, 0.2);
+}
+
+.theme-toggle-btn:active {
+    transform: scale(0.95);
+}
+
+@keyframes pulse-shadow {
+    0%, 100% {
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3), 0 0 0 0 rgba(102, 126, 234, 0.5);
+    }
+    50% {
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3), 0 0 0 8px rgba(102, 126, 234, 0.2);
+    }
+}
+
+.theme-picker {
+    position: absolute;
+    bottom: 70px;
+    right: 0;
+    width: 320px;
+    background: var(--bg-secondary, #1a1a2e);
+    border: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+    border-radius: 16px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(10px);
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(20px) scale(0.9);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    overflow: hidden;
+}
+
+.theme-picker.show {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0) scale(1);
+}
+
+.theme-picker-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+    font-weight: 600;
+    color: var(--text-primary, #e4e4e7);
+}
+
+.close-picker {
+    background: none;
+    border: none;
+    color: var(--text-muted, rgba(228, 228, 231, 0.6));
+    font-size: 28px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+}
+
+.close-picker:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-primary, #e4e4e7);
+}
+
+.theme-options {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    padding: 16px;
+}
+
+.theme-option {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 12px;
+    background: var(--bg-tertiary, #16213e);
+    border: 2px solid transparent;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+}
+
+.theme-option:hover {
+    background: var(--bg-primary, #0f0f23);
+    border-color: var(--accent-primary, #667eea);
+    transform: translateY(-2px);
+}
+
+.theme-option.active {
+    border-color: var(--accent-primary, #667eea);
+    background: var(--bg-primary, #0f0f23);
+}
+
+.theme-preview {
+    width: 60px;
+    height: 60px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.theme-name {
+    font-size: 14px;
+    color: var(--text-primary, #e4e4e7);
+    font-weight: 500;
+}
+
+.theme-check {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    color: var(--accent-primary, #667eea);
+    font-size: 18px;
+    opacity: 0;
+    transform: scale(0);
+    transition: all 0.3s ease;
+}
+
+.theme-option.active .theme-check {
+    opacity: 1;
+    transform: scale(1);
+    animation: success-pulse 0.5s ease;
+}
+
+@keyframes success-pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.2); }
+    100% { transform: scale(1); }
+}
+
+.theme-picker-footer {
+    padding: 12px 20px;
+    border-top: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+    text-align: center;
+}
+
+.theme-picker-footer small {
+    color: var(--text-muted, rgba(228, 228, 231, 0.6));
+    font-size: 11px;
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+    .theme-switcher {
+        bottom: 70px;
+        right: 15px;
+    }
+    
+    .theme-toggle-btn {
+        width: 50px;
+        height: 50px;
+        font-size: 20px;
+    }
+    
+    .theme-picker {
+        width: 280px;
+        bottom: 65px;
+    }
+    
+    .theme-options {
+        gap: 10px;
+        padding: 12px;
+    }
+    
+    .theme-preview {
+        width: 50px;
+        height: 50px;
     }
 }
 </style>

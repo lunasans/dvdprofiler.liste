@@ -1,10 +1,19 @@
 <?php
-// 10-latest-fragment.php - Zeigt nur die 10 neuesten Filme (OHNE Pagination)
+// 10-latest-fragment.php - Zeigt die neuesten Filme (dynamisch konfigurierbar)
 require_once __DIR__ . '/includes/bootstrap.php';
 
-// Nur die 10 neuesten Filme laden
-$sql = "SELECT * FROM dvds ORDER BY id DESC LIMIT 10";
-$stmt = $pdo->query($sql);
+// Anzahl aus Settings laden (Standard: 10)
+$latestCount = (int)getSetting('latest_films_count', '10');
+
+// Validierung (5-50)
+if ($latestCount < 5) $latestCount = 5;
+if ($latestCount > 50) $latestCount = 50;
+
+// Neueste Filme laden
+$sql = "SELECT * FROM dvds ORDER BY id DESC LIMIT :limit";
+$stmt = $pdo->prepare($sql);
+$stmt->bindValue(':limit', $latestCount, PDO::PARAM_INT);
+$stmt->execute();
 $latest = $stmt->fetchAll();
 
 // Total Count für Anzeige

@@ -40,6 +40,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'environment' => ['maxlength' => 20],
                 'theme' => ['maxlength' => 50],
                 'items_per_page' => ['filter' => FILTER_VALIDATE_INT, 'options' => ['min_range' => 5, 'max_range' => 100]],
+                'latest_films_count' => ['filter' => FILTER_VALIDATE_INT, 'options' => ['min_range' => 5, 'max_range' => 50]],
                 'enable_2fa' => ['filter' => FILTER_VALIDATE_BOOLEAN],
                 'login_attempts_max' => ['filter' => FILTER_VALIDATE_INT, 'options' => ['min_range' => 1, 'max_range' => 10]],
                 'login_lockout_time' => ['filter' => FILTER_VALIDATE_INT, 'options' => ['min_range' => 60, 'max_range' => 3600]],
@@ -230,20 +231,52 @@ $showSaved = isset($_GET['saved']) && $_GET['saved'] === '1';
                             <div class="row">
                                 <div class="col-md-4">
                                     <div class="mb-3">
-                                        <label for="theme" class="form-label">Theme</label>
+                                        <label for="theme" class="form-label">
+                                            <i class="bi bi-palette"></i> Theme / Farbschema
+                                        </label>
                                         <select name="theme" id="theme" class="form-select">
-                                            <option value="default" <?= getSetting('theme', 'default') === 'default' ? 'selected' : '' ?>>Standard</option>
-                                            <option value="dark" <?= getSetting('theme', 'default') === 'dark' ? 'selected' : '' ?>>Dark Mode</option>
-                                            <option value="blue" <?= getSetting('theme', 'default') === 'blue' ? 'selected' : '' ?>>Blau</option>
+                                            <option value="default" <?= getSetting('theme', 'default') === 'default' ? 'selected' : '' ?>>
+                                                🎨 Standard (Lila/Blau)
+                                            </option>
+                                            <option value="dark" <?= getSetting('theme', 'default') === 'dark' ? 'selected' : '' ?>>
+                                                🌙 Dark Mode (Pure Black)
+                                            </option>
+                                            <option value="blue" <?= getSetting('theme', 'default') === 'blue' ? 'selected' : '' ?>>
+                                                💙 Blue (Ocean)
+                                            </option>
+                                            <option value="green" <?= getSetting('theme', 'default') === 'green' ? 'selected' : '' ?>>
+                                                💚 Green (Matrix)
+                                            </option>
+                                            <option value="red" <?= getSetting('theme', 'default') === 'red' ? 'selected' : '' ?>>
+                                                ❤️ Red (Warm)
+                                            </option>
+                                            <option value="purple" <?= getSetting('theme', 'default') === 'purple' ? 'selected' : '' ?>>
+                                                💜 Purple (Royal)
+                                            </option>
                                         </select>
+                                        <small class="text-muted">Ändert Farben der gesamten Website</small>
                                     </div>
                                 </div>
                                 <div class="col-md-4">
                                     <div class="mb-3">
-                                        <label for="items_per_page" class="form-label">Filme pro Seite</label>
+                                        <label for="items_per_page" class="form-label">
+                                            <i class="bi bi-grid"></i> Filme pro Seite (Pagination)
+                                        </label>
                                         <input type="number" name="items_per_page" id="items_per_page" class="form-control" 
-                                               value="<?= htmlspecialchars(getSetting('items_per_page', '12')) ?>" 
+                                               value="<?= htmlspecialchars(getSetting('items_per_page', '20')) ?>" 
                                                min="5" max="100">
+                                        <small class="text-muted">Anzahl Filme in der linken Liste</small>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label for="latest_films_count" class="form-label">
+                                            <i class="bi bi-stars"></i> Neueste Filme anzeigen
+                                        </label>
+                                        <input type="number" name="latest_films_count" id="latest_films_count" class="form-control" 
+                                               value="<?= htmlspecialchars(getSetting('latest_films_count', '10')) ?>" 
+                                               min="5" max="50">
+                                        <small class="text-muted">Anzahl neuester Filme rechts (5-50)</small>
                                     </div>
                                 </div>
                                 <div class="col-md-4">
