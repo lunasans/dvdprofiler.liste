@@ -244,3 +244,267 @@ button:hover,
 .theme-preview.purple {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 }
+
+
+/* ============================================
+   SAISON THEMES
+   ============================================ */
+
+/* Christmas Theme (Weihnachten) 🎄 */
+[data-theme="christmas"] {
+    --bg-primary: #0f1e0f;
+    --bg-secondary: #1a2e1a;
+    --bg-tertiary: #2d4a2d;
+    
+    --text-primary: #fff5f5;
+    --text-secondary: rgba(255, 245, 245, 0.9);
+    --text-muted: rgba(255, 245, 245, 0.7);
+    
+    --accent-primary: #c41e3a;
+    --accent-hover: #a01729;
+    --accent-light: rgba(196, 30, 58, 0.15);
+    
+    --border-color: rgba(196, 30, 58, 0.3);
+    --border-hover: rgba(196, 30, 58, 0.5);
+    
+    --gradient-primary: linear-gradient(135deg, #c41e3a 0%, #165b33 50%, #c41e3a 100%);
+    --gradient-secondary: linear-gradient(135deg, #ffd700 0%, #c41e3a 100%);
+    
+    --shadow-sm: 0 2px 8px rgba(196, 30, 58, 0.3);
+    --shadow-md: 0 4px 16px rgba(196, 30, 58, 0.4);
+    --shadow-lg: 0 8px 32px rgba(196, 30, 58, 0.5);
+}
+
+/* New Year Theme (Silvester) 🎆 */
+[data-theme="newyear"] {
+    --bg-primary: #0a0a1a;
+    --bg-secondary: #14142e;
+    --bg-tertiary: #1e1e42;
+    
+    --text-primary: #ffffff;
+    --text-secondary: rgba(255, 255, 255, 0.95);
+    --text-muted: rgba(255, 255, 255, 0.7);
+    
+    --accent-primary: #ffd700;
+    --accent-hover: #ffed4e;
+    --accent-light: rgba(255, 215, 0, 0.15);
+    
+    --border-color: rgba(255, 215, 0, 0.3);
+    --border-hover: rgba(255, 215, 0, 0.6);
+    
+    --gradient-primary: linear-gradient(135deg, #ffd700 0%, #ff6b6b 50%, #4ecdc4 100%);
+    --gradient-secondary: linear-gradient(135deg, #ff6b6b 0%, #ffd700 50%, #4ecdc4 100%);
+    
+    --shadow-sm: 0 2px 8px rgba(255, 215, 0, 0.3);
+    --shadow-md: 0 4px 16px rgba(255, 215, 0, 0.4);
+    --shadow-lg: 0 8px 32px rgba(255, 215, 0, 0.5);
+}
+
+/* Easter Theme (Ostern) 🐰 */
+[data-theme="easter"] {
+    --bg-primary: #fff9f0;
+    --bg-secondary: #fff3e0;
+    --bg-tertiary: #ffe0b2;
+    
+    --text-primary: #000000;
+    --text-secondary: rgba(0, 0, 0, 0.85);
+    --text-muted: rgba(0, 0, 0, 0.6);
+    
+    --accent-primary: #e91e63;
+    --accent-hover: #c2185b;
+    --accent-light: rgba(233, 30, 99, 0.15);
+    
+    --border-color: rgba(233, 30, 99, 0.3);
+    --border-hover: rgba(233, 30, 99, 0.5);
+    
+    --gradient-primary: linear-gradient(135deg, #ffd3a5 0%, #fd6585 100%);
+    --gradient-secondary: linear-gradient(135deg, #96fbc4 0%, #f9f586 100%);
+    
+    --shadow-sm: 0 2px 8px rgba(233, 30, 99, 0.2);
+    --shadow-md: 0 4px 16px rgba(233, 30, 99, 0.3);
+    --shadow-lg: 0 8px 32px rgba(233, 30, 99, 0.4);
+}
+
+/* Summer Theme (Sommer) ☀️ */
+[data-theme="summer"] {
+    --bg-primary: #fff8e1;
+    --bg-secondary: #ffecb3;
+    --bg-tertiary: #ffe082;
+    
+    --text-primary: #000000;
+    --text-secondary: rgba(0, 0, 0, 0.85);
+    --text-muted: rgba(0, 0, 0, 0.6);
+    
+    --accent-primary: #f57c00;
+    --accent-hover: #e65100;
+    --accent-light: rgba(245, 124, 0, 0.15);
+    
+    --border-color: rgba(245, 124, 0, 0.3);
+    --border-hover: rgba(245, 124, 0, 0.5);
+    
+    --gradient-primary: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    --gradient-secondary: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+    
+    --shadow-sm: 0 2px 8px rgba(245, 124, 0, 0.2);
+    --shadow-md: 0 4px 16px rgba(245, 124, 0, 0.3);
+    --shadow-lg: 0 8px 32px rgba(245, 124, 0, 0.4);
+}
+
+/* Halloween Theme 🎃 */
+[data-theme="halloween"] {
+    --bg-primary: #1a0a00;
+    --bg-secondary: #2e1400;
+    --bg-tertiary: #4a2400;
+    
+    --text-primary: #ff9500;
+    --text-secondary: rgba(255, 149, 0, 0.9);
+    --text-muted: rgba(255, 149, 0, 0.6);
+    
+    --accent-primary: #ff6600;
+    --accent-hover: #ff8533;
+    --accent-light: rgba(255, 102, 0, 0.15);
+    
+    --border-color: rgba(255, 102, 0, 0.3);
+    --border-hover: rgba(255, 102, 0, 0.5);
+    
+    --gradient-primary: linear-gradient(135deg, #ff6600 0%, #8b00ff 100%);
+    --gradient-secondary: linear-gradient(135deg, #000000 0%, #ff6600 100%);
+    
+    --shadow-sm: 0 2px 8px rgba(255, 102, 0, 0.3);
+    --shadow-md: 0 4px 16px rgba(255, 102, 0, 0.4);
+    --shadow-lg: 0 8px 32px rgba(255, 102, 0, 0.5);
+}
+
+/* Valentine Theme (Valentinstag) 💝 */
+[data-theme="valentine"] {
+    --bg-primary: #fff0f5;
+    --bg-secondary: #ffe4e9;
+    --bg-tertiary: #ffd1dc;
+    
+    --text-primary: #000000;
+    --text-secondary: rgba(0, 0, 0, 0.85);
+    --text-muted: rgba(0, 0, 0, 0.6);
+    
+    --accent-primary: #d81b60;
+    --accent-hover: #ad1457;
+    --accent-light: rgba(216, 27, 96, 0.15);
+    
+    --border-color: rgba(216, 27, 96, 0.3);
+    --border-hover: rgba(216, 27, 96, 0.5);
+    
+    --gradient-primary: linear-gradient(135deg, #ff1744 0%, #f50057 100%);
+    --gradient-secondary: linear-gradient(135deg, #fccb90 0%, #d57eeb 100%);
+    
+    --shadow-sm: 0 2px 8px rgba(216, 27, 96, 0.2);
+    --shadow-md: 0 4px 16px rgba(216, 27, 96, 0.3);
+    --shadow-lg: 0 8px 32px rgba(216, 27, 96, 0.4);
+}
+
+/* Theme Previews für Saison-Themes */
+.theme-preview.christmas {
+    background: linear-gradient(135deg, #c41e3a 0%, #165b33 50%, #c41e3a 100%);
+}
+
+.theme-preview.newyear {
+    background: linear-gradient(135deg, #ffd700 0%, #ff6b6b 50%, #4ecdc4 100%);
+}
+
+.theme-preview.easter {
+    background: linear-gradient(135deg, #ffd3a5 0%, #fd6585 100%);
+}
+
+.theme-preview.summer {
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+}
+
+.theme-preview.halloween {
+    background: linear-gradient(135deg, #ff6600 0%, #8b00ff 100%);
+}
+
+.theme-preview.valentine {
+    background: linear-gradient(135deg, #ff1744 0%, #f50057 100%);
+}
+
+/* ============================================
+   FORCE TEXT COLOR FOR LIGHT THEMES
+   Überschreibt alle hardcoded colors
+   ============================================ */
+
+/* Helle Themes: Easter, Summer, Valentine */
+[data-theme="easter"],
+[data-theme="summer"],
+[data-theme="valentine"] {
+    color: #000000 !important;
+}
+
+[data-theme="easter"] *,
+[data-theme="summer"] *,
+[data-theme="valentine"] * {
+    color: inherit;
+}
+
+[data-theme="easter"] body,
+[data-theme="summer"] body,
+[data-theme="valentine"] body {
+    color: #000000 !important;
+}
+
+[data-theme="easter"] h1, [data-theme="easter"] h2, [data-theme="easter"] h3,
+[data-theme="easter"] h4, [data-theme="easter"] h5, [data-theme="easter"] h6,
+[data-theme="easter"] p, [data-theme="easter"] span, [data-theme="easter"] div,
+[data-theme="easter"] label, [data-theme="easter"] .dvd-details, 
+[data-theme="easter"] .trailer-title, [data-theme="easter"] .page-header-content h1,
+[data-theme="summer"] h1, [data-theme="summer"] h2, [data-theme="summer"] h3,
+[data-theme="summer"] h4, [data-theme="summer"] h5, [data-theme="summer"] h6,
+[data-theme="summer"] p, [data-theme="summer"] span, [data-theme="summer"] div,
+[data-theme="summer"] label, [data-theme="summer"] .dvd-details,
+[data-theme="summer"] .trailer-title, [data-theme="summer"] .page-header-content h1,
+[data-theme="valentine"] h1, [data-theme="valentine"] h2, [data-theme="valentine"] h3,
+[data-theme="valentine"] h4, [data-theme="valentine"] h5, [data-theme="valentine"] h6,
+[data-theme="valentine"] p, [data-theme="valentine"] span, [data-theme="valentine"] div,
+[data-theme="valentine"] label, [data-theme="valentine"] .dvd-details,
+[data-theme="valentine"] .trailer-title, [data-theme="valentine"] .page-header-content h1 {
+    color: #000000 !important;
+}
+
+/* Links bleiben mit Accent-Color */
+[data-theme="easter"] a,
+[data-theme="summer"] a,
+[data-theme="valentine"] a {
+    color: var(--accent-primary) !important;
+}
+
+[data-theme="easter"] a:hover,
+[data-theme="summer"] a:hover,
+[data-theme="valentine"] a:hover {
+    color: var(--accent-hover) !important;
+}
+
+/* Buttons mit weißer Schrift auf Accent-Background */
+[data-theme="easter"] button, [data-theme="easter"] .btn,
+[data-theme="summer"] button, [data-theme="summer"] .btn,
+[data-theme="valentine"] button, [data-theme="valentine"] .btn {
+    background: var(--accent-primary) !important;
+    color: #ffffff !important;
+}
+
+[data-theme="easter"] button:hover, [data-theme="easter"] .btn:hover,
+[data-theme="summer"] button:hover, [data-theme="summer"] .btn:hover,
+[data-theme="valentine"] button:hover, [data-theme="valentine"] .btn:hover {
+    background: var(--accent-hover) !important;
+}
+
+/* Icons und special elements */
+[data-theme="easter"] i.bi,
+[data-theme="summer"] i.bi,
+[data-theme="valentine"] i.bi {
+    color: var(--accent-primary) !important;
+}
+
+/* Input fields */
+[data-theme="easter"] input, [data-theme="easter"] textarea, [data-theme="easter"] select,
+[data-theme="summer"] input, [data-theme="summer"] textarea, [data-theme="summer"] select,
+[data-theme="valentine"] input, [data-theme="valentine"] textarea, [data-theme="valentine"] select {
+    color: #000000 !important;
+    background: var(--bg-tertiary) !important;
+}

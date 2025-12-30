@@ -42,7 +42,7 @@ $page = isset($_GET['page']) ? trim(filter_var($_GET['page'], FILTER_SANITIZE_ST
 $filmId = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 
 // Erlaubte Seiten definieren für Sicherheit
-$allowedPages = ['home', 'impressum', 'datenschutz', 'kontakt'];
+$allowedPages = ['home', 'impressum', 'datenschutz', 'kontakt', 'trailers', 'stats'];
 if (!in_array($page, $allowedPages) && $page !== 'home') {
     $page = 'home';
 }
@@ -51,7 +51,22 @@ if (!in_array($page, $allowedPages) && $page !== 'home') {
 $siteTitle = getSetting('site_title', 'DVD Profiler Liste');
 $siteDescription = getSetting('site_description', 'Professionelle DVD-Sammlung verwalten und durchsuchen');
 // $version wird jetzt von version.php bereitgestellt
-$theme = getSetting('theme', 'default');
+// Theme laden: Gäste aus Cookie, Admin aus DB
+$isAdmin = isset($_SESSION['admin_logged_in']) && $_SESSION['admin_logged_in'] === true;
+
+if ($isAdmin) {
+    // Admin: Theme aus DB
+    $theme = getSetting('theme', 'default');
+} else {
+    // Gast: Theme aus Cookie (falls vorhanden), sonst DB-Default
+    $theme = $_COOKIE['guest_theme'] ?? getSetting('theme', 'default');
+    
+    // Validierung (nur erlaubte Themes)
+    $allowedThemes = ['default', 'dark', 'blue', 'green', 'red', 'purple'];
+    if (!in_array($theme, $allowedThemes)) {
+        $theme = 'default';
+    }
+}
 
 // Sichere Base URL Generierung
 function generateBaseUrl(): string {
