@@ -485,16 +485,22 @@ $baseUrl = defined('BASE_URL') ? BASE_URL : '';
             // Theme in Datenbank speichern (AJAX)
             try {
                 const formData = new FormData();
-                formData.append('csrf_token', '<?= $csrf_token ?? "" ?>');
+                formData.append('csrf_token', '<?= $_SESSION['csrf_token'] ?? "" ?>');
                 formData.append('theme', newTheme);
                 
-                const response = await fetch('admin/pages/settings.php', {
+                const response = await fetch('theme-save.php', {
                     method: 'POST',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
                     body: formData
                 });
                 
                 if (response.ok) {
-                    console.log('Theme saved:', newTheme);
+                    const result = await response.json();
+                    console.log('Theme saved:', result);
+                } else {
+                    console.error('Theme save failed:', response.status);
                 }
             } catch (error) {
                 console.error('Theme save error:', error);
