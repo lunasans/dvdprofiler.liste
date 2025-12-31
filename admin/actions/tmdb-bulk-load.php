@@ -8,6 +8,9 @@
 // Alle Outputs buffern (verhindert Header-Probleme)
 ob_start();
 
+// Als AJAX markieren damit Debug-Banner nicht erscheint
+$_SERVER['HTTP_X_REQUESTED_WITH'] = 'xmlhttprequest';
+
 // Error Handling - Fehler als JSON ausgeben
 set_error_handler(function($errno, $errstr, $errfile, $errline) {
     ob_clean();
