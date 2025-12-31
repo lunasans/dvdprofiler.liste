@@ -653,6 +653,11 @@ class DVDApp {
             this.restoreViewMode();
             
             console.log(`📄 Pagination geladen: ${href}`);
+            
+            // BoxSet Modal Drag neu initialisieren nach AJAX-Reload
+            if (typeof window.reinitBoxSetModal === 'function') {
+                window.reinitBoxSetModal();
+            }
         } catch (error) {
             console.error('Pagination Fehler:', error);
         }

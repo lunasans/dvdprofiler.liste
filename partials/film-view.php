@@ -192,33 +192,6 @@ function generateStarRating(float $rating, int $maxStars = 5): string {
                 </a>
             </div>
         <?php endif; ?>
-        
-        <?php if ($averageRating > 0 || $userHasRated): ?>
-            <div class="film-rating">
-                <?php if ($averageRating > 0): ?>
-                    <div class="community-rating">
-                        <span class="rating-label">Community:</span>
-                        <div class="stars">
-                            <?= generateStarRating($averageRating) ?>
-                        </div>
-                        <span class="rating-text">
-                            <?= $averageRating ?>/5 
-                            <small>(<?= $ratingCount ?> Bewertung<?= $ratingCount !== 1 ? 'en' : '' ?>)</small>
-                        </span>
-                    </div>
-                <?php endif; ?>
-                
-                <?php if ($userHasRated): ?>
-                    <div class="user-rating">
-                        <span class="rating-label">Ihre Bewertung:</span>
-                        <div class="stars">
-                            <?= generateStarRating($userRating) ?>
-                        </div>
-                        <span class="rating-text"><?= $userRating ?>/5</span>
-                    </div>
-                <?php endif; ?>
-            </div>
-        <?php endif; ?>
     </header>
 
     <!-- Cover Gallery mit Lightbox -->
@@ -317,6 +290,14 @@ function generateStarRating(float $rating, int $maxStars = 5): string {
             </div>
         </section>
     <?php endif; ?>
+
+    <!-- TMDb Ratings -->
+    <?php 
+    if (getSetting('tmdb_show_ratings_details', '1') == '1') {
+        $film = $dvd; // rating-details.php erwartet $film Variable
+        include __DIR__ . '/rating-details.php';
+    }
+    ?>
 
     <!-- Schauspieler -->
     <?php if (!empty($actors)): ?>
@@ -425,33 +406,87 @@ function generateStarRating(float $rating, int $maxStars = 5): string {
     <?php endif; ?>
 
     <!-- User-Bewertung (falls eingeloggt) -->
-    <section class="meta-card">
-        <h3><i class="bi bi-star"></i> Bewertung abgeben</h3>
+    <section class="meta-card user-rating-card">
+        <h3><i class="bi bi-star-fill"></i> Ihre Bewertung</h3>
         <div class="user-rating-section">
             <?php if (isset($_SESSION['user_id'])): ?>
-                <div class="rating-input">
-                    <span>Ihre Bewertung:</span>
-                    <div class="star-rating-input" data-film-id="<?= $dvd['id'] ?>" data-current-rating="<?= $userRating ?>">
-                        <?php for ($i = 1; $i <= 5; $i++): ?>
-                            <i class="bi bi-star rating-star <?= $i <= $userRating ? 'bi-star-fill' : '' ?>" 
-                               data-rating="<?= $i ?>"></i>
-                        <?php endfor; ?>
+                <div class="rating-grid">
+                    <!-- Eigene Bewertung -->
+                    <div class="rating-card user">
+                        <div class="rating-logo">
+                            <i class="bi bi-person-circle" style="font-size: 32px; color: var(--accent-primary);"></i>
+                        </div>
+                        
+                        <?php if ($userHasRated): ?>
+                            <div class="rating-score" style="color: var(--accent-primary);">
+                                <?= $userRating ?><span class="rating-max">/5</span>
+                            </div>
+                            <div class="stars-display">
+                                <?= generateStarRating($userRating) ?>
+                            </div>
+                            <div class="rating-meta">
+                                Ihre Bewertung
+                            </div>
+                        <?php else: ?>
+                            <div class="rating-score" style="color: var(--text-muted); font-size: 1.5rem;">
+                                -<span class="rating-max">/5</span>
+                            </div>
+                            <div class="rating-meta">
+                                Noch nicht bewertet
+                            </div>
+                        <?php endif; ?>
+                        
+                        <!-- Bewertungs-Input -->
+                        <div class="star-rating-input" data-film-id="<?= $dvd['id'] ?>" data-current-rating="<?= $userRating ?>">
+                            <?php for ($i = 1; $i <= 5; $i++): ?>
+                                <i class="bi rating-star <?= $i <= $userRating ? 'bi-star-fill' : 'bi-star' ?>" 
+                                   data-rating="<?= $i ?>"></i>
+                            <?php endfor; ?>
+                        </div>
+                        
+                        <button class="btn-rate save-rating" style="display: none;">
+                            <i class="bi bi-check-circle"></i> Speichern
+                        </button>
                     </div>
-                    <span class="rating-display"><?= $userHasRated ? $userRating . '/5' : 'Noch nicht bewertet' ?></span>
+                    
+                    <!-- Community Bewertung -->
+                    <?php if ($averageRating > 0): ?>
+                    <div class="rating-card community">
+                        <div class="rating-logo">
+                            <i class="bi bi-people-fill" style="font-size: 32px; color: #4caf50;"></i>
+                        </div>
+                        <div class="rating-score" style="color: #4caf50;">
+                            <?= $averageRating ?><span class="rating-max">/5</span>
+                        </div>
+                        <div class="stars-display">
+                            <?= generateStarRating($averageRating) ?>
+                        </div>
+                        <div class="rating-votes">
+                            <?= $ratingCount ?> Bewertung<?= $ratingCount !== 1 ? 'en' : '' ?>
+                        </div>
+                        <div class="rating-meta">
+                            Community-Durchschnitt
+                        </div>
+                    </div>
+                    <?php endif; ?>
                 </div>
-                <button class="btn btn-primary save-rating" style="display: none;">
-                    <i class="bi bi-check"></i> Bewertung speichern
-                </button>
             <?php else: ?>
                 <div class="login-required">
-                    <p><i class="bi bi-info-circle"></i> Melden Sie sich an, um Filme zu bewerten.</p>
-                    <a href="login.php" class="btn btn-outline-primary">
+                    <i class="bi bi-info-circle"></i>
+                    <p>Melden Sie sich an, um Filme zu bewerten.</p>
+                    <a href="login.php" class="btn-login">
                         <i class="bi bi-person"></i> Anmelden
                     </a>
                 </div>
             <?php endif; ?>
         </div>
     </section>
+
+    <!-- Ähnliche Filme -->
+    <?php 
+    $film = $dvd; // similar-movies.php erwartet $film Variable
+    include __DIR__ . '/similar-movies.php';
+    ?>
 
     <!-- Film-Aktionen -->
     <section class="film-actions">
@@ -913,6 +948,62 @@ function showNotification(message, type = 'info') {
     color: var(--text-glass);
     opacity: 0.8;
     font-weight: 400;
+}
+
+/* Cover Gallery - Nebeneinander */
+.cover-gallery {
+    margin: var(--space-lg, 1.5rem) 0;
+}
+
+.cover-pair {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: var(--space-md, 1rem);
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.cover-pair a,
+.cover-pair .no-cover {
+    display: block;
+    border-radius: var(--radius-md, 8px);
+    overflow: hidden;
+    transition: transform 0.3s ease;
+}
+
+.cover-pair a:hover {
+    transform: scale(1.02);
+}
+
+.cover-pair img.thumb {
+    width: 100%;
+    height: auto;
+    display: block;
+    border-radius: var(--radius-md, 8px);
+}
+
+.cover-pair .no-cover {
+    aspect-ratio: 2/3;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-tertiary, rgba(255, 255, 255, 0.05));
+    border: 2px dashed var(--border-color, rgba(255, 255, 255, 0.2));
+    color: var(--text-muted, rgba(228, 228, 231, 0.5));
+}
+
+.cover-pair .no-cover i {
+    font-size: 3rem;
+    margin-bottom: var(--space-sm, 0.5rem);
+}
+
+/* Responsive - Mobile untereinander */
+@media (max-width: 600px) {
+    .cover-pair {
+        grid-template-columns: 1fr;
+        max-width: 300px;
+    }
 }
 
 .user-status-badges {
@@ -1478,6 +1569,165 @@ function showNotification(message, type = 'info') {
     .age-modal-content { padding: 1.5rem; }
     .age-modal-actions { flex-direction: column; }
     .age-modal-header i { font-size: 2.5rem; }
+}
+
+/* User Rating Card - TMDb Style */
+.user-rating-card {
+    margin: var(--space-lg, 1.5rem) 0;
+}
+
+.user-rating-card .rating-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: var(--space-md, 1rem);
+}
+
+.user-rating-card .rating-card {
+    padding: var(--space-md, 1rem);
+    background: var(--bg-tertiary, rgba(255, 255, 255, 0.03));
+    border: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+    border-radius: var(--radius-md, 8px);
+    text-align: center;
+    transition: all 0.3s ease;
+}
+
+.user-rating-card .rating-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.user-rating-card .rating-logo {
+    margin-bottom: var(--space-sm, 0.5rem);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 40px;
+}
+
+.user-rating-card .rating-score {
+    font-size: 2.5rem;
+    font-weight: 700;
+    line-height: 1;
+    margin: var(--space-sm, 0.5rem) 0;
+}
+
+.user-rating-card .rating-max {
+    font-size: 1.2rem;
+    opacity: 0.6;
+    font-weight: 400;
+}
+
+.user-rating-card .stars-display {
+    font-size: 1.2rem;
+    color: var(--accent-primary, #ffd700);
+    margin: var(--space-xs, 0.35rem) 0;
+}
+
+.user-rating-card .rating-votes {
+    font-size: 0.9rem;
+    color: var(--text-secondary, rgba(228, 228, 231, 0.8));
+    margin-top: var(--space-xs, 0.35rem);
+}
+
+.user-rating-card .rating-meta {
+    font-size: 0.85rem;
+    color: var(--text-muted, rgba(228, 228, 231, 0.6));
+    margin-top: var(--space-xs, 0.35rem);
+}
+
+/* Star Rating Input - Interaktiv */
+.star-rating-input {
+    display: flex;
+    justify-content: center;
+    gap: 4px;
+    margin: var(--space-md, 1rem) 0;
+}
+
+.star-rating-input .rating-star {
+    font-size: 1.8rem;
+    cursor: pointer;
+    color: var(--text-muted, rgba(228, 228, 231, 0.3));
+    transition: all 0.2s ease;
+}
+
+.star-rating-input .rating-star:hover,
+.star-rating-input .rating-star.hover {
+    color: var(--accent-primary, #ffd700);
+    transform: scale(1.1);
+}
+
+.star-rating-input .rating-star.bi-star-fill {
+    color: var(--accent-primary, #ffd700);
+}
+
+/* Save Button */
+.btn-rate {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-xs, 0.35rem);
+    padding: var(--space-sm, 0.5rem) var(--space-md, 1rem);
+    background: var(--accent-primary, #667eea);
+    color: white;
+    border: none;
+    border-radius: var(--radius-sm, 6px);
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    margin-top: var(--space-sm, 0.5rem);
+}
+
+.btn-rate:hover {
+    background: var(--accent-hover, #764ba2);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+/* Login Required */
+.login-required {
+    text-align: center;
+    padding: var(--space-xl, 2rem);
+}
+
+.login-required i {
+    font-size: 3rem;
+    color: var(--accent-primary, #667eea);
+    margin-bottom: var(--space-md, 1rem);
+}
+
+.login-required p {
+    margin: var(--space-md, 1rem) 0;
+    color: var(--text-secondary, rgba(228, 228, 231, 0.8));
+}
+
+.btn-login {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-xs, 0.35rem);
+    padding: var(--space-sm, 0.5rem) var(--space-lg, 1.5rem);
+    background: var(--accent-primary, #667eea);
+    color: white;
+    text-decoration: none;
+    border-radius: var(--radius-sm, 6px);
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+.btn-login:hover {
+    background: var(--accent-hover, #764ba2);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+/* Responsive */
+@media (max-width: 600px) {
+    .user-rating-card .rating-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .user-rating-card .rating-score {
+        font-size: 2rem;
+    }
 }
 
 </style>

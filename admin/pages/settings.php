@@ -32,7 +32,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = '❌ Ungültiger CSRF-Token. Bitte versuchen Sie es erneut.';
     } else {
         // Einstellungen speichern (POST mit csrf_token = Settings-Form)
-        if (isset($_POST['site_title']) || isset($_POST['environment'])) {
+        if (isset($_POST['site_title']) || isset($_POST['environment']) || isset($_POST['tmdb_api_key'])) {
             $allowedSettings = [
                 'site_title' => ['maxlength' => 255, 'required' => true],
                 'site_description' => ['maxlength' => 500],
@@ -45,11 +45,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'login_attempts_max' => ['filter' => FILTER_VALIDATE_INT, 'options' => ['min_range' => 1, 'max_range' => 10]],
                 'login_lockout_time' => ['filter' => FILTER_VALIDATE_INT, 'options' => ['min_range' => 60, 'max_range' => 3600]],
                 'session_timeout' => ['filter' => FILTER_VALIDATE_INT, 'options' => ['min_range' => 300, 'max_range' => 86400]],
-                'backup_retention_days' => ['filter' => FILTER_VALIDATE_INT, 'options' => ['min_range' => 1, 'max_range' => 365]]
+                'backup_retention_days' => ['filter' => FILTER_VALIDATE_INT, 'options' => ['min_range' => 1, 'max_range' => 365]],
+                // TMDb Integration
+                'tmdb_api_key' => ['maxlength' => 255],
+                'tmdb_show_ratings_on_cards' => ['filter' => FILTER_VALIDATE_BOOLEAN],
+                'tmdb_show_ratings_details' => ['filter' => FILTER_VALIDATE_BOOLEAN],
+                'tmdb_cache_hours' => ['filter' => FILTER_VALIDATE_INT, 'options' => ['min_range' => 1, 'max_range' => 168]],
+                'tmdb_show_similar_movies' => ['filter' => FILTER_VALIDATE_BOOLEAN],
+                'tmdb_auto_download_covers' => ['filter' => FILTER_VALIDATE_BOOLEAN]
             ];
             
             $savedCount = 0;
             foreach ($allowedSettings as $key => $validation) {
+                // Special handling für Checkboxen
+                $isCheckbox = isset($validation['filter']) && $validation['filter'] === FILTER_VALIDATE_BOOLEAN;
+                
                 if (isset($_POST[$key])) {
                     $value = trim($_POST[$key]);
                     
@@ -73,6 +83,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                     
                     if (setSetting($key, $value)) {
+                        $savedCount++;
+                    }
+                } elseif ($isCheckbox) {
+                    // Checkbox nicht gecheckt = speichere "0"
+                    if (setSetting($key, '0')) {
                         $savedCount++;
                     }
                 }
@@ -181,6 +196,11 @@ $showSaved = isset($_GET['saved']) && $_GET['saved'] === '1';
             <li class="nav-item" role="presentation">
                 <button class="nav-link" id="security-tab" data-bs-toggle="tab" data-bs-target="#security" type="button" role="tab">
                     <i class="bi bi-shield-check"></i> Sicherheit
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="tmdb-tab" data-bs-toggle="tab" data-bs-target="#tmdb" type="button" role="tab">
+                    <i class="bi bi-star-fill"></i> TMDb
                 </button>
             </li>
             <li class="nav-item" role="presentation">
@@ -354,6 +374,290 @@ $showSaved = isset($_GET['saved']) && $_GET['saved'] === '1';
                                 <i class="bi bi-save"></i>
                                 Sicherheitseinstellungen speichern
                             </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab: TMDb Integration -->
+            <div class="tab-pane fade" id="tmdb" role="tabpanel">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="bi bi-star-fill"></i>
+                            TMDb Integration
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <form method="post">
+                            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
+                            
+                            <div class="mb-4">
+                                <label for="tmdb_api_key" class="form-label">
+                                    TMDb API Key
+                                    <span class="text-muted small">Kostenlos bei themoviedb.org</span>
+                                </label>
+                                <input type="text" name="tmdb_api_key" id="tmdb_api_key" class="form-control" 
+                                       value="<?= htmlspecialchars(getSetting('tmdb_api_key', '')) ?>"
+                                       placeholder="z.B. 1a2b3c4d5e6f7g8h9i0j..." 
+                                       maxlength="255">
+                                
+                                <?php if (empty(getSetting('tmdb_api_key', ''))): ?>
+                                <!-- Anleitung nur anzeigen wenn KEIN Key gesetzt -->
+                                <div class="alert alert-info mt-3 tmdb-instructions" role="alert">
+                                    <h6 class="alert-heading">
+                                        <i class="bi bi-info-circle"></i> API Key beantragen
+                                    </h6>
+                                    <ol class="mb-0">
+                                        <li>Account erstellen auf <a href="https://www.themoviedb.org/signup" target="_blank" rel="noopener">themoviedb.org</a></li>
+                                        <li>Gehe zu <a href="https://www.themoviedb.org/settings/api" target="_blank" rel="noopener">Settings → API</a></li>
+                                        <li>Klicke "Create" und wähle "Developer"</li>
+                                        <li>Fülle das Formular aus (Zweck: "Personal Use")</li>
+                                        <li>Kopiere den "API Key (v3 auth)" hier rein</li>
+                                    </ol>
+                                </div>
+                                <?php else: ?>
+                                <!-- Info bei gesetztem Key -->
+                                <small class="form-text text-muted d-block mt-2">
+                                    <i class="bi bi-check-circle text-success"></i>
+                                    API Key ist gesetzt. Du kannst ihn jederzeit ändern.
+                                </small>
+                                <?php endif; ?>
+                            </div>
+                            
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <div class="form-check">
+                                            <input type="checkbox" class="form-check-input" name="tmdb_show_ratings_on_cards" id="tmdb_show_ratings_on_cards" value="1"
+                                                   <?= getSetting('tmdb_show_ratings_on_cards', '1') == '1' ? 'checked' : '' ?>>
+                                            <label class="form-check-label" for="tmdb_show_ratings_on_cards">
+                                                <strong>Ratings auf Film-Kacheln anzeigen</strong>
+                                                <br>
+                                                <small class="text-muted">Zeigt Rating-Badges (⭐ 8.5) auf den Film-Covern im Grid</small>
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <div class="form-check">
+                                            <input type="checkbox" class="form-check-input" name="tmdb_show_ratings_details" id="tmdb_show_ratings_details" value="1"
+                                                   <?= getSetting('tmdb_show_ratings_details', '1') == '1' ? 'checked' : '' ?>>
+                                            <label class="form-check-label" for="tmdb_show_ratings_details">
+                                                <strong>Ausführliche Ratings auf Detail-Seite</strong>
+                                                <br>
+                                                <small class="text-muted">Zeigt TMDb + IMDb Ratings mit Details auf der Film-Seite</small>
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <div class="form-check">
+                                            <input type="checkbox" class="form-check-input" name="tmdb_show_similar_movies" id="tmdb_show_similar_movies" value="1"
+                                                   <?= getSetting('tmdb_show_similar_movies', '1') == '1' ? 'checked' : '' ?>>
+                                            <label class="form-check-label" for="tmdb_show_similar_movies">
+                                                <strong>"Das könnte dir auch gefallen"</strong>
+                                                <br>
+                                                <small class="text-muted">Zeigt ähnliche Filme auf der Detail-Seite</small>
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <div class="form-check">
+                                            <input type="checkbox" class="form-check-input" name="tmdb_auto_download_covers" id="tmdb_auto_download_covers" value="1"
+                                                   <?= getSetting('tmdb_auto_download_covers', '0') == '1' ? 'checked' : '' ?>>
+                                            <label class="form-check-label" for="tmdb_auto_download_covers">
+                                                <strong>Cover automatisch von TMDb laden</strong>
+                                                <br>
+                                                <small class="text-muted">Lädt fehlende Cover automatisch herunter</small>
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-4">
+                                <label for="tmdb_cache_hours" class="form-label">
+                                    Cache-Dauer (Stunden)
+                                    <span class="text-muted small">Wie lange Ratings gecacht werden</span>
+                                </label>
+                                <input type="number" name="tmdb_cache_hours" id="tmdb_cache_hours" class="form-control" 
+                                       value="<?= htmlspecialchars(getSetting('tmdb_cache_hours', '24')) ?>"
+                                       min="1" max="168" step="1">
+                                <small class="form-text text-muted">
+                                    Standard: 24 Stunden (1 Tag) | Maximal: 168 Stunden (7 Tage)
+                                    <br>
+                                    💡 <strong>Tipp:</strong> Kürzere Zeit = Aktuellere Ratings, aber mehr API-Calls
+                                </small>
+                            </div>
+                            
+                            <?php if (!empty(getSetting('tmdb_api_key', ''))): ?>
+                            <div class="alert alert-success">
+                                <i class="bi bi-check-circle-fill"></i>
+                                <strong>TMDb Integration aktiv!</strong> Ratings werden automatisch geladen und gecacht (<?= getSetting('tmdb_cache_hours', '24') ?>h).
+                            </div>
+                            
+                            <!-- Bulk Load Section -->
+                            <div class="card mb-4" style="background: var(--bg-secondary); border: 1px solid var(--border-color);">
+                                <div class="card-header">
+                                    <h6 class="mb-0">
+                                        <i class="bi bi-download"></i> Ratings vorladen
+                                    </h6>
+                                </div>
+                                <div class="card-body">
+                                    <p class="mb-3">
+                                        Lädt TMDb Ratings für <strong>alle Filme</strong> in Ihrer Sammlung und speichert sie im Cache.
+                                        Dies beschleunigt die Anzeige später.
+                                    </p>
+                                    
+                                    <button type="button" id="bulkLoadBtn" class="btn btn-outline-primary">
+                                        <i class="bi bi-cloud-download"></i>
+                                        Alle Ratings jetzt laden
+                                    </button>
+                                    
+                                    <!-- Progress -->
+                                    <div id="bulkLoadProgress" style="display: none; margin-top: 1rem;">
+                                        <div class="progress" style="height: 25px;">
+                                            <div id="bulkProgressBar" class="progress-bar progress-bar-striped progress-bar-animated" 
+                                                 role="progressbar" style="width: 0%">
+                                                0%
+                                            </div>
+                                        </div>
+                                        <div id="bulkLoadStatus" class="mt-2 text-muted small"></div>
+                                    </div>
+                                    
+                                    <!-- Results -->
+                                    <div id="bulkLoadResults" style="display: none; margin-top: 1rem;"></div>
+                                </div>
+                            </div>
+                            <?php else: ?>
+                            <div class="alert alert-warning">
+                                <i class="bi bi-exclamation-triangle-fill"></i>
+                                <strong>Kein API Key gesetzt.</strong> Ratings werden nicht angezeigt.
+                            </div>
+                            <?php endif; ?>
+                            
+                            <button type="submit" name="save_settings" class="btn btn-primary">
+                                <i class="bi bi-save"></i>
+                                TMDb-Einstellungen speichern
+                            </button>
+                            
+                            <script>
+                            // Bulk Load Script
+                            document.getElementById('bulkLoadBtn')?.addEventListener('click', function() {
+                                const btn = this;
+                                const progress = document.getElementById('bulkLoadProgress');
+                                const progressBar = document.getElementById('bulkProgressBar');
+                                const status = document.getElementById('bulkLoadStatus');
+                                const results = document.getElementById('bulkLoadResults');
+                                
+                                // UI vorbereiten
+                                btn.disabled = true;
+                                progress.style.display = 'block';
+                                results.style.display = 'none';
+                                
+                                let totalLoaded = 0;
+                                let totalErrors = 0;
+                                
+                                function loadBatch(offset = 0) {
+                                    const formData = new FormData();
+                                    formData.append('csrf_token', '<?= $_SESSION['csrf_token'] ?? '' ?>');
+                                    formData.append('offset', offset);
+                                    
+                                    fetch('../actions/tmdb-bulk-load.php', {
+                                        method: 'POST',
+                                        body: formData
+                                    })
+                                    .then(response => {
+                                        return response.text().then(text => {
+                                            <?php if (getSetting('environment', 'production') === 'development'): ?>
+                                            // Debug-Logging nur im Development-Mode
+                                            console.log('RAW Response:', text);
+                                            <?php endif; ?>
+                                            
+                                            try {
+                                                return JSON.parse(text);
+                                            } catch (e) {
+                                                <?php if (getSetting('environment', 'production') === 'development'): ?>
+                                                console.error('JSON Parse Error:', e);
+                                                console.error('Response Text:', text);
+                                                <?php endif; ?>
+                                                throw new Error('Server returned invalid JSON. ' + 
+                                                    <?php if (getSetting('environment', 'production') === 'development'): ?>
+                                                    text.substring(0, 200)
+                                                    <?php else: ?>
+                                                    'Bitte Development-Mode aktivieren für Details.'
+                                                    <?php endif; ?>
+                                                );
+                                            }
+                                        });
+                                    })
+                                    .then(data => {
+                                        if (!data.success) {
+                                            throw new Error(data.error || 'Unbekannter Fehler');
+                                        }
+                                        
+                                        // Progress aktualisieren
+                                        const percent = data.progress || 0;
+                                        progressBar.style.width = percent + '%';
+                                        progressBar.textContent = percent + '%';
+                                        
+                                        status.innerHTML = `
+                                            Verarbeitet: ${data.processed} / ${data.total} Filme<br>
+                                            Geladen: ${data.loaded || 0} | Fehler: ${data.errors || 0}
+                                        `;
+                                        
+                                        totalLoaded += data.loaded || 0;
+                                        totalErrors += data.errors || 0;
+                                        
+                                        // Fertig?
+                                        if (data.completed) {
+                                            progressBar.classList.remove('progress-bar-animated');
+                                            progressBar.classList.add('bg-success');
+                                            
+                                            results.style.display = 'block';
+                                            results.innerHTML = `
+                                                <div class="alert alert-success">
+                                                    <i class="bi bi-check-circle-fill"></i>
+                                                    <strong>Fertig!</strong><br>
+                                                    ${totalLoaded} Ratings erfolgreich geladen<br>
+                                                    ${totalErrors > 0 ? totalErrors + ' Fehler (Filme nicht gefunden)' : ''}
+                                                </div>
+                                            `;
+                                            
+                                            btn.disabled = false;
+                                            btn.innerHTML = '<i class="bi bi-check"></i> Abgeschlossen';
+                                        } else {
+                                            // Nächster Batch
+                                            setTimeout(() => loadBatch(data.next_offset), 500);
+                                        }
+                                    })
+                                    .catch(error => {
+                                        console.error('Bulk Load Error:', error);
+                                        results.style.display = 'block';
+                                        results.innerHTML = `
+                                            <div class="alert alert-danger">
+                                                <i class="bi bi-x-circle-fill"></i>
+                                                <strong>Fehler:</strong> ${error.message}
+                                            </div>
+                                        `;
+                                        btn.disabled = false;
+                                    });
+                                }
+                                
+                                // Start
+                                loadBatch(0);
+                            });
+                            </script>
                         </form>
                     </div>
                 </div>
