@@ -36,7 +36,7 @@ function safeFormatRuntime($minutes) {
         <span class="item-count">(<?= count($latest) ?> neueste von <?= number_format($totalRecords) ?> Filmen)</span>
     </h2>
 </header>
-<section class="latest-grid">
+<section class="latest-grid" style="padding-top: 37px;">
     <?php if (empty($latest)): ?>
         <div class="empty-state">
             <i class="bi bi-film"></i>

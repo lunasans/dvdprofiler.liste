@@ -8,7 +8,7 @@ function setSecurityHeaders(): void {
     header('X-XSS-Protection: 1; mode=block');
     
     // Content Security Policy - erweitert für bessere Sicherheit
-    header("Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' cdn.jsdelivr.net cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' cdn.jsdelivr.net; img-src 'self' data: *; font-src 'self' cdn.jsdelivr.net; frame-src 'self' www.youtube.com");
+    header("Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' cdn.jsdelivr.net cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' cdn.jsdelivr.net https://fonts.googleapis.com; img-src 'self' data: *; font-src 'self' cdn.jsdelivr.net https://fonts.gstatic.com; frame-src 'self' www.youtube.com");
     
     // Verhindert MIME-Type sniffing
     header('Referrer-Policy: strict-origin-when-cross-origin');

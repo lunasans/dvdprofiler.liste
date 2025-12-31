@@ -190,7 +190,7 @@ $schema = [
         </section>
 
         <!-- Rechte Detailansicht -->
-        <aside class="detail-panel" id="detail-container" role="complementary" aria-label="Film-Details">
+        <aside class="detail-panel" id="detail-container" role="complementary" aria-label="Film-Details" style="padding-left: 24px;padding-right: 24px;">
             <div class="detail-placeholder">
                 <i class="bi bi-film"></i>
                 <p>Wählen Sie einen Film aus der Liste, um Details anzuzeigen.</p>
