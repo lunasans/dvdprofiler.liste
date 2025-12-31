@@ -121,6 +121,30 @@ function renderFilmCard(array $dvd): string {
     $childrenCount = (int)($dvd['children_count'] ?? 0);
     $isBoxSet = $childrenCount > 0;
     
+    // TMDb Rating Badge (wenn aktiviert)
+    $ratingBadge = '';
+    if (getSetting('tmdb_show_ratings_on_cards', '1') == '1' && !empty(getSetting('tmdb_api_key', ''))) {
+        $ratings = getFilmRatings($dvd['title'], $year);
+        if ($ratings && isset($ratings['tmdb_rating'])) {
+            $rating = $ratings['tmdb_rating'];
+            $votes = $ratings['tmdb_votes'] ?? 0;
+            
+            // Farbe basierend auf Rating
+            if ($rating >= 8) {
+                $color = '#4caf50'; // Grün
+            } elseif ($rating >= 6) {
+                $color = '#ff9800'; // Orange
+            } else {
+                $color = '#f44336'; // Rot
+            }
+            
+            $ratingBadge = '<div class="tmdb-rating-badge" style="background-color: ' . $color . ';">
+                <i class="bi bi-star-fill"></i>
+                <span>' . number_format($rating, 1) . '</span>
+            </div>';
+        }
+    }
+    
     // BoxSet Badge (nur für Parents)
     $badge = '';
     if ($isBoxSet) {
@@ -136,6 +160,7 @@ function renderFilmCard(array $dvd): string {
     <div class="dvd' . $boxsetClass . '" data-dvd-id="' . $id . '" data-children-count="' . $childrenCount . '">
       <div class="cover-area">
         <img src="' . htmlspecialchars($cover) . '" alt="Cover">
+        ' . $ratingBadge . '
         ' . $badge . '
       </div>
       <div class="dvd-details">
@@ -470,6 +495,34 @@ function renderFilmCard(array $dvd): string {
         padding: 10px;
     }
 }
+/* TMDb Rating Badge */
+.tmdb-rating-badge {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    color: white;
+    font-size: 0.85rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    z-index: 10;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.tmdb-rating-badge i {
+    font-size: 0.75rem;
+}
+
+/* BoxSet Badge rechts oben platzieren wenn Rating links ist */
+.cover-area .boxset-badge {
+    top: 8px;
+    right: 8px;
+    left: auto;
+}
+
 </style>
 
 <script>
@@ -538,11 +591,24 @@ function renderModalFilmCard(film) {
     `;
 }
 
-// Drag Functionality
-document.addEventListener('DOMContentLoaded', function() {
+// Drag Functionality - Als globale Funktion damit sie nach AJAX neu initialisiert werden kann
+function initBoxSetModalDrag() {
     const modal = document.getElementById('boxsetModal');
-    const modalContent = modal.querySelector('.modal-content');
+    if (!modal) return;
     
+    const modalContent = modal.querySelector('.modal-content');
+    if (!modalContent) return;
+    
+    // Entferne alte Event-Listener falls vorhanden
+    modal.removeEventListener('mousedown', dragStart);
+    modal.removeEventListener('mousemove', drag);
+    modal.removeEventListener('mouseup', dragEnd);
+    modal.removeEventListener('mouseleave', dragEnd);
+    modal.removeEventListener('touchstart', dragStart);
+    modal.removeEventListener('touchmove', drag);
+    modal.removeEventListener('touchend', dragEnd);
+    
+    // Füge neue Event-Listener hinzu
     modal.addEventListener('mousedown', dragStart);
     modal.addEventListener('mousemove', drag);
     modal.addEventListener('mouseup', dragEnd);
@@ -610,7 +676,17 @@ document.addEventListener('DOMContentLoaded', function() {
     function setTranslate(xPos, yPos, el) {
         el.style.transform = `translate(${xPos}px, ${yPos}px)`;
     }
-});
+}
+
+// Initial beim Laden initialisieren
+document.addEventListener('DOMContentLoaded', initBoxSetModalDrag);
+
+// Nach jedem AJAX-Reload wieder initialisieren
+if (typeof window.reinitBoxSetModal === 'undefined') {
+    window.reinitBoxSetModal = function() {
+        initBoxSetModalDrag();
+    };
+}
 
 // ESC-Key schließt Modal
 document.addEventListener('keydown', function(e) {

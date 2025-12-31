@@ -50,7 +50,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'tmdb_api_key' => ['maxlength' => 255],
                 'tmdb_show_ratings_on_cards' => ['filter' => FILTER_VALIDATE_BOOLEAN],
                 'tmdb_show_ratings_details' => ['filter' => FILTER_VALIDATE_BOOLEAN],
-                'tmdb_cache_hours' => ['filter' => FILTER_VALIDATE_INT, 'options' => ['min_range' => 1, 'max_range' => 168]]
+                'tmdb_cache_hours' => ['filter' => FILTER_VALIDATE_INT, 'options' => ['min_range' => 1, 'max_range' => 168]],
+                'tmdb_show_similar_movies' => ['filter' => FILTER_VALIDATE_BOOLEAN],
+                'tmdb_auto_download_covers' => ['filter' => FILTER_VALIDATE_BOOLEAN]
             ];
             
             $savedCount = 0;
@@ -447,6 +449,36 @@ $showSaved = isset($_GET['saved']) && $_GET['saved'] === '1';
                                                 <strong>Ausführliche Ratings auf Detail-Seite</strong>
                                                 <br>
                                                 <small class="text-muted">Zeigt TMDb + IMDb Ratings mit Details auf der Film-Seite</small>
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <div class="form-check">
+                                            <input type="checkbox" class="form-check-input" name="tmdb_show_similar_movies" id="tmdb_show_similar_movies" value="1"
+                                                   <?= getSetting('tmdb_show_similar_movies', '1') == '1' ? 'checked' : '' ?>>
+                                            <label class="form-check-label" for="tmdb_show_similar_movies">
+                                                <strong>"Das könnte dir auch gefallen"</strong>
+                                                <br>
+                                                <small class="text-muted">Zeigt ähnliche Filme auf der Detail-Seite</small>
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <div class="form-check">
+                                            <input type="checkbox" class="form-check-input" name="tmdb_auto_download_covers" id="tmdb_auto_download_covers" value="1"
+                                                   <?= getSetting('tmdb_auto_download_covers', '0') == '1' ? 'checked' : '' ?>>
+                                            <label class="form-check-label" for="tmdb_auto_download_covers">
+                                                <strong>Cover automatisch von TMDb laden</strong>
+                                                <br>
+                                                <small class="text-muted">Lädt fehlende Cover automatisch herunter</small>
                                             </label>
                                         </div>
                                     </div>

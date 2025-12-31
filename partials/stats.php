@@ -152,41 +152,6 @@ function getDecadeStats($pdo): array {
     }
 }
 
-function getBoxsetStats($pdo): array {
-    try {
-        $boxsetStats = $pdo->query("
-            SELECT 
-                COUNT(DISTINCT boxset_parent) as total_boxsets,
-                COUNT(*) as total_boxset_items
-            FROM dvds 
-            WHERE boxset_parent IS NOT NULL
-        ")->fetch();
-        
-        $topBoxsets = $pdo->query("
-            SELECT 
-                p.title as boxset_name,
-                COUNT(c.id) as child_count,
-                SUM(c.runtime) as total_runtime
-            FROM dvds p
-            JOIN dvds c ON c.boxset_parent = p.id
-            GROUP BY p.id, p.title
-            ORDER BY child_count DESC
-            LIMIT 5
-        ")->fetchAll();
-        
-        return [
-            'stats' => $boxsetStats ?: ['total_boxsets' => 0, 'total_boxset_items' => 0],
-            'top' => $topBoxsets ?: []
-        ];
-    } catch (Exception $e) {
-        error_log('Boxset stats error: ' . $e->getMessage());
-        return [
-            'stats' => ['total_boxsets' => 0, 'total_boxset_items' => 0],
-            'top' => []
-        ];
-    }
-}
-
 function getNewestFilms($pdo): array {
     try {
         return $pdo->query("

@@ -482,6 +482,12 @@ function generateStarRating(float $rating, int $maxStars = 5): string {
         </div>
     </section>
 
+    <!-- Ähnliche Filme -->
+    <?php 
+    $film = $dvd; // similar-movies.php erwartet $film Variable
+    include __DIR__ . '/similar-movies.php';
+    ?>
+
     <!-- Film-Aktionen -->
     <section class="film-actions">
         <button class="close-detail-button btn btn-secondary" onclick="closeDetail()">
