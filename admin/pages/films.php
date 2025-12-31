@@ -123,8 +123,7 @@ function formatRuntime(int $minutes): string {
     <!-- Filter und Suche -->
     <div class="card mb-4">
         <div class="card-body">
-            <form method="get" action="" class="row g-3">
-                <input type="hidden" name="page" value="films">
+            <form method="get" action="" class="row g-3" id="searchForm">
                 
                 <div class="col-md-5">
                     <label for="search" class="form-label">Suche</label>
@@ -461,3 +460,31 @@ document.addEventListener('DOMContentLoaded', function() {
     max-width: 800px;
 }
 </style>
+
+<script>
+// Form Submit - page Parameter erhalten
+document.getElementById('searchForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(this);
+    const params = new URLSearchParams();
+    
+    // page Parameter immer hinzufügen
+    params.set('page', 'films');
+    
+    // Andere Felder nur wenn nicht leer
+    const search = formData.get('search');
+    const collection = formData.get('collection');
+    
+    if (search && search.trim() !== '') {
+        params.set('search', search.trim());
+    }
+    
+    if (collection && collection !== '') {
+        params.set('collection', collection);
+    }
+    
+    // Redirect
+    window.location.href = '?' + params.toString();
+});
+</script>
