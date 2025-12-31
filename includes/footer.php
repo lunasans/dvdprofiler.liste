@@ -48,7 +48,7 @@ $baseUrl = defined('BASE_URL') ? BASE_URL : '';
                 <?php if ($stats['total_boxsets'] > 0): ?>
                 <div class="stat-item" title="BoxSet Sammlungen">
                     <i class="bi bi-collection-play"></i>
-                    <span><?= number_format($stats['total_boxsets']) ?> Sets</span>
+                    <span><?= number_format($boxsetStats['total_boxsets']) ?> Sets</span>
                 </div>
                 <?php endif; ?>
                 
@@ -153,6 +153,48 @@ $baseUrl = defined('BASE_URL') ? BASE_URL : '';
             <button class="theme-option" data-theme="purple" title="Royal Purple">
                 <div class="theme-preview" style="background: linear-gradient(135deg, #9b59b6 0%, #8e44ad 100%);"></div>
                 <span class="theme-name">Purple</span>
+                <i class="bi bi-check-circle-fill theme-check"></i>
+            </button>
+        </div>
+        
+        <div class="theme-picker-divider">
+            <span>✨ Saison-Themes</span>
+        </div>
+        
+        <div class="theme-options season-themes">
+            <button class="theme-option" data-theme="christmas" title="Weihnachten 🎄">
+                <div class="theme-preview" style="background: linear-gradient(135deg, #c41e3a 0%, #165b33 50%, #c41e3a 100%);"></div>
+                <span class="theme-name">🎄 Weihnachten</span>
+                <i class="bi bi-check-circle-fill theme-check"></i>
+            </button>
+            
+            <button class="theme-option" data-theme="newyear" title="Silvester 🎆">
+                <div class="theme-preview" style="background: linear-gradient(135deg, #ffd700 0%, #ff6b6b 50%, #4ecdc4 100%);"></div>
+                <span class="theme-name">🎆 Silvester</span>
+                <i class="bi bi-check-circle-fill theme-check"></i>
+            </button>
+            
+            <button class="theme-option" data-theme="valentine" title="Valentinstag 💝">
+                <div class="theme-preview" style="background: linear-gradient(135deg, #ff1744 0%, #f50057 100%);"></div>
+                <span class="theme-name">💝 Valentinstag</span>
+                <i class="bi bi-check-circle-fill theme-check"></i>
+            </button>
+            
+            <button class="theme-option" data-theme="easter" title="Ostern 🐰">
+                <div class="theme-preview" style="background: linear-gradient(135deg, #ffd3a5 0%, #fd6585 100%);"></div>
+                <span class="theme-name">🐰 Ostern</span>
+                <i class="bi bi-check-circle-fill theme-check"></i>
+            </button>
+            
+            <button class="theme-option" data-theme="summer" title="Sommer ☀️">
+                <div class="theme-preview" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);"></div>
+                <span class="theme-name">☀️ Sommer</span>
+                <i class="bi bi-check-circle-fill theme-check"></i>
+            </button>
+            
+            <button class="theme-option" data-theme="halloween" title="Halloween 🎃">
+                <div class="theme-preview" style="background: linear-gradient(135deg, #ff6600 0%, #8b00ff 100%);"></div>
+                <span class="theme-name">🎃 Halloween</span>
                 <i class="bi bi-check-circle-fill theme-check"></i>
             </button>
         </div>
@@ -694,6 +736,19 @@ $baseUrl = defined('BASE_URL') ? BASE_URL : '';
 .theme-picker-footer small {
     color: var(--text-muted, rgba(228, 228, 231, 0.6));
     font-size: 11px;
+}
+
+.theme-picker-divider {
+    padding: 12px 20px;
+    text-align: center;
+    border-top: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+    font-size: 0.85rem;
+    color: var(--text-muted, rgba(228, 228, 231, 0.7));
+    font-weight: 600;
+}
+
+.season-themes {
+    padding-bottom: 8px;
 }
 
 /* Mobile Responsive */

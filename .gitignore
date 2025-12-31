@@ -39,3 +39,10 @@ debug-update.php
 debug-500.php
 debug-index.php
 admin/.install.lock
+admin/pages/settings_backup_ohne_tmdb.php
+.idea/workspace.xml
+.idea/vcs.xml
+.gitignore
+.idea/modules.xml
+.idea/php.xml
+.idea/dvdprofiler.liste.iml

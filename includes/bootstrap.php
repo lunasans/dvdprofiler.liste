@@ -440,4 +440,9 @@ if (!function_exists('getDVDProfilerVersion')) {
     }
 }
 
+// TMDb Integration laden
+if (file_exists(__DIR__ . '/tmdb-helper.php')) {
+    require_once __DIR__ . '/tmdb-helper.php';
+}
+
 // Bootstrap-Abschluss-Log wird in includes/debug.php behandelt
