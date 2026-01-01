@@ -564,6 +564,7 @@ function generateStarRating(float $rating, int $maxStars = 5): string {
                 const container = box.closest('.trailer-container');
                 const embedUrl = convertToEmbedUrl(url);
                 
+                // Iframe erstellen
                 const iframe = document.createElement('iframe');
                 iframe.src = embedUrl;
                 iframe.width = '100%';
@@ -575,6 +576,21 @@ function generateStarRating(float $rating, int $maxStars = 5): string {
                 
                 box.style.display = 'none';
                 container.appendChild(iframe);
+                
+                // Kanal-Link hinzufügen (nur für YouTube)
+                if (url.includes('youtube.com') || url.includes('youtu.be')) {
+                    const videoId = url.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/)?.[1];
+                    if (videoId) {
+                        const channelLink = document.createElement('div');
+                        channelLink.className = 'trailer-channel-link';
+                        channelLink.innerHTML = `
+                            <a href="https://www.youtube.com/watch?v=${videoId}" target="_blank" rel="noopener noreferrer">
+                                <i class="bi bi-youtube"></i> Auf YouTube ansehen
+                            </a>
+                        `;
+                        container.appendChild(channelLink);
+                    }
+                }
             }
             
             function convertToEmbedUrl(url) {
@@ -1251,6 +1267,37 @@ function showNotification(message, type = 'info') {
 .trailer-box:hover .play-icon {
     background: rgba(255, 255, 255, 1);
     transform: translate(-50%, -50%) scale(1.1);
+}
+
+.trailer-channel-link {
+    margin-top: var(--space-md);
+    text-align: center;
+}
+
+.trailer-channel-link a {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-xs);
+    padding: var(--space-sm) var(--space-md);
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-md);
+    color: var(--text-glass);
+    text-decoration: none;
+    font-size: 0.9rem;
+    transition: all var(--transition-fast);
+}
+
+.trailer-channel-link a:hover {
+    background: var(--glass-bg-strong);
+    border-color: #ff0000; /* YouTube rot */
+    color: var(--text-white);
+    transform: translateY(-2px);
+}
+
+.trailer-channel-link i {
+    font-size: 1.2rem;
+    color: #ff0000; /* YouTube rot */
 }
 
 .user-rating-section {
