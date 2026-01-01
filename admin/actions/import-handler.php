@@ -62,6 +62,7 @@ $savedPath = $uploadDir . 'import_' . date('Ymd_His') . '.xml';
 file_put_contents($savedPath, $xmlContent);
 
 $imported = 0;
+$updated = 0;
 $skipped = 0;
 $boxsetFixed = 0;
 $errors = 0;
@@ -70,6 +71,11 @@ $totalActorLinksCreated = 0;
 
 try {
     $pdo->beginTransaction();
+
+    // SOFT DELETE: Markiere alle Filme als gelöscht
+    // Während Import werden importierte Filme wieder auf deleted=0 gesetzt
+    $pdo->exec("UPDATE dvds SET deleted = 1");
+    error_log("Soft Delete: Alle Filme als gelöscht markiert (werden beim Import wiederhergestellt)");
 
     $dvdElements = $xml->DVD ?? [];
     
@@ -132,13 +138,10 @@ try {
             continue;
         }
 
-        // Prüfung auf existierende DVD
+        // Prüfung ob DVD existiert
         $check = $pdo->prepare("SELECT COUNT(*) FROM dvds WHERE id = ?");
         $check->execute([$id]);
-        if ($check->fetchColumn() > 0) {
-            $skipped++;
-            continue;
-        }
+        $filmExists = $check->fetchColumn() > 0;
 
         // Standard-Felder extrahieren
         $title = trim((string)$dvd->Title);
@@ -150,8 +153,20 @@ try {
         $overview = trim((string)($dvd->Overview ?? ''));
         $cover_id = trim((string)$dvd->ID);
         $collection = trim((string)($dvd->CollectionType ?? ''));
-        $trailer = trim((string)($dvd->trailer_url ?? ''));
         $userId = $_SESSION['user_id'];
+        
+        // Kaufdatum (PurchaseDate) für created_at
+        // PurchaseDate ist in PurchaseInfo verschachtelt!
+        $purchaseDate = trim((string)($dvd->PurchaseInfo->PurchaseDate ?? ''));
+        
+        // Debug-Logging
+        if (!empty($purchaseDate)) {
+            error_log("DVD $id ($title): PurchaseDate aus XML = '$purchaseDate'");
+            $createdAt = $purchaseDate;
+        } else {
+            error_log("DVD $id ($title): Kein PurchaseDate in XML - created_at bleibt NULL");
+            $createdAt = null; // Kein Datum = NULL
+        }
 
         // BoxSet-Parent ermitteln
         $boxsetParent = null;
@@ -180,39 +195,85 @@ try {
         }
 
         try {
-            // ERST DVD einfügen
-            $stmt = $pdo->prepare("
-                INSERT INTO dvds (
-                    id, title, year, genre, runtime, rating_age,
-                    overview, cover_id, collection_type, boxset_parent, trailer_url, user_id
-                ) VALUES (
-                    :id, :title, :year, :genre, :runtime, :rating_age,
-                    :overview, :cover_id, :collection_type, :boxset_parent, :trailer_url, :user_id
-                )
-            ");
-            
-            $stmt->execute([
-                'id' => $id,
-                'title' => $title,
-                'year' => $year,
-                'genre' => $genre,
-                'runtime' => $runtime,
-                'rating_age' => $rating_age,
-                'overview' => $overview,
-                'cover_id' => $cover_id,
-                'collection_type' => $collection,
-                'boxset_parent' => $boxsetParent,
-                'trailer_url' => $trailer,
-                'user_id' => $userId
-            ]);
+            if ($filmExists) {
+                // Film existiert - UPDATE
+                $stmt = $pdo->prepare("
+                    UPDATE dvds SET
+                        title = :title,
+                        year = :year,
+                        genre = :genre,
+                        runtime = :runtime,
+                        rating_age = :rating_age,
+                        overview = :overview,
+                        cover_id = :cover_id,
+                        collection_type = :collection_type,
+                        boxset_parent = :boxset_parent,
+                        created_at = :created_at,
+                        deleted = 0,
+                        updated_at = NOW()
+                    WHERE id = :id
+                ");
+                
+                $stmt->execute([
+                    'id' => $id,
+                    'title' => $title,
+                    'year' => $year,
+                    'genre' => $genre,
+                    'runtime' => $runtime,
+                    'rating_age' => $rating_age,
+                    'overview' => $overview,
+                    'cover_id' => $cover_id,
+                    'collection_type' => $collection,
+                    'boxset_parent' => $boxsetParent,
+                    'created_at' => $createdAt
+                ]);
+                
+                $updated++;
+                error_log("DVD $id ($title) erfolgreich aktualisiert (Kaufdatum: $createdAt)");
+                
+            } else {
+                // Film existiert nicht - INSERT (trailer_url wird nicht importiert)
+                $stmt = $pdo->prepare("
+                    INSERT INTO dvds (
+                        id, title, year, genre, runtime, rating_age,
+                        overview, cover_id, collection_type, boxset_parent, deleted, user_id, created_at
+                    ) VALUES (
+                        :id, :title, :year, :genre, :runtime, :rating_age,
+                        :overview, :cover_id, :collection_type, :boxset_parent, 0, :user_id, :created_at
+                    )
+                ");
+                
+                $stmt->execute([
+                    'id' => $id,
+                    'title' => $title,
+                    'year' => $year,
+                    'genre' => $genre,
+                    'runtime' => $runtime,
+                    'rating_age' => $rating_age,
+                    'overview' => $overview,
+                    'cover_id' => $cover_id,
+                    'collection_type' => $collection,
+                    'boxset_parent' => $boxsetParent,
+                    'user_id' => $userId,
+                    'created_at' => $createdAt
+                ]);
 
-            $imported++;
+                $imported++;
+                error_log("DVD $id ($title) erfolgreich neu importiert (Kaufdatum: $createdAt)");
+            }
             
             if ($boxsetParent) {
                 error_log("DVD $id ($title) erfolgreich als Kind von Parent $boxsetParent importiert");
             }
 
-            // DANN Schauspieler verarbeiten (nach DVD-Insert!)
+            // Bei UPDATE: Alte Schauspieler-Verknüpfungen löschen
+            if ($filmExists) {
+                $deleteLinks = $pdo->prepare("DELETE FROM film_actor WHERE film_id = ?");
+                $deleteLinks->execute([$id]);
+                error_log("DVD $id ($title): Alte Schauspieler-Verknüpfungen gelöscht");
+            }
+
+            // DANN Schauspieler verarbeiten (nach DVD-Insert/Update!)
             $actorCount = 0;
             if (isset($dvd->Actors) && isset($dvd->Actors->Actor)) {
                 error_log("DVD $id ($title): Verarbeite Schauspieler...");
@@ -318,6 +379,9 @@ try {
         error_log("Fehler bei BoxSet-Validierung: " . $e->getMessage());
     }
 
+    // Zähle gelöschte Filme (die nicht mehr in XML sind)
+    $deletedCount = $pdo->query("SELECT COUNT(*) FROM dvds WHERE deleted = 1")->fetchColumn();
+
     $pdo->commit();
     
     // Finale Statistik
@@ -346,7 +410,12 @@ try {
 // Erfolgsmeldung zusammenstellen
 $resultMessage = "🎬 Import abgeschlossen:\n"
     . "$imported neue Filme importiert\n"
+    . "$updated Filme aktualisiert\n"
     . "$skipped Duplikate übersprungen\n";
+
+if ($deletedCount > 0) {
+    $resultMessage .= "🗑️ $deletedCount Filme als gelöscht markiert (nicht mehr in XML)\n";
+}
 
 if ($totalActorsImported > 0) {
     $resultMessage .= "$totalActorsImported neue Schauspieler erstellt\n";

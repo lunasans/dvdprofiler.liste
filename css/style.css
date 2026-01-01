@@ -1856,7 +1856,7 @@ main {
   }
 
   .layout {
-    grid-template-columns: 1fr 950px;
+    grid-template-columns: 1fr 1092px;
     gap: var(--space-3xl);
   }
 

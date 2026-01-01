@@ -38,10 +38,16 @@ $perPage = 20;
 $offset = ($page - 1) * $perPage;
 $search = trim($_GET['search'] ?? '');
 $collectionType = trim($_GET['collection'] ?? '');
+$showDeleted = isset($_GET['show_deleted']); // Gelöschte anzeigen?
 
 // SQL Query aufbauen
 $where = [];
 $params = [];
+
+// Deleted Filter (nur wenn nicht explizit angezeigt werden soll)
+if (!$showDeleted) {
+    $where[] = "deleted = 0";
+}
 
 if ($search !== '') {
     $where[] = "(title LIKE :search OR overview LIKE :search)";
@@ -65,7 +71,7 @@ $totalPages = ceil($totalFilms / $perPage);
 $stmt = $pdo->prepare("
     SELECT 
         id, title, year, genre, collection_type, 
-        runtime, rating_age, trailer_url, cover_id,
+        runtime, rating_age, trailer_url, cover_id, deleted,
         created_at, updated_at
     FROM dvds 
     {$whereSql}
@@ -85,7 +91,7 @@ $films = $stmt->fetchAll();
 $typesStmt = $pdo->query("
     SELECT DISTINCT collection_type 
     FROM dvds 
-    WHERE collection_type IS NOT NULL AND collection_type != ''
+    WHERE collection_type IS NOT NULL AND collection_type != '' AND deleted = 0
     ORDER BY collection_type
 ");
 $collectionTypes = $typesStmt->fetchAll(PDO::FETCH_COLUMN);
@@ -161,6 +167,23 @@ function formatRuntime(int $minutes): string {
                         </a>
                     <?php endif; ?>
                 </div>
+                
+                <div class="col-12">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" name="show_deleted" id="show_deleted" value="1"
+                               <?= $showDeleted ? 'checked' : '' ?>
+                               onchange="this.form.submit()">
+                        <label class="form-check-label" for="show_deleted">
+                            <i class="bi bi-trash"></i> Gelöschte Filme anzeigen
+                            <?php
+                            $deletedCount = $pdo->query("SELECT COUNT(*) FROM dvds WHERE deleted = 1")->fetchColumn();
+                            if ($deletedCount > 0):
+                            ?>
+                                <span class="badge bg-warning text-dark"><?= $deletedCount ?></span>
+                            <?php endif; ?>
+                        </label>
+                    </div>
+                </div>
             </form>
         </div>
     </div>
@@ -192,10 +215,15 @@ function formatRuntime(int $minutes): string {
                         </thead>
                         <tbody>
                             <?php foreach ($films as $film): ?>
-                                <tr>
+                                <tr<?= $film['deleted'] ? ' class="table-danger"' : '' ?>>
                                     <td><?= htmlspecialchars($film['id']) ?></td>
                                     <td>
                                         <strong><?= htmlspecialchars($film['title']) ?></strong>
+                                        <?php if ($film['deleted']): ?>
+                                            <span class="badge bg-danger ms-2">
+                                                <i class="bi bi-trash"></i> Gelöscht
+                                            </span>
+                                        <?php endif; ?>
                                         <?php if ($film['runtime']): ?>
                                             <br><small class="text-muted">
                                                 <i class="bi bi-clock"></i> <?= formatRuntime($film['runtime']) ?>

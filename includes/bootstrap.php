@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/soft-delete-helpers.php';
+
 function setSecurityHeaders(): void {
     // Verhindert XSS Angriffe
     header('X-Content-Type-Options: nosniff');

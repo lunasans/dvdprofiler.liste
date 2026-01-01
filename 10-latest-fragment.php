@@ -9,15 +9,15 @@ $latestCount = (int)getSetting('latest_films_count', '10');
 if ($latestCount < 5) $latestCount = 5;
 if ($latestCount > 50) $latestCount = 50;
 
-// Neueste Filme laden
-$sql = "SELECT * FROM dvds ORDER BY id DESC LIMIT :limit";
+// Neueste Filme laden (sortiert nach Kaufdatum)
+$sql = "SELECT * FROM dvds WHERE deleted = 0 ORDER BY created_at DESC, id DESC LIMIT :limit";
 $stmt = $pdo->prepare($sql);
 $stmt->bindValue(':limit', $latestCount, PDO::PARAM_INT);
 $stmt->execute();
 $latest = $stmt->fetchAll();
 
 // Total Count für Anzeige
-$countStmt = $pdo->query("SELECT COUNT(*) FROM dvds");
+$countStmt = $pdo->query("SELECT COUNT(*) FROM dvds WHERE deleted = 0");
 $totalRecords = (int)$countStmt->fetchColumn();
 
 // Helper function

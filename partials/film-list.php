@@ -35,11 +35,11 @@ $offset = ($page - 1) * $perPage;
 
 try {
     // Collection Types laden
-    $typesStmt = $pdo->query("SELECT DISTINCT collection_type FROM dvds WHERE collection_type IS NOT NULL ORDER BY collection_type");
+    $typesStmt = $pdo->query("SELECT DISTINCT collection_type FROM dvds WHERE collection_type IS NOT NULL AND deleted = 0 ORDER BY collection_type");
     $types = $typesStmt ? $typesStmt->fetchAll(PDO::FETCH_COLUMN) : [];
     
     // WHERE-Filter aufbauen
-    $where = ['1=1'];
+    $where = ['1=1', 'deleted = 0']; // Gelöschte Filme ausschließen
     $params = [];
     
     if ($search !== '') {
@@ -72,7 +72,7 @@ try {
     
     // Filme laden MIT BoxSet-Info (NUR Parents und Einzelfilme - KEINE Children!)
     $sql = "SELECT d.*, 
-                   (SELECT COUNT(*) FROM dvds WHERE boxset_parent = d.id) as children_count
+                   (SELECT COUNT(*) FROM dvds WHERE boxset_parent = d.id AND deleted = 0) as children_count
             FROM dvds d 
             $whereSql
             ORDER BY title 
