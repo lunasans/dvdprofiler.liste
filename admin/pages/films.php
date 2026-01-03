@@ -314,9 +314,9 @@ function formatRuntime(int $minutes): string {
             <form method="post" action="actions/edit_film.php" id="editFilmForm">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
                 <input type="hidden" name="film_id" id="edit-film-id">
-                <input type="hidden" name="current_page" value="<?= $currentPage ?>">
+                <input type="hidden" name="current_page" value="<?= $page ?>">
                 <input type="hidden" name="search" value="<?= htmlspecialchars($search) ?>">
-                <input type="hidden" name="collection" value="<?= htmlspecialchars($collectionFilter) ?>">
+                <input type="hidden" name="collection" value="<?= htmlspecialchars($collectionType) ?>">
                 
                 <div class="modal-header">
                     <h5 class="modal-title">
@@ -489,6 +489,49 @@ document.addEventListener('DOMContentLoaded', function() {
 
 .modal-lg {
     max-width: 800px;
+}
+
+/* Modal Text Fix - Dunkle Schrift auf hellem Hintergrund */
+.modal-content {
+    background: #ffffff;
+    color: #212529;
+}
+
+.modal-header {
+    background: #f8f9fa;
+    color: #212529;
+    border-bottom: 1px solid #dee2e6;
+}
+
+.modal-header .modal-title {
+    color: #212529 !important;
+}
+
+.modal-header .modal-title i {
+    color: #0d6efd;
+}
+
+.modal-header .modal-title span {
+    color: #212529 !important;
+}
+
+.modal-body {
+    background: #ffffff;
+    color: #212529;
+}
+
+.modal-body label {
+    color: #212529;
+    font-weight: 500;
+}
+
+.modal-body .form-text {
+    color: #6c757d;
+}
+
+.modal-footer {
+    background: #f8f9fa;
+    border-top: 1px solid #dee2e6;
 }
 </style>
 

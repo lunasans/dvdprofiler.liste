@@ -168,7 +168,7 @@ $schema = [
     <?php
     // Header laden
     try {
-        include __DIR__ . '/partials/header.php'; 
+        include __DIR__ . '/includes/header.php'; 
     } catch (Exception $e) {
         error_log('Header include error: ' . $e->getMessage());
         echo '<header><h1>' . htmlspecialchars($siteTitle) . '</h1></header>';
@@ -181,10 +181,15 @@ $schema = [
         <section class="film-list-area" aria-label="Film-Liste">
             <?php 
             try {
-                include __DIR__ . '/partials/film-list.php'; 
+                // Entscheide welche Partial geladen werden soll
+                if ($page === 'trailers') {
+                    include __DIR__ . '/trailers.php';
+                } else {
+                    include __DIR__ . '/partials/film-list.php';
+                }
             } catch (Exception $e) {
-                error_log('Film-list include error: ' . $e->getMessage());
-                echo '<div class="error-message">Filme konnten nicht geladen werden.</div>';
+                error_log('Content include error: ' . $e->getMessage());
+                echo '<div class="error-message">Inhalt konnte nicht geladen werden.</div>';
             }
             ?>
         </section>

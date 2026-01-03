@@ -147,23 +147,6 @@ $showSaved = isset($_GET['saved']) && $_GET['saved'] === '1';
 ?>
 
 <div class="settings-container">
-    <div class="settings-header mb-4">
-        <div class="row align-items-center">
-            <div class="col-md-8">
-                <h1 class="settings-title">
-                    <i class="bi bi-gear"></i>
-                    Systemeinstellungen
-                </h1>
-                <p class="settings-subtitle">
-                    Konfiguration und Verwaltung von DVD Profiler Liste v<?= DVDPROFILER_VERSION ?> "<?= DVDPROFILER_CODENAME ?>"
-                </p>
-            </div>
-            <div class="col-md-4 text-md-end">
-                <!-- Platz für Quick Actions -->
-            </div>
-        </div>
-    </div>
-
     <?php if ($showSaved && !$error): ?>
         <div class="alert alert-success">
             <i class="bi bi-check-circle"></i>

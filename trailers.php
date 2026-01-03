@@ -29,23 +29,14 @@ function getYouTubeEmbedUrl($url) {
     return "https://www.youtube.com/embed/{$videoId}";
 }
 
-// Helper: YouTube Thumbnail URL
-function getYouTubeThumbnail($url) {
-    if (empty($url)) return 'cover/placeholder.png';
-    
-    preg_match('/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]+)/', $url, $matches);
-    $videoId = $matches[1] ?? '';
-    
-    if (!$videoId) return 'cover/placeholder.png';
-    
-    // YouTube Thumbnail (maxresdefault für beste Qualität)
-    return "https://img.youtube.com/vi/{$videoId}/maxresdefault.jpg";
-}
-
 // Anzahl Trailer pro Seite
 $trailersPerPage = 12;
 $page = max(1, (int)($_GET['p'] ?? 1));
 $offset = ($page - 1) * $trailersPerPage;
+
+// Debug
+error_log('Trailers Page - $_GET: ' . print_r($_GET, true));
+error_log("Trailers Page - Current page: $page, Offset: $offset");
 
 try {
     // Gesamtanzahl Filme mit Trailer
@@ -83,6 +74,9 @@ try {
             </h1>
             <p class="page-subtitle">
                 <?= $totalTrailers ?> Trailer in der Sammlung
+                <small style="opacity: 0.6; margin-left: 1rem;">
+                    (Seite: <?= $page ?>, Offset: <?= $offset ?>, Total Pages: <?= $totalPages ?>)
+                </small>
             </p>
         </div>
     </div>
@@ -95,11 +89,14 @@ try {
         </div>
     <?php else: ?>
         <div class="trailers-grid">
-            <?php foreach ($trailers as $trailer): ?>
+            <?php foreach ($trailers as $trailer): 
+                // Cover-Bild finden
+                $coverUrl = findCoverImage($trailer['cover_id'] ?? '', 'f');
+            ?>
                 <div class="trailer-card" data-trailer-id="<?= $trailer['id'] ?>">
                     <div class="trailer-thumbnail" onclick="playTrailer(this)" data-embed-url="<?= htmlspecialchars(getYouTubeEmbedUrl($trailer['trailer_url'])) ?>">
-                        <img src="<?= htmlspecialchars(getYouTubeThumbnail($trailer['trailer_url'])) ?>" 
-                             alt="<?= htmlspecialchars($trailer['title']) ?> Trailer"
+                        <img src="<?= htmlspecialchars($coverUrl) ?>" 
+                             alt="<?= htmlspecialchars($trailer['title']) ?> Cover"
                              loading="lazy"
                              onerror="this.src='cover/placeholder.png'">
                         <div class="play-overlay">
@@ -235,7 +232,7 @@ try {
 .trailer-thumbnail {
     position: relative;
     width: 100%;
-    padding-bottom: 56.25%; /* 16:9 Aspect Ratio */
+    padding-bottom: 150%; /* DVD Cover Hochformat (2:3 Aspect Ratio) */
     overflow: hidden;
     cursor: pointer;
     background: var(--bg-tertiary, #16213e);
