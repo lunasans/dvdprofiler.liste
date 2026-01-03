@@ -108,58 +108,23 @@ $impressumEnabled = getSetting('impressum_enabled', '1');
                             
                             <div class="mb-3">
                                 <label for="impressum_content" class="form-label">
-                                    Impressum Inhalt (HTML erlaubt)
+                                    Impressum Inhalt
                                     <i class="bi bi-info-circle" 
                                        data-bs-toggle="tooltip" 
-                                       title="Sie können HTML-Formatierung verwenden. Gefährlicher Code wird automatisch entfernt."></i>
+                                       title="Verwenden Sie den Editor um Ihren Text zu formatieren. Gefährlicher Code wird automatisch entfernt."></i>
                                 </label>
-                                <textarea class="form-control" 
-                                          id="impressum_content" 
+                                
+                                <!-- Quill Editor -->
+                                <div id="quill-editor" style="height: 400px;"></div>
+                                
+                                <!-- Hidden Textarea für Form Submit -->
+                                <textarea id="impressum_content" 
                                           name="impressum_content" 
-                                          rows="15"><?= htmlspecialchars($impressumContent) ?></textarea>
-                                <small class="form-text text-muted">
-                                    Erlaubte HTML-Tags: &lt;p&gt;, &lt;br&gt;, &lt;b&gt;, &lt;i&gt;, &lt;u&gt;, &lt;strong&gt;, 
-                                    &lt;em&gt;, &lt;ul&gt;, &lt;ol&gt;, &lt;li&gt;, &lt;h2&gt;, &lt;h3&gt;, &lt;a&gt;
+                                          style="display:none;"></textarea>
+                                
+                                <small class="form-text text-muted mt-2 d-block">
+                                    Nutzen Sie die Toolbar um Text zu formatieren, Listen zu erstellen und Links einzufügen.
                                 </small>
-                            </div>
-                            
-                            <!-- HTML Toolbar -->
-                            <div class="btn-toolbar mb-3" role="toolbar">
-                                <div class="btn-group btn-group-sm me-2" role="group">
-                                    <button type="button" class="btn btn-outline-secondary" onclick="insertTag('p')">
-                                        <i class="bi bi-paragraph"></i> Absatz
-                                    </button>
-                                    <button type="button" class="btn btn-outline-secondary" onclick="insertTag('h2')">
-                                        H2
-                                    </button>
-                                    <button type="button" class="btn btn-outline-secondary" onclick="insertTag('h3')">
-                                        H3
-                                    </button>
-                                </div>
-                                <div class="btn-group btn-group-sm me-2" role="group">
-                                    <button type="button" class="btn btn-outline-secondary" onclick="insertTag('b')">
-                                        <i class="bi bi-type-bold"></i>
-                                    </button>
-                                    <button type="button" class="btn btn-outline-secondary" onclick="insertTag('i')">
-                                        <i class="bi bi-type-italic"></i>
-                                    </button>
-                                    <button type="button" class="btn btn-outline-secondary" onclick="insertTag('u')">
-                                        <i class="bi bi-type-underline"></i>
-                                    </button>
-                                </div>
-                                <div class="btn-group btn-group-sm me-2" role="group">
-                                    <button type="button" class="btn btn-outline-secondary" onclick="insertList('ul')">
-                                        <i class="bi bi-list-ul"></i> Liste
-                                    </button>
-                                    <button type="button" class="btn btn-outline-secondary" onclick="insertList('ol')">
-                                        <i class="bi bi-list-ol"></i> Nummeriert
-                                    </button>
-                                </div>
-                                <div class="btn-group btn-group-sm" role="group">
-                                    <button type="button" class="btn btn-outline-secondary" onclick="insertLink()">
-                                        <i class="bi bi-link-45deg"></i> Link
-                                    </button>
-                                </div>
                             </div>
                         </div>
                         
@@ -259,77 +224,82 @@ $impressumEnabled = getSetting('impressum_enabled', '1');
     </div>
 </div>
 
+<!-- Quill CSS -->
+<link href="https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.snow.css" rel="stylesheet">
+
+<!-- Quill JS -->
+<script src="https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.min.js"></script>
+
 <script>
-// HTML Helper Functions
-const textarea = document.getElementById('impressum_content');
+// Warte bis Quill geladen ist
+window.addEventListener('load', function() {
+    // Quill Editor initialisieren
+    const quill = new Quill('#quill-editor', {
+        theme: 'snow',
+        modules: {
+            toolbar: [
+                [{ 'header': [2, 3, false] }],
+                ['bold', 'italic', 'underline'],
+                [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                ['link'],
+                ['clean']
+            ]
+        },
+        placeholder: 'Geben Sie hier zusätzliche Informationen für Ihr Impressum ein...'
+    });
 
-function insertTag(tag) {
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const text = textarea.value;
-    const selectedText = text.substring(start, end);
-    
-    const before = text.substring(0, start);
-    const after = text.substring(end);
-    
-    const newText = `<${tag}>${selectedText || 'Text hier'}</${tag}>`;
-    textarea.value = before + newText + after;
-    
-    // Cursor positionieren
-    const newPos = start + tag.length + 2 + (selectedText ? selectedText.length : 0);
-    textarea.setSelectionRange(newPos, newPos);
-    textarea.focus();
-}
+    // Existierenden Content laden
+    try {
+        const existingContent = <?= json_encode($impressumContent, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+        if (existingContent && existingContent.trim() !== '') {
+            console.log('Loading content:', existingContent);
+            quill.clipboard.dangerouslyPasteHTML(existingContent);
+        } else {
+            console.log('No content to load');
+        }
+    } catch (e) {
+        console.error('Error loading content:', e);
+    }
 
-function insertList(type) {
-    const start = textarea.selectionStart;
-    const text = textarea.value;
-    
-    const before = text.substring(0, start);
-    const after = text.substring(start);
-    
-    const list = `<${type}>
-    <li>Punkt 1</li>
-    <li>Punkt 2</li>
-    <li>Punkt 3</li>
-</${type}>`;
-    
-    textarea.value = before + list + after;
-    textarea.focus();
-}
+    // Form Submit: Quill HTML in Textarea kopieren
+    document.getElementById('impressumForm').addEventListener('submit', function(e) {
+        const html = quill.root.innerHTML;
+        // Leere Quill-Defaults nicht speichern
+        if (html === '<p><br></p>') {
+            document.getElementById('impressum_content').value = '';
+        } else {
+            document.getElementById('impressum_content').value = html;
+        }
+    });
 
-function insertLink() {
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const text = textarea.value;
-    const selectedText = text.substring(start, end);
-    
-    const url = prompt('Link URL:', 'https://');
-    if (!url) return;
-    
-    const before = text.substring(0, start);
-    const after = text.substring(end);
-    
-    const link = `<a href="${url}" target="_blank">${selectedText || 'Link-Text'}</a>`;
-    textarea.value = before + link + after;
-    textarea.focus();
-}
-
-// Tooltips initialisieren
-document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el => {
-    new bootstrap.Tooltip(el);
+    // Tooltips initialisieren
+    document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el => {
+        new bootstrap.Tooltip(el);
+    });
 });
 </script>
 
 <style>
-.btn-toolbar {
-    background: var(--bs-light);
-    padding: 0.5rem;
-    border-radius: 0.25rem;
+.ql-editor {
+    min-height: 300px;
+    max-height: 500px;
+    overflow-y: auto;
+    font-size: 1rem;
 }
 
-#impressum_content {
-    font-family: 'Courier New', monospace;
-    font-size: 0.9rem;
+.ql-toolbar.ql-snow {
+    border-radius: 0.375rem 0.375rem 0 0;
+    background: #f8f9fa;
+}
+
+.ql-container.ql-snow {
+    border-radius: 0 0 0.375rem 0.375rem;
+    font-family: inherit;
+}
+
+#quill-editor {
+    background: white;
+    border: 1px solid #ced4da;
+    border-radius: 0.375rem;
 }
 </style>
