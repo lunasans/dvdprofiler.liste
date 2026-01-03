@@ -4,12 +4,32 @@
  * 
  * @package    dvdprofiler.liste
  * @author     René Neuhaus
- * @version    1.4.8
+ * @version    1.4.6
  */
 
 declare(strict_types=1);
 
 require_once __DIR__ . '/../../includes/bootstrap.php';
+
+// Helper: Redirect zurück zur Films-Seite mit erhaltener Pagination
+function redirectToFilms() {
+    $params = ['page' => 'films'];
+    
+    // Pagination und Filter erhalten
+    if (!empty($_POST['current_page']) && is_numeric($_POST['current_page'])) {
+        $params['p'] = $_POST['current_page'];
+    }
+    if (!empty($_POST['search'])) {
+        $params['search'] = $_POST['search'];
+    }
+    if (!empty($_POST['collection'])) {
+        $params['collection'] = $_POST['collection'];
+    }
+    
+    $queryString = http_build_query($params);
+    header('Location: ../index.php?' . $queryString);
+    exit;
+}
 
 // Nur POST-Requests erlauben
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -20,14 +40,14 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 // Nur für eingeloggte Nutzer
 if (!isset($_SESSION['user_id'])) {
     $_SESSION['film_error'] = 'Sie müssen eingeloggt sein, um Filme zu bearbeiten.';
-    header('Location: ../index.php?page=films');
+    redirectToFilms();
     exit;
 }
 
 // CSRF-Token validieren
 if (!validateCSRFToken($_POST['csrf_token'] ?? '')) {
     $_SESSION['film_error'] = 'Ungültiger CSRF-Token. Bitte versuchen Sie es erneut.';
-    header('Location: ../index.php?page=films');
+    redirectToFilms();
     exit;
 }
 
@@ -144,29 +164,29 @@ try {
     }
     
     // Zurück zur Film-Liste
-    header('Location: ../index.php?page=films');
+    redirectToFilms();
     exit;
     
 } catch (InvalidArgumentException $e) {
     $_SESSION['film_error'] = '❌ ' . $e->getMessage();
-    header('Location: ../index.php?page=films');
+    redirectToFilms();
     exit;
     
 } catch (RuntimeException $e) {
     $_SESSION['film_error'] = '❌ ' . $e->getMessage();
     error_log('Film edit error: ' . $e->getMessage());
-    header('Location: ../index.php?page=films');
+    redirectToFilms();
     exit;
     
 } catch (PDOException $e) {
     $_SESSION['film_error'] = '❌ Datenbankfehler beim Speichern.';
     error_log('Database error in edit_film.php: ' . $e->getMessage());
-    header('Location: ../index.php?page=films');
+    redirectToFilms();
     exit;
     
 } catch (Exception $e) {
     $_SESSION['film_error'] = '❌ Ein unerwarteter Fehler ist aufgetreten.';
     error_log('Unexpected error in edit_film.php: ' . $e->getMessage());
-    header('Location: ../index.php?page=films');
+    redirectToFilms();
     exit;
 }

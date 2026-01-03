@@ -314,6 +314,9 @@ function formatRuntime(int $minutes): string {
             <form method="post" action="actions/edit_film.php" id="editFilmForm">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
                 <input type="hidden" name="film_id" id="edit-film-id">
+                <input type="hidden" name="current_page" value="<?= $currentPage ?>">
+                <input type="hidden" name="search" value="<?= htmlspecialchars($search) ?>">
+                <input type="hidden" name="collection" value="<?= htmlspecialchars($collectionFilter) ?>">
                 
                 <div class="modal-header">
                     <h5 class="modal-title">
