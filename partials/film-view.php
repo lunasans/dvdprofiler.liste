@@ -286,7 +286,11 @@ function generateStarRating(float $rating, int $maxStars = 5): string {
         <section class="meta-card full-width">
             <h3><i class="bi bi-card-text"></i> Handlung</h3>
             <div class="overview-text" itemprop="description">
-                <?= nl2br(htmlspecialchars($dvd['overview'])) ?>
+                <?php
+                // HTML sicher bereinigen mit purifyHTML()
+                // Entfernt gefährliche Tags, Attribute (onclick, onerror, etc.) und JavaScript
+                echo purifyHTML($dvd['overview'], true);
+                ?>
             </div>
         </section>
     <?php endif; ?>

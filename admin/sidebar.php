@@ -56,6 +56,12 @@ $dvdProfilerStats = getDVDProfilerStatistics();
                 <span class="badge bg-warning text-dark ms-auto">!</span>
             <?php endif; ?>
         </a>
+
+       
+        <a href="?page=impressum" class="nav-link <?= ($_GET['page'] ?? '') === 'impressum' ? 'active' : '' ?>">
+            <i class="bi bi-info-circle"></i>
+            Impressum
+         </a>
         
         <hr class="sidebar-divider">
         

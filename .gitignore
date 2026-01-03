@@ -46,3 +46,6 @@ admin/pages/settings_backup_ohne_tmdb.php
 .idea/modules.xml
 .idea/php.xml
 .idea/dvdprofiler.liste.iml
+
+composer.json
+composer.lock
