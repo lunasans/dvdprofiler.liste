@@ -2,7 +2,7 @@
 /**
  * DVD Profiler Liste - Admin Sidebar (Clean)
  * 
- * @version 1.4.8
+ * @version 1.4.9
  */
 
 require_once dirname(__DIR__) . '/includes/version.php';
@@ -39,10 +39,21 @@ $dvdProfilerStats = getDVDProfilerStatistics();
             Filme
         </a>
         
-        <a href="?page=import" class="nav-link <?= ($_GET['page'] ?? '') === 'import' ? 'active' : '' ?>">
-            <i class="bi bi-upload"></i>
-            Import
+        <a href="#" class="nav-link" data-bs-toggle="collapse" data-bs-target="#importSubmenu">
+        <i class="bi bi-upload"></i>
+        Import
+        <i class="bi bi-chevron-down ms-auto"></i>
         </a>
+            <div class="collapse" id="importSubmenu">
+        <a href="?page=import" class="nav-link ps-4 <?= ($_GET['page'] ?? '') === 'import' ? 'active' : '' ?>">
+            <i class="bi bi-file-earmark-code"></i>
+            XML Import
+        </a>
+        <a href="?page=tmdb-import" class="nav-link ps-4 <?= ($_GET['page'] ?? '') === 'tmdb-import' ? 'active' : '' ?>">
+            <i class="bi bi-cloud-download"></i>
+            TMDb Import
+        </a>
+    </div>
         
         <a href="?page=users" class="nav-link <?= ($_GET['page'] ?? '') === 'users' ? 'active' : '' ?>">
             <i class="bi bi-people"></i>

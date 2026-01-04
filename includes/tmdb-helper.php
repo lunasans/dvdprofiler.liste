@@ -347,6 +347,36 @@ class TMDbHelper {
     }
     
     /**
+     * Hole komplette Film-Details von TMDb
+     * 
+     * @param int $tmdbId TMDb Movie ID
+     * @return array|null Film-Daten inkl. Videos, Credits, etc.
+     */
+    public function getMovieDetails($tmdbId) {
+        try {
+            // Hole Film-Details
+            $url = $this->baseUrl . '/movie/' . $tmdbId;
+            $params = [
+                'api_key' => $this->apiKey,
+                'language' => 'de-DE',
+                'append_to_response' => 'videos,credits,keywords,release_dates'
+            ];
+            
+            $data = $this->makeRequest($url, $params);
+            
+            if (!$data || !isset($data['id'])) {
+                return null;
+            }
+            
+            return $data;
+            
+        } catch (Exception $e) {
+            error_log('TMDb getMovieDetails error: ' . $e->getMessage());
+            return null;
+        }
+    }
+    
+    /**
      * HTTP Request an TMDb API
      */
     private function makeRequest($url, $params = []) {
@@ -430,4 +460,25 @@ function getFilmRatings($title, $year = null) {
     }
     
     return $tmdb->getFilmRatings($title, $year);
+}
+
+/**
+ * Helper-Funktion: Hole komplette Film-Details von TMDb
+ */
+function getTMDbMovie($tmdbId) {
+    static $tmdb = null;
+    
+    // TMDb API Key aus Settings laden
+    $apiKey = getSetting('tmdb_api_key', '');
+    
+    if (empty($apiKey)) {
+        error_log('TMDb: No API key configured');
+        return null;
+    }
+    
+    if ($tmdb === null) {
+        $tmdb = new TMDbHelper($apiKey);
+    }
+    
+    return $tmdb->getMovieDetails($tmdbId);
 }
