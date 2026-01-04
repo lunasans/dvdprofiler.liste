@@ -87,7 +87,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['fetch_url'])) {
                         'poster_path' => $tmdbMovie['poster_path'] ?? '',
                         'backdrop_path' => $tmdbMovie['backdrop_path'] ?? '',
                         'rating_age' => null, // Default
+                        'actors' => [], // NEU: Schauspieler
                     ];
+                    
+                    // Schauspieler extrahieren (Top 10)
+                    if (!empty($tmdbMovie['credits']['cast'])) {
+                        $cast = array_slice($tmdbMovie['credits']['cast'], 0, 10); // Top 10
+                        foreach ($cast as $index => $actor) {
+                            $movieData['actors'][] = [
+                                'id' => $actor['id'],
+                                'name' => $actor['name'],
+                                'character' => $actor['character'] ?? '',
+                                'profile_path' => $actor['profile_path'] ?? '',
+                                'order' => $index
+                            ];
+                        }
+                    }
                     
                     // FSK/Age Rating von TMDb Release Dates holen
                     if (!empty($tmdbMovie['release_dates']['results'])) {
@@ -300,6 +315,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['fetch_url'])) {
                                 </div>
                                 
                                 <div class="mb-3">
+                                    <label for="collection_type" class="form-label">
+                                        <i class="bi bi-collection"></i> Collection Type
+                                    </label>
+                                    <select class="form-select" id="collection_type" name="collection_type" required>
+                                        <option value="Owned" selected>Owned - DVD/Blu-ray besessen</option>
+                                        <option value="Serie">Serie - TV-Show/Serie</option>
+                                        <option value="Stream">Stream - Streaming-Service</option>
+                                    </select>
+                                    <small class="form-text text-muted">
+                                        Wie hast du Zugriff auf diesen Film?
+                                    </small>
+                                </div>
+                                
+                                <div class="mb-3">
                                     <label for="genre" class="form-label">Genre</label>
                                     <input type="text" class="form-control" id="genre" name="genre" 
                                            value="<?= htmlspecialchars($movieData['genre']) ?>">
@@ -315,6 +344,49 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['fetch_url'])) {
                                     <label for="overview" class="form-label">Handlung</label>
                                     <textarea class="form-control" id="overview" name="overview" rows="5"><?= htmlspecialchars($movieData['overview']) ?></textarea>
                                 </div>
+                                
+                                <!-- Schauspieler -->
+                                <?php if (!empty($movieData['actors'])): ?>
+                                <div class="mb-3">
+                                    <label class="form-label">
+                                        <i class="bi bi-people"></i> Hauptdarsteller (Top <?= count($movieData['actors']) ?>)
+                                    </label>
+                                    <div class="row g-2">
+                                        <?php foreach ($movieData['actors'] as $actor): ?>
+                                        <div class="col-md-6">
+                                            <div class="card border-0 bg-light">
+                                                <div class="card-body py-2 px-3">
+                                                    <div class="d-flex align-items-center">
+                                                        <?php if (!empty($actor['profile_path'])): ?>
+                                                        <img src="https://image.tmdb.org/t/p/w92<?= htmlspecialchars($actor['profile_path']) ?>" 
+                                                             alt="<?= htmlspecialchars($actor['name']) ?>"
+                                                             class="rounded-circle me-2"
+                                                             style="width: 40px; height: 40px; object-fit: cover;">
+                                                        <?php else: ?>
+                                                        <div class="rounded-circle bg-secondary me-2 d-flex align-items-center justify-content-center" 
+                                                             style="width: 40px; height: 40px;">
+                                                            <i class="bi bi-person text-white"></i>
+                                                        </div>
+                                                        <?php endif; ?>
+                                                        <div class="flex-grow-1" style="min-width: 0;">
+                                                            <div class="fw-bold text-truncate small"><?= htmlspecialchars($actor['name']) ?></div>
+                                                            <small class="text-muted text-truncate d-block" style="font-size: 0.75rem;">
+                                                                <?= htmlspecialchars($actor['character']) ?>
+                                                            </small>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <!-- Hidden Fields für Schauspieler -->
+                                            <input type="hidden" name="actors[<?= $actor['order'] ?>][id]" value="<?= $actor['id'] ?>">
+                                            <input type="hidden" name="actors[<?= $actor['order'] ?>][name]" value="<?= htmlspecialchars($actor['name']) ?>">
+                                            <input type="hidden" name="actors[<?= $actor['order'] ?>][character]" value="<?= htmlspecialchars($actor['character']) ?>">
+                                            <input type="hidden" name="actors[<?= $actor['order'] ?>][profile_path]" value="<?= htmlspecialchars($actor['profile_path']) ?>">
+                                        </div>
+                                        <?php endforeach; ?>
+                                    </div>
+                                </div>
+                                <?php endif; ?>
                                 
                                 <!-- Hidden Fields für Poster -->
                                 <input type="hidden" name="poster_path" value="<?= htmlspecialchars($movieData['poster_path']) ?>">

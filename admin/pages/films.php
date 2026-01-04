@@ -1,9 +1,9 @@
 <?php
 /**
- * DVD Profiler Liste - Film-Verwaltung
+ * DVD Profiler Liste - Films Management
+ * Verwalte, bearbeite und lösche Filme
  * 
  * @package    dvdprofiler.liste
- * @author     René Neuhaus
  * @version    1.4.8
  */
 
@@ -16,69 +16,62 @@ if (!isset($_SESSION['user_id'])) {
 // CSRF-Token generieren
 $csrfToken = generateCSRFToken();
 
-// Variablen initialisieren
-$error = '';
+// Success/Error Messages
 $success = '';
+$error = '';
 
-// Success-Message aus Session
-if (isset($_SESSION['film_success'])) {
-    $success = $_SESSION['film_success'];
-    unset($_SESSION['film_success']);
+if (isset($_SESSION['films_success'])) {
+    $success = $_SESSION['films_success'];
+    unset($_SESSION['films_success']);
 }
 
-// Error-Message aus Session
-if (isset($_SESSION['film_error'])) {
-    $error = $_SESSION['film_error'];
-    unset($_SESSION['film_error']);
+if (isset($_SESSION['films_error'])) {
+    $error = $_SESSION['films_error'];
+    unset($_SESSION['films_error']);
 }
 
-// Pagination und Filter
-$page = max(1, (int)($_GET['p'] ?? 1));
-$perPage = 20;
+// Pagination
+$page = isset($_GET['p']) ? (int)$_GET['p'] : 1;
+$perPage = 25;
 $offset = ($page - 1) * $perPage;
-$search = trim($_GET['search'] ?? '');
-$collectionType = trim($_GET['collection'] ?? '');
-$showDeleted = isset($_GET['show_deleted']); // Gelöschte anzeigen?
 
-// SQL Query aufbauen
-$where = [];
+// Search & Filter
+$search = $_GET['search'] ?? '';
+$collectionType = $_GET['collection'] ?? '';
+
+// Build Query
+$where = ["deleted = 0"];
 $params = [];
 
-// Deleted Filter (nur wenn nicht explizit angezeigt werden soll)
-if (!$showDeleted) {
-    $where[] = "deleted = 0";
+if (!empty($search)) {
+    $where[] = "(title LIKE :search OR genre LIKE :search)";
+    $params['search'] = '%' . $search . '%';
 }
 
-if ($search !== '') {
-    $where[] = "(title LIKE :search OR overview LIKE :search)";
-    $params['search'] = "%{$search}%";
+if (!empty($collectionType)) {
+    $where[] = "collection_type = :collection_type";
+    $params['collection_type'] = $collectionType;
 }
 
-if ($collectionType !== '') {
-    $where[] = "collection_type = :collection";
-    $params['collection'] = $collectionType;
-}
+$whereClause = implode(' AND ', $where);
 
-$whereSql = !empty($where) ? 'WHERE ' . implode(' AND ', $where) : '';
-
-// Gesamtanzahl ermitteln
-$countStmt = $pdo->prepare("SELECT COUNT(*) FROM dvds {$whereSql}");
-$countStmt->execute($params);
-$totalFilms = (int)$countStmt->fetchColumn();
+// Count total
+$stmt = $pdo->prepare("SELECT COUNT(*) FROM dvds WHERE " . $whereClause);
+$stmt->execute($params);
+$totalFilms = $stmt->fetchColumn();
 $totalPages = ceil($totalFilms / $perPage);
 
-// Filme laden
-$stmt = $pdo->prepare("
-    SELECT 
-        id, title, year, genre, collection_type, 
-        runtime, rating_age, trailer_url, cover_id, deleted,
-        created_at, updated_at
+// Load films
+$sql = "
+    SELECT id, title, year, genre, runtime, rating_age, collection_type, 
+           cover_id, trailer_url, created_at
     FROM dvds 
-    {$whereSql}
-    ORDER BY title ASC
+    WHERE " . $whereClause . "
+    ORDER BY id DESC
     LIMIT :limit OFFSET :offset
-");
+";
 
+$stmt = $pdo->prepare($sql);
 foreach ($params as $key => $value) {
     $stmt->bindValue($key, $value);
 }
@@ -86,224 +79,190 @@ $stmt->bindValue(':limit', $perPage, PDO::PARAM_INT);
 $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
 $stmt->execute();
 $films = $stmt->fetchAll();
-
-// Collection Types für Filter laden
-$typesStmt = $pdo->query("
-    SELECT DISTINCT collection_type 
-    FROM dvds 
-    WHERE collection_type IS NOT NULL AND collection_type != '' AND deleted = 0
-    ORDER BY collection_type
-");
-$collectionTypes = $typesStmt->fetchAll(PDO::FETCH_COLUMN);
-
-// Helper-Funktionen
-function formatRuntime(int $minutes): string {
-    $hours = floor($minutes / 60);
-    $mins = $minutes % 60;
-    return $hours > 0 ? "{$hours}h {$mins}min" : "{$mins}min";
-}
 ?>
 
-<div class="container-fluid">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h2><i class="bi bi-film"></i> Film-Verwaltung</h2>
-            <p class="text-muted mb-0">Verwalten Sie Ihre Film-Sammlung (<?= number_format($totalFilms) ?> Filme)</p>
-        </div>
-    </div>
+<div class="container-fluid px-4">
+    <h1 class="mt-4">
+        <i class="bi bi-film"></i> Filme verwalten
+    </h1>
+    <ol class="breadcrumb mb-4">
+        <li class="breadcrumb-item"><a href="?page=dashboard">Dashboard</a></li>
+        <li class="breadcrumb-item active">Filme</li>
+    </ol>
 
     <?php if ($success): ?>
         <div class="alert alert-success alert-dismissible fade show">
-            <?= htmlspecialchars($success) ?>
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        </div>
-    <?php endif; ?>
-    
-    <?php if ($error): ?>
-        <div class="alert alert-danger alert-dismissible fade show">
-            <?= htmlspecialchars($error) ?>
+            <i class="bi bi-check-circle"></i> <?= htmlspecialchars($success) ?>
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
     <?php endif; ?>
 
-    <!-- Filter und Suche -->
+    <?php if ($error): ?>
+        <div class="alert alert-danger alert-dismissible fade show">
+            <i class="bi bi-exclamation-triangle"></i> <?= htmlspecialchars($error) ?>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    <?php endif; ?>
+
+    <!-- Search & Filter -->
     <div class="card mb-4">
         <div class="card-body">
-            <form method="get" action="" class="row g-3" id="searchForm">
-                
-                <div class="col-md-5">
-                    <label for="search" class="form-label">Suche</label>
-                    <div class="input-group">
-                        <span class="input-group-text"><i class="bi bi-search"></i></span>
-                        <input type="text" 
-                               class="form-control" 
-                               id="search" 
-                               name="search" 
-                               placeholder="Titel oder Beschreibung..."
-                               value="<?= htmlspecialchars($search) ?>">
-                    </div>
-                </div>
+            <form method="get" class="row g-3">
+                <input type="hidden" name="page" value="films">
                 
                 <div class="col-md-4">
-                    <label for="collection" class="form-label">Sammlung</label>
+                    <label for="search" class="form-label">Suche</label>
+                    <input type="text" class="form-control" id="search" name="search" 
+                           value="<?= htmlspecialchars($search) ?>" 
+                           placeholder="Titel oder Genre...">
+                </div>
+                
+                <div class="col-md-3">
+                    <label for="collection" class="form-label">Collection Type</label>
                     <select class="form-select" id="collection" name="collection">
-                        <option value="">Alle Sammlungen</option>
-                        <?php foreach ($collectionTypes as $type): ?>
-                            <option value="<?= htmlspecialchars($type) ?>" 
-                                    <?= $collectionType === $type ? 'selected' : '' ?>>
-                                <?= htmlspecialchars($type) ?>
-                            </option>
-                        <?php endforeach; ?>
+                        <option value="">Alle</option>
+                        <option value="Owned" <?= $collectionType === 'Owned' ? 'selected' : '' ?>>Owned</option>
+                        <option value="Serie" <?= $collectionType === 'Serie' ? 'selected' : '' ?>>Serie</option>
+                        <option value="Stream" <?= $collectionType === 'Stream' ? 'selected' : '' ?>>Stream</option>
                     </select>
                 </div>
                 
-                <div class="col-md-3 d-flex align-items-end gap-2">
-                    <button type="submit" class="btn btn-primary flex-grow-1">
-                        <i class="bi bi-funnel"></i> Filtern
+                <div class="col-md-5 d-flex align-items-end gap-2">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-search"></i> Suchen
                     </button>
-                    <?php if ($search || $collectionType): ?>
-                        <a href="?page=films" class="btn btn-outline-secondary">
-                            <i class="bi bi-x-lg"></i>
-                        </a>
-                    <?php endif; ?>
-                </div>
-                
-                <div class="col-12">
-                    <div class="form-check">
-                        <input class="form-check-input" type="checkbox" name="show_deleted" id="show_deleted" value="1"
-                               <?= $showDeleted ? 'checked' : '' ?>
-                               onchange="this.form.submit()">
-                        <label class="form-check-label" for="show_deleted">
-                            <i class="bi bi-trash"></i> Gelöschte Filme anzeigen
-                            <?php
-                            $deletedCount = $pdo->query("SELECT COUNT(*) FROM dvds WHERE deleted = 1")->fetchColumn();
-                            if ($deletedCount > 0):
-                            ?>
-                                <span class="badge bg-warning text-dark"><?= $deletedCount ?></span>
-                            <?php endif; ?>
-                        </label>
-                    </div>
+                    <a href="?page=films" class="btn btn-secondary">
+                        <i class="bi bi-x-circle"></i> Zurücksetzen
+                    </a>
+                    <a href="?page=tmdb-import" class="btn btn-success ms-auto">
+                        <i class="bi bi-plus-circle"></i> Film importieren
+                    </a>
                 </div>
             </form>
         </div>
     </div>
 
-    <!-- Film-Liste -->
+    <!-- Films Table -->
     <div class="card">
         <div class="card-header">
-            <h5 class="mb-0">Filme</h5>
+            <i class="bi bi-list"></i> <?= number_format($totalFilms) ?> Filme
+            <?php if (!empty($search) || !empty($collectionType)): ?>
+                <span class="badge bg-primary">Gefiltert</span>
+            <?php endif; ?>
         </div>
-        <div class="card-body p-0">
+        <div class="card-body">
             <?php if (empty($films)): ?>
-                <div class="text-center py-5 text-muted">
-                    <i class="bi bi-film fs-1"></i>
-                    <p class="mt-2">Keine Filme gefunden</p>
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i> Keine Filme gefunden.
                 </div>
             <?php else: ?>
                 <div class="table-responsive">
-                    <table class="table table-hover table-striped mb-0">
-                        <thead class="table-light">
+                    <table class="table table-hover">
+                        <thead>
                             <tr>
-                                <th style="width: 60px;">ID</th>
+                                <th width="60">ID</th>
                                 <th>Titel</th>
-                                <th style="width: 80px;">Jahr</th>
-                                <th style="width: 150px;">Genre</th>
-                                <th style="width: 120px;">Sammlung</th>
-                                <th style="width: 100px; text-align: center;">Trailer</th>
-                                <th style="width: 150px; text-align: center;">Aktionen</th>
+                                <th width="80">Jahr</th>
+                                <th>Genre</th>
+                                <th width="80">FSK</th>
+                                <th width="100">Type</th>
+                                <th width="120">Hinzugefügt</th>
+                                <th width="150" class="text-end">Aktionen</th>
                             </tr>
                         </thead>
                         <tbody>
                             <?php foreach ($films as $film): ?>
-                                <tr<?= $film['deleted'] ? ' class="table-danger"' : '' ?>>
-                                    <td><?= htmlspecialchars($film['id']) ?></td>
-                                    <td>
-                                        <strong><?= htmlspecialchars($film['title']) ?></strong>
-                                        <?php if ($film['deleted']): ?>
-                                            <span class="badge bg-danger ms-2">
-                                                <i class="bi bi-trash"></i> Gelöscht
-                                            </span>
-                                        <?php endif; ?>
-                                        <?php if ($film['runtime']): ?>
-                                            <br><small class="text-muted">
-                                                <i class="bi bi-clock"></i> <?= formatRuntime($film['runtime']) ?>
-                                            </small>
-                                        <?php endif; ?>
-                                    </td>
-                                    <td><?= htmlspecialchars($film['year'] ?? '-') ?></td>
-                                    <td><?= htmlspecialchars($film['genre'] ?? '-') ?></td>
-                                    <td>
-                                        <?php if ($film['collection_type']): ?>
-                                            <span class="badge bg-secondary">
-                                                <?= htmlspecialchars($film['collection_type']) ?>
-                                            </span>
-                                        <?php else: ?>
-                                            <span class="text-muted">-</span>
-                                        <?php endif; ?>
-                                    </td>
-                                    <td style="text-align: center;">
-                                        <?php if (!empty($film['trailer_url'])): ?>
-                                            <span class="badge bg-success" title="<?= htmlspecialchars($film['trailer_url']) ?>">
-                                                <i class="bi bi-check-lg"></i> Vorhanden
-                                            </span>
-                                        <?php else: ?>
-                                            <span class="badge bg-secondary">
-                                                <i class="bi bi-dash"></i> Kein Trailer
-                                            </span>
-                                        <?php endif; ?>
-                                    </td>
-                                    <td style="text-align: center;">
-                                        <button class="btn btn-sm btn-outline-primary edit-film-btn"
-                                                data-film-id="<?= $film['id'] ?>"
-                                                data-film-title="<?= htmlspecialchars($film['title']) ?>"
-                                                data-film-year="<?= htmlspecialchars($film['year'] ?? '') ?>"
-                                                data-film-trailer="<?= htmlspecialchars($film['trailer_url'] ?? '') ?>"
-                                                title="Film bearbeiten">
+                            <tr>
+                                <td><?= $film['id'] ?></td>
+                                <td>
+                                    <strong><?= htmlspecialchars($film['title']) ?></strong>
+                                    <?php if (!empty($film['trailer_url'])): ?>
+                                        <i class="bi bi-play-circle text-danger" title="Hat Trailer"></i>
+                                    <?php endif; ?>
+                                </td>
+                                <td><?= $film['year'] ?></td>
+                                <td><span class="badge bg-secondary"><?= htmlspecialchars($film['genre']) ?></span></td>
+                                <td>
+                                    <?php if ($film['rating_age'] !== null): ?>
+                                        <span class="badge bg-warning">FSK <?= $film['rating_age'] ?></span>
+                                    <?php endif; ?>
+                                </td>
+                                <td>
+                                    <?php
+                                    $typeColors = [
+                                        'Owned' => 'success',
+                                        'Serie' => 'info',
+                                        'Stream' => 'primary'
+                                    ];
+                                    $color = $typeColors[$film['collection_type']] ?? 'secondary';
+                                    ?>
+                                    <span class="badge bg-<?= $color ?>"><?= htmlspecialchars($film['collection_type']) ?></span>
+                                </td>
+                                <td>
+                                    <small class="text-muted">
+                                        <?= date('d.m.Y', strtotime($film['created_at'])) ?>
+                                    </small>
+                                </td>
+                                <td class="text-end">
+                                    <div class="btn-group btn-group-sm">
+                                        <button type="button" 
+                                                class="btn btn-outline-primary"
+                                                onclick="editFilm(<?= $film['id'] ?>)"
+                                                title="Bearbeiten">
                                             <i class="bi bi-pencil"></i>
                                         </button>
-                                    </td>
-                                </tr>
+                                        <a href="../film-view.php?id=<?= $film['id'] ?>" 
+                                           class="btn btn-outline-info"
+                                           target="_blank"
+                                           title="Ansehen">
+                                            <i class="bi bi-eye"></i>
+                                        </a>
+                                        <button type="button" 
+                                                class="btn btn-outline-danger"
+                                                onclick="deleteFilm(<?= $film['id'] ?>, '<?= htmlspecialchars($film['title'], ENT_QUOTES) ?>')"
+                                                title="Löschen">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
                             <?php endforeach; ?>
                         </tbody>
                     </table>
                 </div>
-            <?php endif; ?>
-        </div>
-        
-        <?php if ($totalPages > 1): ?>
-            <div class="card-footer">
-                <nav aria-label="Seitennummerierung">
-                    <ul class="pagination pagination-sm mb-0 justify-content-center">
+
+                <!-- Pagination -->
+                <?php if ($totalPages > 1): ?>
+                <nav aria-label="Pagination" class="mt-3">
+                    <ul class="pagination justify-content-center">
                         <?php if ($page > 1): ?>
-                            <li class="page-item">
-                                <a class="page-link" href="?page=films&p=<?= $page - 1 ?>&search=<?= urlencode($search) ?>&collection=<?= urlencode($collectionType) ?>">
-                                    <i class="bi bi-chevron-left"></i>
-                                </a>
-                            </li>
+                        <li class="page-item">
+                            <a class="page-link" href="?page=films&p=<?= $page - 1 ?><?= !empty($search) ? '&search=' . urlencode($search) : '' ?><?= !empty($collectionType) ? '&collection=' . urlencode($collectionType) : '' ?>">
+                                <i class="bi bi-chevron-left"></i>
+                            </a>
+                        </li>
                         <?php endif; ?>
-                        
+
                         <?php for ($i = max(1, $page - 2); $i <= min($totalPages, $page + 2); $i++): ?>
-                            <li class="page-item <?= $i === $page ? 'active' : '' ?>">
-                                <a class="page-link" href="?page=films&p=<?= $i ?>&search=<?= urlencode($search) ?>&collection=<?= urlencode($collectionType) ?>">
-                                    <?= $i ?>
-                                </a>
-                            </li>
+                        <li class="page-item <?= $i === $page ? 'active' : '' ?>">
+                            <a class="page-link" href="?page=films&p=<?= $i ?><?= !empty($search) ? '&search=' . urlencode($search) : '' ?><?= !empty($collectionType) ? '&collection=' . urlencode($collectionType) : '' ?>">
+                                <?= $i ?>
+                            </a>
+                        </li>
                         <?php endfor; ?>
-                        
+
                         <?php if ($page < $totalPages): ?>
-                            <li class="page-item">
-                                <a class="page-link" href="?page=films&p=<?= $page + 1 ?>&search=<?= urlencode($search) ?>&collection=<?= urlencode($collectionType) ?>">
-                                    <i class="bi bi-chevron-right"></i>
-                                </a>
-                            </li>
+                        <li class="page-item">
+                            <a class="page-link" href="?page=films&p=<?= $page + 1 ?><?= !empty($search) ? '&search=' . urlencode($search) : '' ?><?= !empty($collectionType) ? '&collection=' . urlencode($collectionType) : '' ?>">
+                                <i class="bi bi-chevron-right"></i>
+                            </a>
+                        </li>
                         <?php endif; ?>
                     </ul>
                 </nav>
-                <div class="text-center text-muted mt-2">
-                    <small>Seite <?= $page ?> von <?= $totalPages ?> (<?= number_format($totalFilms) ?> Filme gesamt)</small>
-                </div>
-            </div>
-        <?php endif; ?>
+                <?php endif; ?>
+            <?php endif; ?>
+        </div>
     </div>
 </div>
 
@@ -311,61 +270,79 @@ function formatRuntime(int $minutes): string {
 <div class="modal fade" id="editFilmModal" tabindex="-1">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
-            <form method="post" action="actions/edit_film.php" id="editFilmForm">
-                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
-                <input type="hidden" name="film_id" id="edit-film-id">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-pencil"></i> Film bearbeiten
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="editFilmForm" action="actions/edit-film.php" method="post">
+                <input type="hidden" name="csrf_token" value="<?= $csrfToken ?>">
+                <input type="hidden" name="film_id" id="edit_film_id">
                 <input type="hidden" name="current_page" value="<?= $page ?>">
                 <input type="hidden" name="search" value="<?= htmlspecialchars($search) ?>">
                 <input type="hidden" name="collection" value="<?= htmlspecialchars($collectionType) ?>">
                 
-                <div class="modal-header">
-                    <h5 class="modal-title">
-                        <i class="bi bi-pencil-square"></i> 
-                        Film bearbeiten: <span id="edit-film-title-display"></span>
-                    </h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                
                 <div class="modal-body">
-                    <div class="mb-3">
-                        <label for="edit-trailer-url" class="form-label">
-                            <i class="bi bi-play-circle"></i> Trailer-URL
-                        </label>
-                        <input type="url" 
-                               class="form-control" 
-                               id="edit-trailer-url" 
-                               name="trailer_url" 
-                               placeholder="https://www.youtube.com/watch?v=..." 
-                               maxlength="500">
-                        <div class="form-text">
-                            Fügen Sie eine YouTube-, Vimeo- oder andere Video-URL ein.
-                            <br>Unterstützt: YouTube, Vimeo, Dailymotion
+                    <div class="row">
+                        <div class="col-md-8 mb-3">
+                            <label for="edit_title" class="form-label">Titel *</label>
+                            <input type="text" class="form-control" id="edit_title" name="title" required>
                         </div>
-                        <div id="trailer-preview" class="mt-3" style="display: none;">
-                            <label class="form-label">Vorschau:</label>
-                            <div class="ratio ratio-16x9">
-                                <iframe id="trailer-preview-frame" 
-                                        src="" 
-                                        allowfullscreen 
-                                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture">
-                                </iframe>
-                            </div>
+                        <div class="col-md-4 mb-3">
+                            <label for="edit_year" class="form-label">Jahr *</label>
+                            <input type="number" class="form-control" id="edit_year" name="year" required>
                         </div>
                     </div>
-                    
-                    <div class="alert alert-info">
-                        <i class="bi bi-info-circle"></i>
-                        <strong>Hinweis:</strong> Aktuell können nur Trailer-URLs bearbeitet werden. 
-                        Weitere Film-Details können über den XML-Import aktualisiert werden.
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="edit_genre" class="form-label">Genre</label>
+                            <input type="text" class="form-control" id="edit_genre" name="genre">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="edit_runtime" class="form-label">Laufzeit (Min)</label>
+                            <input type="number" class="form-control" id="edit_runtime" name="runtime">
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="edit_rating_age" class="form-label">FSK</label>
+                            <select class="form-select" id="edit_rating_age" name="rating_age">
+                                <option value="">Keine Angabe</option>
+                                <option value="0">FSK 0</option>
+                                <option value="6">FSK 6</option>
+                                <option value="12">FSK 12</option>
+                                <option value="16">FSK 16</option>
+                                <option value="18">FSK 18</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="edit_collection_type" class="form-label">Collection Type *</label>
+                            <select class="form-select" id="edit_collection_type" name="collection_type" required>
+                                <option value="Owned">Owned</option>
+                                <option value="Serie">Serie</option>
+                                <option value="Stream">Stream</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="edit_trailer_url" class="form-label">Trailer URL</label>
+                        <input type="url" class="form-control" id="edit_trailer_url" name="trailer_url" placeholder="https://youtube.com/watch?v=...">
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="edit_overview" class="form-label">Handlung</label>
+                        <textarea class="form-control" id="edit_overview" name="overview" rows="4"></textarea>
                     </div>
                 </div>
                 
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                        Abbrechen
-                    </button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
                     <button type="submit" class="btn btn-primary">
-                        <i class="bi bi-check-lg"></i> Speichern
+                        <i class="bi bi-save"></i> Speichern
                     </button>
                 </div>
             </form>
@@ -374,191 +351,52 @@ function formatRuntime(int $minutes): string {
 </div>
 
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Bootstrap Modal initialisieren
-    const editModal = new bootstrap.Modal(document.getElementById('editFilmModal'));
-    
-    // Edit-Button Handler
-    document.querySelectorAll('.edit-film-btn').forEach(btn => {
-        btn.addEventListener('click', function() {
-            const filmId = this.dataset.filmId;
-            const filmTitle = this.dataset.filmTitle;
-            const filmYear = this.dataset.filmYear;
-            const filmTrailer = this.dataset.filmTrailer || '';
+// Edit Film
+function editFilm(filmId) {
+    // Load film data via AJAX
+    fetch(`actions/get-film.php?id=${filmId}`)
+        .then(response => response.json())
+        .then(film => {
+            document.getElementById('edit_film_id').value = film.id;
+            document.getElementById('edit_title').value = film.title;
+            document.getElementById('edit_year').value = film.year;
+            document.getElementById('edit_genre').value = film.genre || '';
+            document.getElementById('edit_runtime').value = film.runtime || '';
+            document.getElementById('edit_rating_age').value = film.rating_age || '';
+            document.getElementById('edit_collection_type').value = film.collection_type || 'Owned';
+            document.getElementById('edit_trailer_url').value = film.trailer_url || '';
+            document.getElementById('edit_overview').value = film.overview || '';
             
-            // Modal-Felder füllen
-            document.getElementById('edit-film-id').value = filmId;
-            document.getElementById('edit-film-title-display').textContent = `${filmTitle} (${filmYear})`;
-            document.getElementById('edit-trailer-url').value = filmTrailer;
-            
-            // Vorschau aktualisieren wenn URL vorhanden
-            if (filmTrailer) {
-                updateTrailerPreview(filmTrailer);
-            } else {
-                document.getElementById('trailer-preview').style.display = 'none';
-            }
-            
-            // Modal anzeigen
-            editModal.show();
+            new bootstrap.Modal(document.getElementById('editFilmModal')).show();
+        })
+        .catch(error => {
+            alert('Fehler beim Laden der Film-Daten: ' + error);
         });
-    });
-    
-    // Trailer-URL Input Handler für Live-Vorschau
-    const trailerInput = document.getElementById('edit-trailer-url');
-    let previewTimeout;
-    
-    trailerInput.addEventListener('input', function() {
-        clearTimeout(previewTimeout);
-        const url = this.value.trim();
-        
-        if (url) {
-            previewTimeout = setTimeout(() => {
-                updateTrailerPreview(url);
-            }, 500); // 500ms Debounce
-        } else {
-            document.getElementById('trailer-preview').style.display = 'none';
-        }
-    });
-    
-    // Funktion zum Aktualisieren der Trailer-Vorschau
-    function updateTrailerPreview(url) {
-        const preview = document.getElementById('trailer-preview');
-        const frame = document.getElementById('trailer-preview-frame');
-        
-        // YouTube-URL konvertieren
-        let embedUrl = convertToEmbedUrl(url);
-        
-        if (embedUrl) {
-            frame.src = embedUrl;
-            preview.style.display = 'block';
-        } else {
-            preview.style.display = 'none';
-        }
+}
+
+// Delete Film
+function deleteFilm(filmId, filmTitle) {
+    if (!confirm(`Film "${filmTitle}" wirklich löschen?`)) {
+        return;
     }
     
-    // URL zu Embed-URL konvertieren
-    function convertToEmbedUrl(url) {
-        // YouTube
-        const youtubeRegex = /(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]+)/;
-        const youtubeMatch = url.match(youtubeRegex);
-        if (youtubeMatch) {
-            return `https://www.youtube.com/embed/${youtubeMatch[1]}`;
-        }
-        
-        // Vimeo
-        const vimeoRegex = /vimeo\.com\/(\d+)/;
-        const vimeoMatch = url.match(vimeoRegex);
-        if (vimeoMatch) {
-            return `https://player.vimeo.com/video/${vimeoMatch[1]}`;
-        }
-        
-        // Dailymotion
-        const dailymotionRegex = /dailymotion\.com\/video\/([a-zA-Z0-9]+)/;
-        const dailymotionMatch = url.match(dailymotionRegex);
-        if (dailymotionMatch) {
-            return `https://www.dailymotion.com/embed/video/${dailymotionMatch[1]}`;
-        }
-        
-        return null;
-    }
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = 'actions/delete-film.php';
     
-    // Form-Submission Handler
-    document.getElementById('editFilmForm').addEventListener('submit', function(e) {
-        const submitBtn = this.querySelector('button[type="submit"]');
-        submitBtn.disabled = true;
-        submitBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Speichern...';
-    });
-});
-</script>
-
-<style>
-.edit-film-btn:hover {
-    transform: scale(1.1);
-    transition: transform 0.2s ease;
-}
-
-.table td {
-    vertical-align: middle;
-}
-
-#trailer-preview {
-    background: #f8f9fa;
-    border-radius: 8px;
-    padding: 15px;
-}
-
-.modal-lg {
-    max-width: 800px;
-}
-
-/* Modal Text Fix - Dunkle Schrift auf hellem Hintergrund */
-.modal-content {
-    background: #ffffff;
-    color: #212529;
-}
-
-.modal-header {
-    background: #f8f9fa;
-    color: #212529;
-    border-bottom: 1px solid #dee2e6;
-}
-
-.modal-header .modal-title {
-    color: #212529 !important;
-}
-
-.modal-header .modal-title i {
-    color: #0d6efd;
-}
-
-.modal-header .modal-title span {
-    color: #212529 !important;
-}
-
-.modal-body {
-    background: #ffffff;
-    color: #212529;
-}
-
-.modal-body label {
-    color: #212529;
-    font-weight: 500;
-}
-
-.modal-body .form-text {
-    color: #6c757d;
-}
-
-.modal-footer {
-    background: #f8f9fa;
-    border-top: 1px solid #dee2e6;
-}
-</style>
-
-<script>
-// Form Submit - page Parameter erhalten
-document.getElementById('searchForm').addEventListener('submit', function(e) {
-    e.preventDefault();
+    const csrfInput = document.createElement('input');
+    csrfInput.type = 'hidden';
+    csrfInput.name = 'csrf_token';
+    csrfInput.value = '<?= $csrfToken ?>';
     
-    const formData = new FormData(this);
-    const params = new URLSearchParams();
+    const idInput = document.createElement('input');
+    idInput.type = 'hidden';
+    idInput.name = 'film_id';
+    idInput.value = filmId;
     
-    // page Parameter immer hinzufügen
-    params.set('page', 'films');
-    
-    // Andere Felder nur wenn nicht leer
-    const search = formData.get('search');
-    const collection = formData.get('collection');
-    
-    if (search && search.trim() !== '') {
-        params.set('search', search.trim());
-    }
-    
-    if (collection && collection !== '') {
-        params.set('collection', collection);
-    }
-    
-    // Redirect
-    window.location.href = '?' + params.toString();
-});
+    form.appendChild(csrfInput);
+    form.appendChild(idInput);
+    document.body.appendChild(form);
+    form.submit();
+}
 </script>

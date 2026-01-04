@@ -45,6 +45,8 @@ try {
     $backdropPath = trim($_POST['backdrop_path'] ?? '');
     $purchaseDate = trim($_POST['purchase_date'] ?? '');
     $ratingAge = !empty($_POST['rating_age']) ? (int)$_POST['rating_age'] : null;
+    $collectionType = trim($_POST['collection_type'] ?? 'Owned'); // NEU: Collection Type
+    $actors = $_POST['actors'] ?? []; // NEU: Schauspieler
     $userId = $_SESSION['user_id'];
     
     // DEBUG: Kaufdatum
@@ -62,6 +64,11 @@ try {
     // Rating Age validieren (falls gesetzt)
     if ($ratingAge !== null && !in_array($ratingAge, [0, 6, 12, 16, 18])) {
         throw new Exception('Ungültige Altersfreigabe.');
+    }
+    
+    // Collection Type validieren
+    if (!in_array($collectionType, ['Owned', 'Serie', 'Stream'])) {
+        throw new Exception('Ungültiger Collection Type.');
     }
     
     // Kaufdatum validieren und aufbereiten
@@ -103,11 +110,11 @@ try {
     $stmt = $pdo->prepare("
         INSERT INTO dvds (
             id, title, year, genre, runtime, overview, 
-            cover_id, trailer_url, rating_age, user_id, 
+            cover_id, trailer_url, rating_age, collection_type, user_id, 
             created_at, updated_at
         ) VALUES (
             :id, :title, :year, :genre, :runtime, :overview,
-            :cover_id, :trailer_url, :rating_age, :user_id,
+            :cover_id, :trailer_url, :rating_age, :collection_type, :user_id,
             :created_at, NOW()
         )
     ");
@@ -122,6 +129,7 @@ try {
         'cover_id' => $coverId,
         'trailer_url' => !empty($trailer) ? $trailer : null,
         'rating_age' => $ratingAge,
+        'collection_type' => $collectionType,
         'user_id' => $userId,
         'created_at' => $createdAt
     ];
@@ -144,6 +152,20 @@ try {
     
     $filmId = $nextId; // Verwende die manuelle ID statt lastInsertId()
     
+    error_log("TMDb Import - Film saved with ID: {$filmId}");
+    
+    // Schauspieler importieren
+    if (!empty($actors)) {
+        error_log("TMDb Import - Importing " . count($actors) . " actors");
+        try {
+            importActors($pdo, $filmId, $actors);
+            error_log("TMDb Import - Actors imported successfully");
+        } catch (Exception $e) {
+            error_log("TMDb Import - Actor import failed: " . $e->getMessage());
+            // Nicht kritisch, Film ist bereits gespeichert
+        }
+    }
+    
     // Cover herunterladen und speichern
     if (!empty($posterPath)) {
         $posterUrl = 'https://image.tmdb.org/t/p/original' . $posterPath;
@@ -161,7 +183,7 @@ try {
         // Cover herunterladen
         $coverData = @file_get_contents($posterUrl);
         if ($coverData !== false) {
-            $coverFile = $coverDir . '/' . $coverId . '_f.jpg';
+            $coverFile = $coverDir . '/' . $coverId . 'f.jpg';  // OHNE Unterstrich!
             $written = file_put_contents($coverFile, $coverData);
             error_log("TMDb Import - Front cover saved: {$coverFile} ({$written} bytes)");
         } else {
@@ -178,7 +200,7 @@ try {
         
         $backdropData = @file_get_contents($backdropUrl);
         if ($backdropData !== false) {
-            $backdropFile = __DIR__ . '/../../cover/' . $coverId . '_b.jpg';
+            $backdropFile = __DIR__ . '/../../cover/' . $coverId . 'b.jpg';  // OHNE Unterstrich!
             $written = file_put_contents($backdropFile, $backdropData);
             error_log("TMDb Import - Back cover saved: {$backdropFile} ({$written} bytes)");
         } else {
@@ -190,10 +212,10 @@ try {
     
     // Prüfe welche Cover erfolgreich heruntergeladen wurden
     $coverInfo = [];
-    if (file_exists(__DIR__ . '/../../cover/' . $coverId . '_f.jpg')) {
+    if (file_exists(__DIR__ . '/../../cover/' . $coverId . 'f.jpg')) {  // OHNE Unterstrich!
         $coverInfo[] = "✓ Front";
     }
-    if (file_exists(__DIR__ . '/../../cover/' . $coverId . '_b.jpg')) {
+    if (file_exists(__DIR__ . '/../../cover/' . $coverId . 'b.jpg')) {  // OHNE Unterstrich!
         $coverInfo[] = "✓ Back";
     }
     
@@ -204,7 +226,8 @@ try {
     // Lösche gespeicherte Movie-Data aus Session
     unset($_SESSION['tmdb_movie_data']);
     
-    header('Location: ../index.php?page=films');
+    // Zurück zum TMDb Import für nächsten Film
+    header('Location: ../index.php?page=tmdb-import');
     exit;
     
 } catch (Exception $e) {
@@ -212,4 +235,106 @@ try {
     error_log('TMDb Import Error: ' . $e->getMessage());
     header('Location: ../index.php?page=tmdb-import');
     exit;
+}
+
+/**
+ * Importiert Schauspieler für einen Film
+ * 
+ * @param PDO $pdo Datenbank-Verbindung
+ * @param int $filmId Film-ID
+ * @param array $actors Array mit Schauspieler-Daten
+ */
+function importActors($pdo, $filmId, $actors) {
+    if (empty($actors)) {
+        return;
+    }
+    
+    // Prüfe ob Tabellen existieren
+    $stmt = $pdo->query("SHOW TABLES LIKE 'actors'");
+    if (!$stmt->fetch()) {
+        error_log("TMDb Import - actors table does not exist, skipping actor import");
+        return;
+    }
+    
+    $stmt = $pdo->query("SHOW TABLES LIKE 'film_actor'");
+    if (!$stmt->fetch()) {
+        error_log("TMDb Import - film_actor table does not exist, skipping actor import");
+        return;
+    }
+    
+    foreach ($actors as $actorData) {
+        $fullName = trim($actorData['name'] ?? '');
+        $character = trim($actorData['character'] ?? '');
+        $order = (int)($actorData['order'] ?? 0);
+        
+        if (empty($fullName)) {
+            continue;
+        }
+        
+        // Namen aufteilen (z.B. "Keanu Reeves" -> first="Keanu", last="Reeves")
+        $nameParts = explode(' ', $fullName, 2);
+        $firstName = $nameParts[0] ?? '';
+        $lastName = $nameParts[1] ?? '';
+        
+        try {
+            // Suche Schauspieler nach Namen
+            $stmt = $pdo->prepare("
+                SELECT id FROM actors 
+                WHERE first_name = :first_name 
+                AND last_name = :last_name
+                LIMIT 1
+            ");
+            
+            $stmt->execute([
+                'first_name' => $firstName,
+                'last_name' => $lastName
+            ]);
+            
+            $existingActor = $stmt->fetch();
+            
+            if ($existingActor) {
+                // Schauspieler existiert bereits
+                $actorId = $existingActor['id'];
+                error_log("TMDb Import - Found existing actor: {$fullName} (ID: {$actorId})");
+            } else {
+                // Neuen Schauspieler anlegen
+                $stmt = $pdo->prepare("
+                    INSERT INTO actors (first_name, last_name, created_at, updated_at)
+                    VALUES (:first_name, :last_name, NOW(), NOW())
+                ");
+                
+                $stmt->execute([
+                    'first_name' => $firstName,
+                    'last_name' => $lastName
+                ]);
+                
+                $actorId = $pdo->lastInsertId();
+                error_log("TMDb Import - Created new actor: {$fullName} (ID: {$actorId})");
+            }
+            
+            // Verknüpfung Film <-> Schauspieler erstellen
+            $stmt = $pdo->prepare("
+                INSERT INTO film_actor (film_id, actor_id, role, is_main_role, sort_order, created_at)
+                VALUES (:film_id, :actor_id, :role, :is_main_role, :sort_order, NOW())
+                ON DUPLICATE KEY UPDATE
+                    role = VALUES(role),
+                    is_main_role = VALUES(is_main_role),
+                    sort_order = VALUES(sort_order)
+            ");
+            
+            $stmt->execute([
+                'film_id' => $filmId,
+                'actor_id' => $actorId,
+                'role' => !empty($character) ? $character : null,
+                'is_main_role' => ($order < 3) ? 1 : 0, // Top 3 = Hauptrollen
+                'sort_order' => $order
+            ]);
+            
+            error_log("TMDb Import - Linked actor {$fullName} to film {$filmId} as '{$character}'");
+            
+        } catch (PDOException $e) {
+            error_log("TMDb Import - Failed to import actor {$fullName}: " . $e->getMessage());
+            // Weitermachen mit nächstem Schauspieler
+        }
+    }
 }

@@ -52,7 +52,7 @@ $dvdProfilerStats = getDVDProfilerStatistics();
         <a href="?page=tmdb-import" class="nav-link ps-4 <?= ($_GET['page'] ?? '') === 'tmdb-import' ? 'active' : '' ?>">
             <i class="bi bi-cloud-download"></i>
             TMDb Import
-        </a>
+        </a>   
     </div>
         
         <a href="?page=users" class="nav-link <?= ($_GET['page'] ?? '') === 'users' ? 'active' : '' ?>">
