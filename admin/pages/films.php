@@ -286,29 +286,29 @@ $films = $stmt->fetchAll();
                 <div class="modal-body">
                     <div class="row">
                         <div class="col-md-8 mb-3">
-                            <label for="edit_title" class="form-label">Titel *</label>
+                            <label for="edit_title" class="form-label text-dark">Titel *</label>
                             <input type="text" class="form-control" id="edit_title" name="title" required>
                         </div>
                         <div class="col-md-4 mb-3">
-                            <label for="edit_year" class="form-label">Jahr *</label>
+                            <label for="edit_year" class="form-label text-dark">Jahr *</label>
                             <input type="number" class="form-control" id="edit_year" name="year" required>
                         </div>
                     </div>
 
                     <div class="row">
                         <div class="col-md-6 mb-3">
-                            <label for="edit_genre" class="form-label">Genre</label>
+                            <label for="edit_genre" class="form-label text-dark">Genre</label>
                             <input type="text" class="form-control" id="edit_genre" name="genre">
                         </div>
                         <div class="col-md-6 mb-3">
-                            <label for="edit_runtime" class="form-label">Laufzeit (Min)</label>
+                            <label for="edit_runtime" class="form-label text-dark">Laufzeit (Min)</label>
                             <input type="number" class="form-control" id="edit_runtime" name="runtime">
                         </div>
                     </div>
 
                     <div class="row">
                         <div class="col-md-6 mb-3">
-                            <label for="edit_rating_age" class="form-label">FSK</label>
+                            <label for="edit_rating_age" class="form-label text-dark">FSK</label>
                             <select class="form-select" id="edit_rating_age" name="rating_age">
                                 <option value="">Keine Angabe</option>
                                 <option value="0">FSK 0</option>
@@ -319,7 +319,7 @@ $films = $stmt->fetchAll();
                             </select>
                         </div>
                         <div class="col-md-6 mb-3">
-                            <label for="edit_collection_type" class="form-label">Collection Type *</label>
+                            <label for="edit_collection_type" class="form-label text-dark">Collection Type *</label>
                             <select class="form-select" id="edit_collection_type" name="collection_type" required>
                                 <option value="Owned">Owned</option>
                                 <option value="Serie">Serie</option>
@@ -329,12 +329,12 @@ $films = $stmt->fetchAll();
                     </div>
 
                     <div class="mb-3">
-                        <label for="edit_trailer_url" class="form-label">Trailer URL</label>
+                        <label for="edit_trailer_url" class="form-label text-dark">Trailer URL</label>
                         <input type="url" class="form-control" id="edit_trailer_url" name="trailer_url" placeholder="https://youtube.com/watch?v=...">
                     </div>
 
                     <div class="mb-3">
-                        <label for="edit_overview" class="form-label">Handlung</label>
+                        <label for="edit_overview" class="form-label text-dark">Handlung</label>
                         <textarea class="form-control" id="edit_overview" name="overview" rows="4"></textarea>
                     </div>
                 </div>
@@ -350,27 +350,91 @@ $films = $stmt->fetchAll();
     </div>
 </div>
 
+<style>
+/* Modal Text Lesbarkeit - SEHR spezifisch mit ID! */
+#editFilmModal .modal-content {
+    background-color: #ffffff !important;
+    color: #212529 !important;
+}
+
+#editFilmModal .modal-header,
+#editFilmModal .modal-body,
+#editFilmModal .modal-footer {
+    background-color: #ffffff !important;
+}
+
+#editFilmModal .modal-title {
+    color: #212529 !important;
+}
+
+#editFilmModal .modal-body label,
+#editFilmModal .modal-body .form-label {
+    color: #212529 !important;
+    font-weight: 500 !important;
+}
+
+#editFilmModal .modal-body .text-dark {
+    color: #212529 !important;
+}
+
+#editFilmModal .form-control,
+#editFilmModal .form-select,
+#editFilmModal textarea.form-control {
+    color: #212529 !important;
+    background-color: #ffffff !important;
+    border: 1px solid #ced4da !important;
+}
+
+#editFilmModal .form-control::placeholder {
+    color: #6c757d !important;
+    opacity: 0.6 !important;
+}
+</style>
+
 <script>
 // Edit Film
 function editFilm(filmId) {
+    console.log('Loading film:', filmId);
+    
     // Load film data via AJAX
     fetch(`actions/get-film.php?id=${filmId}`)
-        .then(response => response.json())
-        .then(film => {
-            document.getElementById('edit_film_id').value = film.id;
-            document.getElementById('edit_title').value = film.title;
-            document.getElementById('edit_year').value = film.year;
-            document.getElementById('edit_genre').value = film.genre || '';
-            document.getElementById('edit_runtime').value = film.runtime || '';
-            document.getElementById('edit_rating_age').value = film.rating_age || '';
-            document.getElementById('edit_collection_type').value = film.collection_type || 'Owned';
-            document.getElementById('edit_trailer_url').value = film.trailer_url || '';
-            document.getElementById('edit_overview').value = film.overview || '';
+        .then(response => {
+            console.log('Response status:', response.status);
+            console.log('Response headers:', response.headers.get('content-type'));
+            return response.text(); // Erstmal als Text holen
+        })
+        .then(text => {
+            console.log('Response text:', text);
             
-            new bootstrap.Modal(document.getElementById('editFilmModal')).show();
+            // Versuche JSON zu parsen
+            try {
+                const film = JSON.parse(text);
+                console.log('Parsed film:', film);
+                
+                if (film.error) {
+                    alert('Fehler: ' + film.error);
+                    return;
+                }
+                
+                document.getElementById('edit_film_id').value = film.id;
+                document.getElementById('edit_title').value = film.title;
+                document.getElementById('edit_year').value = film.year;
+                document.getElementById('edit_genre').value = film.genre || '';
+                document.getElementById('edit_runtime').value = film.runtime || '';
+                document.getElementById('edit_rating_age').value = film.rating_age || '';
+                document.getElementById('edit_collection_type').value = film.collection_type || 'Owned';
+                document.getElementById('edit_trailer_url').value = film.trailer_url || '';
+                document.getElementById('edit_overview').value = film.overview || '';
+                
+                new bootstrap.Modal(document.getElementById('editFilmModal')).show();
+            } catch (e) {
+                console.error('JSON Parse Error:', e);
+                alert('Fehler beim Parsen der Film-Daten. Server-Antwort: ' + text.substring(0, 200));
+            }
         })
         .catch(error => {
-            alert('Fehler beim Laden der Film-Daten: ' + error);
+            console.error('Fetch error:', error);
+            alert('Netzwerk-Fehler: ' + error);
         });
 }
 

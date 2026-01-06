@@ -377,6 +377,55 @@ class TMDbHelper {
     }
     
     /**
+     * Hole komplette TV Show Details von TMDb
+     * 
+     * @param int $tmdbId TMDb TV Show ID
+     * @return array|null TV Show Daten inkl. Seasons & Episodes
+     */
+    public function getTVShowDetails($tmdbId) {
+        try {
+            // Hole TV Show Details
+            $url = $this->baseUrl . '/tv/' . $tmdbId;
+            $params = [
+                'api_key' => $this->apiKey,
+                'language' => 'de-DE',
+                'append_to_response' => 'videos,credits,keywords,content_ratings'
+            ];
+            
+            $data = $this->makeRequest($url, $params);
+            
+            if (!$data || !isset($data['id'])) {
+                return null;
+            }
+            
+            // Hole alle Staffeln mit Episoden
+            $data['seasons_detailed'] = [];
+            if (!empty($data['seasons'])) {
+                foreach ($data['seasons'] as $season) {
+                    $seasonNumber = $season['season_number'];
+                    
+                    // Hole Staffel-Details inkl. Episoden
+                    $seasonUrl = $this->baseUrl . '/tv/' . $tmdbId . '/season/' . $seasonNumber;
+                    $seasonData = $this->makeRequest($seasonUrl, [
+                        'api_key' => $this->apiKey,
+                        'language' => 'de-DE'
+                    ]);
+                    
+                    if ($seasonData) {
+                        $data['seasons_detailed'][] = $seasonData;
+                    }
+                }
+            }
+            
+            return $data;
+            
+        } catch (Exception $e) {
+            error_log('TMDb getTVShowDetails error: ' . $e->getMessage());
+            return null;
+        }
+    }
+    
+    /**
      * HTTP Request an TMDb API
      */
     private function makeRequest($url, $params = []) {
@@ -481,4 +530,25 @@ function getTMDbMovie($tmdbId) {
     }
     
     return $tmdb->getMovieDetails($tmdbId);
+}
+
+/**
+ * Helper-Funktion: Hole komplette TV Show Details von TMDb
+ */
+function getTMDbTVShow($tmdbId) {
+    static $tmdb = null;
+    
+    // TMDb API Key aus Settings laden
+    $apiKey = getSetting('tmdb_api_key', '');
+    
+    if (empty($apiKey)) {
+        error_log('TMDb: No API key configured');
+        return null;
+    }
+    
+    if ($tmdb === null) {
+        $tmdb = new TMDbHelper($apiKey);
+    }
+    
+    return $tmdb->getTVShowDetails($tmdbId);
 }

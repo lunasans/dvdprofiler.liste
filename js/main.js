@@ -147,6 +147,9 @@ class DVDApp {
                 
                 // 🌟 FILM-RATING INITIALISIEREN
                 this.initFilmRating();
+                
+                // 📺 STAFFELN/EPISODEN INITIALISIEREN
+                this.initSeasons();
             }
         } catch (error) {
             console.error('❌ Fehler beim Laden des Films:', error);
@@ -327,6 +330,60 @@ class DVDApp {
             
             return null;
         }
+    }
+    
+    // 📺 NEUE METHODE: Staffeln/Episoden Toggle initialisieren
+    initSeasons() {
+        console.log('📺 Staffeln/Episoden wird initialisiert...');
+        
+        // Alle Season-Headers finden
+        const headers = document.querySelectorAll('.season-header');
+        console.log('📺 Gefundene Staffel-Headers:', headers.length);
+        
+        if (headers.length === 0) {
+            console.log('ℹ️ Keine Staffeln gefunden (wahrscheinlich ein Film, keine Serie)');
+            return;
+        }
+        
+        // Event Listener für jeden Header hinzufügen
+        headers.forEach(header => {
+            const seasonNumber = header.getAttribute('data-season');
+            console.log('📺 Verarbeite Staffel:', seasonNumber);
+            
+            header.style.cursor = 'pointer';
+            
+            header.addEventListener('click', () => {
+                console.log('🖱️ Staffel geklickt:', seasonNumber);
+                
+                const content = document.querySelector(`[data-content="${seasonNumber}"]`);
+                const caret = document.querySelector(`[data-caret="${seasonNumber}"]`);
+                
+                if (!content || !caret) {
+                    console.error('❌ Elemente nicht gefunden für Staffel:', seasonNumber);
+                    return;
+                }
+                
+                // Toggle visibility
+                if (content.style.display === 'none') {
+                    content.style.display = 'block';
+                    caret.classList.add('rotated');
+                    console.log('✅ Staffel', seasonNumber, 'geöffnet');
+                } else {
+                    content.style.display = 'none';
+                    caret.classList.remove('rotated');
+                    console.log('✅ Staffel', seasonNumber, 'geschlossen');
+                }
+            });
+        });
+        
+        // Erste Staffel automatisch aufklappen
+        const firstCaret = document.querySelector('.season-caret');
+        if (firstCaret) {
+            firstCaret.classList.add('rotated');
+            console.log('✅ Erste Staffel ist aufgeklappt');
+        }
+        
+        console.log('✨ Staffeln/Episoden initialisierung abgeschlossen!');
     }
     
     // AJAX: User-Rating speichern

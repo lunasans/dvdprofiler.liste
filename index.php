@@ -146,11 +146,13 @@ $schema = [
     <!-- Preload critical resources -->
     <link rel="preload" href="css/style.css" as="style">
     <link rel="preload" href="css/theme.css" as="style">
+    <link rel="preload" href="css/film-view.css" rel="style">
     <link rel="preload" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css" as="style">
     
     <!-- CSS -->
     <link href="css/style.css" rel="stylesheet">
     <link href="css/theme.css" rel="stylesheet">
+    <link href="css/film-view.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css">
     <link href="libs/fancybox/dist/fancybox/fancybox.css" rel="stylesheet">
     
