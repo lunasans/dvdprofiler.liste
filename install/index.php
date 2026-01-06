@@ -11,7 +11,7 @@ header('Referrer-Policy: strict-origin-when-cross-origin');
 const MIN_PHP_VERSION = '8.0.0';
 const MIN_PASSWORD_LENGTH = 8;
 const MAX_INPUT_LENGTH = 255;
-const DB_VERSION = '1.4.1'; // Aktuelle Version
+const DB_VERSION = '1.4.9'; // Aktuelle Version (mit Serien-Support)
 
 // Pfade definieren
 $lockFile = __DIR__ . '/install.lock';
@@ -303,7 +303,41 @@ function createDatabaseSchema(PDO $pdo): void {
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 
-        // 9. Audit-Log Tabelle
+        // 9. Seasons Tabelle (Serien-Staffeln)
+        "CREATE TABLE IF NOT EXISTS seasons (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            series_id INT NOT NULL,
+            season_number INT NOT NULL,
+            name VARCHAR(255) DEFAULT NULL,
+            overview TEXT DEFAULT NULL,
+            episode_count INT DEFAULT 0,
+            air_date DATE DEFAULT NULL,
+            poster_path VARCHAR(255) DEFAULT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            UNIQUE KEY unique_season (series_id, season_number),
+            INDEX idx_series (series_id),
+            INDEX idx_season_number (season_number)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+
+        // 10. Episodes Tabelle (Serien-Episoden)
+        "CREATE TABLE IF NOT EXISTS episodes (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            season_id INT NOT NULL,
+            episode_number INT NOT NULL,
+            title VARCHAR(255) NOT NULL,
+            overview TEXT DEFAULT NULL,
+            air_date DATE DEFAULT NULL,
+            runtime INT DEFAULT NULL,
+            still_path VARCHAR(255) DEFAULT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            UNIQUE KEY unique_episode (season_id, episode_number),
+            INDEX idx_season (season_id),
+            INDEX idx_episode_number (episode_number)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+
+        // 11. Audit-Log Tabelle
         "CREATE TABLE IF NOT EXISTS audit_log (
             id INT AUTO_INCREMENT PRIMARY KEY,
             user_id BIGINT NULL,
