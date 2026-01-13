@@ -736,18 +736,18 @@ document.addEventListener('keydown', function(e) {
     right: 8px;
     display: flex;
     align-items: center;
-    gap: 0.25rem;
-    padding: 0.3rem 0.5rem;
-    border-radius: 6px;
+    gap: 0.2rem;
+    padding: 0.25rem 0.4rem;
+    border-radius: 5px;
     font-weight: 600;
-    font-size: 0.85rem;
+    font-size: 0.75rem;
     color: white;
     box-shadow: 0 2px 4px rgba(0,0,0,0.3);
     z-index: 10;
 }
 
 .tmdb-rating-badge i {
-    font-size: 0.75rem;
+    font-size: 0.65rem;
 }
 
 .tmdb-rating-stars {
@@ -886,8 +886,8 @@ document.addEventListener('keydown', function(e) {
 
 @media (max-width: 768px) {
     .tmdb-rating-badge {
-        font-size: 0.75rem;
-        padding: 0.25rem 0.4rem;
+        font-size: 0.7rem;
+        padding: 0.2rem 0.35rem;
     }
     
     .film-list.list-view .dvd {
