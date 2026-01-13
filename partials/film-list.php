@@ -99,6 +99,7 @@ try {
 }
 
 // Helper: Film Card mit BoxSet Badge
+// Helper: Film Card mit Badge (Grid) und Sternen (List)
 function renderFilmCard(array $dvd): string {
     $title = htmlspecialchars($dvd['title'] ?? 'Unbekannt');
     $year = (int)($dvd['year'] ?? 0);
@@ -106,7 +107,6 @@ function renderFilmCard(array $dvd): string {
     $id = (int)($dvd['id'] ?? 0);
     $cover = 'cover/placeholder.png';
     
-    // Cover finden
     if (!empty($dvd['cover_id'])) {
         $extensions = ['.jpg', '.jpeg', '.png'];
         foreach ($extensions as $ext) {
@@ -121,53 +121,87 @@ function renderFilmCard(array $dvd): string {
     $childrenCount = (int)($dvd['children_count'] ?? 0);
     $isBoxSet = $childrenCount > 0;
     
-    // TMDb Rating Badge (wenn aktiviert)
     $ratingBadge = '';
+    $tmdbStarsHtml = '';
+    
     if (getSetting('tmdb_show_ratings_on_cards', '1') == '1' && !empty(getSetting('tmdb_api_key', ''))) {
         $ratings = getFilmRatings($dvd['title'], $year);
         if ($ratings && isset($ratings['tmdb_rating'])) {
             $rating = $ratings['tmdb_rating'];
             $votes = $ratings['tmdb_votes'] ?? 0;
             
-            // Farbe basierend auf Rating
             if ($rating >= 8) {
-                $color = '#4caf50'; // Grün
+                $color = '#4caf50';
             } elseif ($rating >= 6) {
-                $color = '#ff9800'; // Orange
+                $color = '#ff9800';
             } else {
-                $color = '#f44336'; // Rot
+                $color = '#f44336';
             }
             
-            $ratingBadge = '<div class="tmdb-rating-badge" style="background-color: ' . $color . ';">
-                <i class="bi bi-star-fill"></i>
-                <span>' . number_format($rating, 1) . '</span>
-            </div>';
+            $ratingFormatted = number_format($rating, 1);
+            $ratingBadge = <<<HTML
+<div class="tmdb-rating-badge" style="background-color: {$color};">
+    <i class="bi bi-star-fill"></i>
+    <span>{$ratingFormatted}</span>
+</div>
+HTML;
+            
+            $starsRating = $rating / 2;
+            $fullStars = floor($starsRating);
+            $hasHalfStar = ($starsRating - $fullStars) >= 0.3;
+            
+            $starsHtml = '';
+            for ($i = 1; $i <= 5; $i++) {
+                if ($i <= $fullStars) {
+                    $starsHtml .= '<i class="bi bi-star-fill" style="color: ' . $color . ';"></i>';
+                } elseif ($i == $fullStars + 1 && $hasHalfStar) {
+                    $starsHtml .= '<i class="bi bi-star-half" style="color: ' . $color . ';"></i>';
+                } else {
+                    $starsHtml .= '<i class="bi bi-star" style="color: rgba(255,255,255,0.2);"></i>';
+                }
+            }
+            
+            $votesFormatted = number_format($votes);
+            $tmdbStarsHtml = <<<HTML
+<div class="tmdb-rating-stars">
+    <span class="tmdb-label">TMDb:</span>
+    <div class="tmdb-stars">{$starsHtml}</div>
+    <span class="tmdb-score" style="color: {$color};">{$ratingFormatted}</span>
+    <span class="tmdb-votes">({$votesFormatted})</span>
+</div>
+HTML;
         }
     }
     
-    // BoxSet Badge (nur für Parents)
     $badge = '';
     if ($isBoxSet) {
-        $badge = '<div class="boxset-badge" onclick="event.stopPropagation(); openBoxSetModal(' . $id . ');">
-            <i class="bi bi-collection-play"></i>
-            <span>' . $childrenCount . '</span>
-        </div>';
+        $badge = <<<HTML
+<div class="boxset-badge" onclick="event.stopPropagation(); openBoxSetModal({$id});">
+    <i class="bi bi-collection-play"></i>
+    <span>{$childrenCount}</span>
+</div>
+HTML;
     }
     
     $boxsetClass = $isBoxSet ? ' has-boxset' : '';
+    $coverEscaped = htmlspecialchars($cover);
     
-    return '
-    <div class="dvd' . $boxsetClass . '" data-dvd-id="' . $id . '" data-children-count="' . $childrenCount . '">
-      <div class="cover-area">
-        <img src="' . htmlspecialchars($cover) . '" alt="Cover">
-        ' . $ratingBadge . '
-        ' . $badge . '
-      </div>
-      <div class="dvd-details">
-        <h2><a href="#" class="toggle-detail" data-id="' . $id . '">' . $title . ' (' . $year . ')</a></h2>
-        <p><strong>Genre:</strong> ' . $genre . '</p>
-      </div>
-    </div>';
+    return <<<HTML
+<div class="dvd{$boxsetClass}" data-dvd-id="{$id}" data-children-count="{$childrenCount}">
+  <div class="cover-area">
+    <img src="{$coverEscaped}" alt="Cover">
+    {$ratingBadge}
+    {$badge}
+  </div>
+  <div class="dvd-details">
+    <div class="film-info">
+      <h2><a href="#" class="toggle-detail" data-id="{$id}">{$title} ({$year})</a></h2>
+      <p class="genre-info"><strong>Genre:</strong> {$genre}</p>
+    </div>
+    {$tmdbStarsHtml}
+  </div>
+</div>
+HTML;
 }
 ?>
 
@@ -692,6 +726,222 @@ if (typeof window.reinitBoxSetModal === 'undefined') {
 document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {
         closeBoxSetModal();
+    }
+});
+</script>
+<style>
+.tmdb-rating-badge {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.3rem 0.5rem;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: white;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    z-index: 10;
+}
+
+.tmdb-rating-badge i {
+    font-size: 0.75rem;
+}
+
+.tmdb-rating-stars {
+    display: none;
+}
+
+.film-list.list-view .tmdb-rating-badge {
+    display: none;
+}
+
+.film-list.list-view .tmdb-rating-stars {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.85rem;
+}
+
+.film-list.list-view .tmdb-label {
+    font-weight: 600;
+    color: #01d277;
+    font-size: 0.8rem;
+}
+
+.film-list.list-view .tmdb-stars {
+    display: flex;
+    gap: 0.1rem;
+}
+
+.film-list.list-view .tmdb-stars i {
+    font-size: 0.9rem;
+}
+
+.film-list.list-view .tmdb-score {
+    font-weight: 700;
+    font-size: 0.95rem;
+    margin-left: 0.2rem;
+}
+
+.film-list.list-view .tmdb-votes {
+    font-size: 0.75rem;
+    color: var(--text-muted, rgba(228, 228, 231, 0.5));
+}
+
+.film-list.list-view .dvd {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    gap: 1rem;
+    border-bottom: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+}
+
+.film-list.list-view .dvd:hover {
+    background: var(--glass-bg, rgba(255, 255, 255, 0.03));
+}
+
+.film-list.list-view .cover-area {
+    flex-shrink: 0;
+    width: 60px;
+    height: 85px;
+    position: relative;
+}
+
+.film-list.list-view .cover-area img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 4px;
+}
+
+.film-list.list-view .dvd-details {
+    flex: 1;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 2rem;
+    min-width: 0;
+}
+
+.film-list.list-view .film-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    min-width: 0;
+}
+
+.film-list.list-view .dvd-details h2 {
+    margin: 0;
+    font-size: 1rem;
+    line-height: 1.3;
+}
+
+.film-list.list-view .genre-info {
+    margin: 0;
+    font-size: 0.85rem;
+    color: var(--text-secondary, rgba(228, 228, 231, 0.7));
+}
+
+.film-list.list-view .genre-info strong {
+    font-weight: 500;
+    color: var(--text-muted, rgba(228, 228, 231, 0.5));
+}
+
+.film-list.list-view .tmdb-rating-stars {
+    flex-shrink: 0;
+    margin-left: auto;
+}
+
+.view-btn {
+    background: transparent;
+    border: 1px solid var(--border-color, rgba(255, 255, 255, 0.2));
+    color: var(--text-secondary, rgba(228, 228, 231, 0.6));
+    padding: 0.5rem 0.75rem;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.view-btn:hover {
+    background: var(--glass-bg, rgba(255, 255, 255, 0.05));
+    color: var(--text-primary, #e4e4e7);
+    border-color: var(--accent-primary, #667eea);
+}
+
+.view-btn.active {
+    background: var(--accent-primary, #667eea);
+    color: white;
+    border-color: var(--accent-primary, #667eea);
+}
+
+.view-btn i {
+    font-size: 1.1rem;
+}
+
+@media (max-width: 768px) {
+    .tmdb-rating-badge {
+        font-size: 0.75rem;
+        padding: 0.25rem 0.4rem;
+    }
+    
+    .film-list.list-view .dvd {
+        padding: 0.6rem 0.75rem;
+    }
+    
+    .film-list.list-view .cover-area {
+        width: 50px;
+        height: 70px;
+    }
+    
+    .film-list.list-view .film-info h2 {
+        font-size: 0.9rem;
+    }
+    
+    .film-list.list-view .genre-info {
+        font-size: 0.8rem;
+    }
+    
+    .film-list.list-view .tmdb-rating-stars {
+        font-size: 0.75rem;
+    }
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const filmList = document.querySelector('.film-list');
+    const viewButtons = document.querySelectorAll('.view-btn');
+    
+    if (!filmList || !viewButtons.length) return;
+    
+    const savedView = localStorage.getItem('filmListView') || 'grid';
+    setViewMode(savedView);
+    
+    viewButtons.forEach(btn => {
+        btn.addEventListener('click', function() {
+            const mode = this.getAttribute('data-mode');
+            setViewMode(mode);
+            localStorage.setItem('filmListView', mode);
+        });
+    });
+    
+    function setViewMode(mode) {
+        filmList.classList.remove('grid-view', 'list-view');
+        filmList.classList.add(mode + '-view');
+        
+        viewButtons.forEach(btn => {
+            if (btn.getAttribute('data-mode') === mode) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        });
     }
 });
 </script>

@@ -12,7 +12,7 @@ if (!isset($_SESSION['user_id'])) {
 }
 
 // Erlaubte Seiten - AKTUALISIERT: 'films' hinzugefügt
-$allowedPages = ['dashboard', 'users', 'settings', 'import', 'update', 'films', 'impressum', 'tmdb-import',];
+$allowedPages = ['dashboard', 'users', 'settings', 'import', 'update', 'films', 'impressum', 'tmdb-import', 'statistics',];
 $page = $_GET['page'] ?? 'dashboard';
 $siteTitle = getSetting('site_title', 'DVD Profiler Liste');
 

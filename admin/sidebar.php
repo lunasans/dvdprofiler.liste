@@ -68,6 +68,10 @@ $dvdProfilerStats = getDVDProfilerStatistics();
             <?php endif; ?>
         </a>
 
+        <a href="?page=statistics" class="nav-link <?= ($_GET['page'] ?? '') === 'settings' ? 'active' : '' ?>">
+            <i class="bi bi-graph-up"></i> Statistiken
+        </a>
+
        
         <a href="?page=impressum" class="nav-link <?= ($_GET['page'] ?? '') === 'impressum' ? 'active' : '' ?>">
             <i class="bi bi-info-circle"></i>
