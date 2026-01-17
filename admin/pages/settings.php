@@ -16,6 +16,13 @@ if (!isset($_SESSION['user_id'])) {
 // Versionsinformationen laden
 require_once dirname(__DIR__, 2) . '/includes/version.php';
 
+// Fehler-Logging aktivieren (nur im Development-Mode)
+if (getSetting('environment', 'production') === 'development') {
+    ini_set('display_errors', 1);
+    ini_set('log_errors', 1);
+    ini_set('error_log', dirname(__DIR__, 2) . '/logs/php_errors.log');
+}
+
 // CSRF-Token generieren
 $csrfToken = generateCSRFToken();
 
@@ -29,8 +36,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // CSRF-Token prüfen
     $submittedToken = $_POST['csrf_token'] ?? '';
     if (!validateCSRFToken($submittedToken)) {
-        $error = '❌ Ungültiger CSRF-Token. Bitte versuchen Sie es erneut.';
+    $error = '❌ Ungültiger CSRF-Token. Bitte versuchen Sie es erneut.';
     } else {
+    // Token nach Nutzung ungültig machen
+    unset($_SESSION['csrf_token']);
         // Einstellungen speichern (POST mit csrf_token = Settings-Form)
         if (isset($_POST['site_title']) || isset($_POST['environment']) || isset($_POST['tmdb_api_key'])) {
             $allowedSettings = [
@@ -52,7 +61,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'tmdb_show_ratings_details' => ['filter' => FILTER_VALIDATE_BOOLEAN],
                 'tmdb_cache_hours' => ['filter' => FILTER_VALIDATE_INT, 'options' => ['min_range' => 1, 'max_range' => 168]],
                 'tmdb_show_similar_movies' => ['filter' => FILTER_VALIDATE_BOOLEAN],
-                'tmdb_auto_download_covers' => ['filter' => FILTER_VALIDATE_BOOLEAN]
+                'tmdb_auto_download_covers' => ['filter' => FILTER_VALIDATE_BOOLEAN],
+                // Signatur-Banner Einstellungen
+                'signature_enabled' => ['filter' => FILTER_VALIDATE_BOOLEAN],
+                'signature_film_count' => ['filter' => FILTER_VALIDATE_INT, 'options' => ['min_range' => 5, 'max_range' => 20]],
+                'signature_film_source' => ['maxlength' => 50],
+                'signature_cache_time' => ['filter' => FILTER_VALIDATE_INT, 'options' => ['min_range' => 1800, 'max_range' => 86400]],
+                'signature_enable_type1' => ['filter' => FILTER_VALIDATE_BOOLEAN],
+                'signature_enable_type2' => ['filter' => FILTER_VALIDATE_BOOLEAN],
+                'signature_enable_type3' => ['filter' => FILTER_VALIDATE_BOOLEAN],
+                'signature_show_title' => ['filter' => FILTER_VALIDATE_BOOLEAN],
+                'signature_show_year' => ['filter' => FILTER_VALIDATE_BOOLEAN],
+                'signature_show_rating' => ['filter' => FILTER_VALIDATE_BOOLEAN],
+                'signature_quality' => ['filter' => FILTER_VALIDATE_INT, 'options' => ['min_range' => 0, 'max_range' => 9]]
             ];
             
             $savedCount = 0;
@@ -94,8 +115,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             
             if (!$error) {
-                $success = "✅ {$savedCount} Einstellung(en) erfolgreich gespeichert.";
                 // KEIN Redirect bei AJAX! Success-Message wird im Response angezeigt
+                $success = "✅ {$savedCount} Einstellung(en) erfolgreich gespeichert.";
+
+                // Session-ID neu generieren, um Session-Fixation zu verhindern
+                session_regenerate_id(true);
             }
         }
         
@@ -189,6 +213,11 @@ $showSaved = isset($_GET['saved']) && $_GET['saved'] === '1';
             <li class="nav-item" role="presentation">
                 <button class="nav-link" id="system-tab" data-bs-toggle="tab" data-bs-target="#system" type="button" role="tab">
                     <i class="bi bi-cpu"></i> System
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="signature-tab" data-bs-toggle="tab" data-bs-target="#signature" type="button" role="tab">
+                    <i class="bi bi-image"></i> Signatur-Banner
                 </button>
             </li>
         </ul>
@@ -553,7 +582,7 @@ $showSaved = isset($_GET['saved']) && $_GET['saved'] === '1';
                                 
                                 function loadBatch(offset = 0) {
                                     const formData = new FormData();
-                                    formData.append('csrf_token', '<?= $_SESSION['csrf_token'] ?? '' ?>');
+                                    formData.append('csrf_token', '<?= $csrfToken ?>');
                                     formData.append('offset', offset);
                                     
                                     fetch('../actions/tmdb-bulk-load.php', {
@@ -788,9 +817,235 @@ $showSaved = isset($_GET['saved']) && $_GET['saved'] === '1';
                 </div>
             </div>
         </div>
-    </div>
-</div>
 
+            <!-- Tab: Signatur-Banner -->
+            <div class="tab-pane fade" id="signature" role="tabpanel">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="bi bi-image"></i>
+                            Signatur-Banner Einstellungen
+                        </h5>
+                        <small class="text-muted">
+                            Erstelle dynamische Banner für Forum-Signaturen mit deinen neuesten Filmen
+                        </small>
+                    </div>
+                    <div class="card-body">
+                        <form method="post">
+                            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken) ?>">
+                            
+                            <!-- Banner aktivieren -->
+                            <div class="alert alert-info">
+                                <i class="bi bi-info-circle"></i>
+                                <strong>Was sind Signatur-Banner?</strong><br>
+                                Dynamische Bilder (600×100px) die deine neuesten Filme zeigen. Perfekt für Forum-Signaturen!
+                            </div>
+                            
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">
+                                            <i class="bi bi-toggle-on"></i> Banner aktivieren
+                                        </label>
+                                        <div class="form-check form-switch">
+                                            <input type="checkbox" name="signature_enabled" id="signature_enabled" 
+                                                   class="form-check-input" role="switch"
+                                                   <?= getSetting('signature_enabled', '1') == '1' ? 'checked' : '' ?>>
+                                            <label class="form-check-label" for="signature_enabled">
+                                                Banner-Generator aktivieren
+                                            </label>
+                                        </div>
+                                        <small class="text-muted">Schaltet signature.php ein/aus</small>
+                                    </div>
+                                </div>
+                                
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="signature_film_count" class="form-label">
+                                            <i class="bi bi-collection"></i> Anzahl Filme
+                                        </label>
+                                        <select name="signature_film_count" id="signature_film_count" class="form-select">
+                                            <option value="5" <?= getSetting('signature_film_count', '10') == '5' ? 'selected' : '' ?>>5 Filme</option>
+                                            <option value="10" <?= getSetting('signature_film_count', '10') == '10' ? 'selected' : '' ?>>10 Filme (Standard)</option>
+                                            <option value="15" <?= getSetting('signature_film_count', '10') == '15' ? 'selected' : '' ?>>15 Filme</option>
+                                            <option value="20" <?= getSetting('signature_film_count', '10') == '20' ? 'selected' : '' ?>>20 Filme</option>
+                                        </select>
+                                        <small class="text-muted">Wie viele Filme im Banner anzeigen</small>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <hr class="my-4">
+                            
+                            <!-- Film-Quelle -->
+                            <h6 class="mb-3">
+                                <i class="bi bi-funnel"></i> Film-Auswahl
+                            </h6>
+                            
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="signature_film_source" class="form-label">Welche Filme anzeigen?</label>
+                                        <select name="signature_film_source" id="signature_film_source" class="form-select">
+                                            <option value="newest" <?= getSetting('signature_film_source', 'newest') == 'newest' ? 'selected' : '' ?>>
+                                                📅 Neueste (zuletzt hinzugefügt)
+                                            </option>
+                                            <option value="newest_release" <?= getSetting('signature_film_source', 'newest') == 'newest_release' ? 'selected' : '' ?>>
+                                                🎬 Neueste Veröffentlichungen (Jahr)
+                                            </option>
+                                            <option value="best_rated" <?= getSetting('signature_film_source', 'newest') == 'best_rated' ? 'selected' : '' ?>>
+                                                ⭐ Bestbewertete (TMDb Rating)
+                                            </option>
+                                            <option value="random" <?= getSetting('signature_film_source', 'newest') == 'random' ? 'selected' : '' ?>>
+                                                🎲 Zufällig
+                                            </option>
+                                        </select>
+                                        <small class="text-muted">Kriterium für Film-Auswahl</small>
+                                    </div>
+                                </div>
+                                
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="signature_cache_time" class="form-label">
+                                            <i class="bi bi-clock-history"></i> Cache-Zeit
+                                        </label>
+                                        <select name="signature_cache_time" id="signature_cache_time" class="form-select">
+                                            <option value="1800" <?= getSetting('signature_cache_time', '3600') == '1800' ? 'selected' : '' ?>>30 Minuten</option>
+                                            <option value="3600" <?= getSetting('signature_cache_time', '3600') == '3600' ? 'selected' : '' ?>>1 Stunde (Standard)</option>
+                                            <option value="7200" <?= getSetting('signature_cache_time', '3600') == '7200' ? 'selected' : '' ?>>2 Stunden</option>
+                                            <option value="14400" <?= getSetting('signature_cache_time', '3600') == '14400' ? 'selected' : '' ?>>4 Stunden</option>
+                                            <option value="86400" <?= getSetting('signature_cache_time', '3600') == '86400' ? 'selected' : '' ?>>24 Stunden</option>
+                                        </select>
+                                        <small class="text-muted">Wie lange Banner gecacht werden</small>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <hr class="my-4">
+                            
+                            <!-- Design-Optionen -->
+                            <h6 class="mb-3">
+                                <i class="bi bi-palette"></i> Design & Aussehen
+                            </h6>
+                            
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label class="form-label">Banner-Typ Varianten</label>
+                                        <div class="form-check">
+                                            <input type="checkbox" name="signature_enable_type1" id="signature_enable_type1" 
+                                                   class="form-check-input"
+                                                   <?= getSetting('signature_enable_type1', '1') == '1' ? 'checked' : '' ?>>
+                                            <label class="form-check-label" for="signature_enable_type1">
+                                                Typ 1: Cover Grid
+                                            </label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input type="checkbox" name="signature_enable_type2" id="signature_enable_type2" 
+                                                   class="form-check-input"
+                                                   <?= getSetting('signature_enable_type2', '1') == '1' ? 'checked' : '' ?>>
+                                            <label class="form-check-label" for="signature_enable_type2">
+                                                Typ 2: Cover + Stats
+                                            </label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input type="checkbox" name="signature_enable_type3" id="signature_enable_type3" 
+                                                   class="form-check-input"
+                                                   <?= getSetting('signature_enable_type3', '1') == '1' ? 'checked' : '' ?>>
+                                            <label class="form-check-label" for="signature_enable_type3">
+                                                Typ 3: Compact Liste
+                                            </label>
+                                        </div>
+                                        <small class="text-muted">Welche Varianten verfügbar sind</small>
+                                    </div>
+                                </div>
+                                
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label class="form-label">Anzeige-Optionen</label>
+                                        <div class="form-check">
+                                            <input type="checkbox" name="signature_show_title" id="signature_show_title" 
+                                                   class="form-check-input"
+                                                   <?= getSetting('signature_show_title', '1') == '1' ? 'checked' : '' ?>>
+                                            <label class="form-check-label" for="signature_show_title">
+                                                Film-Titel anzeigen
+                                            </label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input type="checkbox" name="signature_show_year" id="signature_show_year" 
+                                                   class="form-check-input"
+                                                   <?= getSetting('signature_show_year', '1') == '1' ? 'checked' : '' ?>>
+                                            <label class="form-check-label" for="signature_show_year">
+                                                Erscheinungsjahr anzeigen
+                                            </label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input type="checkbox" name="signature_show_rating" id="signature_show_rating" 
+                                                   class="form-check-input"
+                                                   <?= getSetting('signature_show_rating', '0') == '1' ? 'checked' : '' ?>>
+                                            <label class="form-check-label" for="signature_show_rating">
+                                                TMDb-Rating anzeigen
+                                            </label>
+                                        </div>
+                                        <small class="text-muted">Was im Banner gezeigt wird</small>
+                                    </div>
+                                </div>
+                                
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label for="signature_quality" class="form-label">Bildqualität</label>
+                                        <select name="signature_quality" id="signature_quality" class="form-select">
+                                            <option value="6" <?= getSetting('signature_quality', '9') == '6' ? 'selected' : '' ?>>Niedrig (schnell, klein)</option>
+                                            <option value="9" <?= getSetting('signature_quality', '9') == '9' ? 'selected' : '' ?>>Hoch (Standard)</option>
+                                        </select>
+                                        <small class="text-muted">PNG-Kompression (0-9)</small>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <hr class="my-4">
+                            
+                            <!-- Vorschau & URLs -->
+                            <div class="card bg-light">
+                                <div class="card-body">
+                                    <h6 class="mb-3">
+                                        <i class="bi bi-link-45deg"></i> Banner-URLs & Vorschau
+                                    </h6>
+                                    
+                                    <div class="alert alert-success">
+                                        <strong>Banner-URL:</strong><br>
+                                        <code class="user-select-all"><?= htmlspecialchars(getSetting('base_url', 'https://deine-domain.de/')) ?>signature.php?type=1</code>
+                                        <button type="button" class="btn btn-sm btn-outline-success float-end" onclick="navigator.clipboard.writeText('<?= htmlspecialchars(getSetting('base_url', '')) ?>signature.php?type=1')">
+                                            <i class="bi bi-clipboard"></i> Kopieren
+                                        </button>
+                                    </div>
+                                    
+                                    <div class="text-center mt-3">
+                                        <a href="../signature.php?type=1" target="_blank" class="btn btn-primary">
+                                            <i class="bi bi-eye"></i> Vorschau anzeigen
+                                        </a>
+                                        <a href="index.php?pages=signature-preview" class="btn btn-secondary">
+                                            <i class="bi bi-grid-3x3"></i> Alle Varianten ansehen
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="mt-4">
+                                <button type="submit" name="save_settings" class="btn btn-primary">
+                                    <i class="bi bi-save"></i>
+                                    Signatur-Einstellungen speichern
+                                </button>
+                                
+                                <button type="button" class="btn btn-warning" onclick="if(confirm('Cache wirklich leeren?')) { fetch('../signature.php?clear_cache=1'); alert('Cache geleert!'); }">
+                                    <i class="bi bi-trash"></i>
+                                    Cache leeren
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
 <style>
 /* Settings Page Styling */
 .settings-container {
