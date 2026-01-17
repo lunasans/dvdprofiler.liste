@@ -82,7 +82,7 @@ try {
     <!-- Header -->
     <div class="dashboard-header">
         <div>
-            <h1><i class="bi bi-speedometer2"></i> Dashboard</h1>
+            
             <p class="text-muted">Übersicht über Ihre DVD-Sammlung</p>
         </div>
         <div class="header-actions">

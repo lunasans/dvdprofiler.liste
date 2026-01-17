@@ -82,12 +82,10 @@ $films = $stmt->fetchAll();
 ?>
 
 <div class="container-fluid px-4">
-    <h1 class="mt-4">
-        <i class="bi bi-film"></i> Filme verwalten
-    </h1>
+    
     <ol class="breadcrumb mb-4">
         <li class="breadcrumb-item"><a href="?page=dashboard">Dashboard</a></li>
-        <li class="breadcrumb-item active">Filme</li>
+        <li class="breadcrumb-item active" style="font-color:#ffff">Filme</li>
     </ol>
 
     <?php if ($success): ?>

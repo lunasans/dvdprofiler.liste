@@ -1,0 +1,399 @@
+/* Settings Page Styling */
+.settings-container {
+    max-width: 1400px;
+    margin: 0 auto;
+}
+
+.settings-title {
+    font-size: 2rem;
+    margin-bottom: var(--space-sm, 8px);
+    color: var(--text-white, #ffffff);
+}
+
+.settings-subtitle {
+    color: var(--text-glass, rgba(255, 255, 255, 0.8));
+    margin-bottom: 0;
+    font-family: monospace;
+    font-size: 0.9rem;
+}
+
+.settings-tabs .nav-tabs {
+    border-bottom: 2px solid var(--glass-border, rgba(255, 255, 255, 0.2));
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: wrap !important;
+}
+
+.settings-tabs .nav-tabs .nav-item {
+    margin-bottom: 0 !important;
+}
+
+.settings-tabs .nav-link {
+    background: var(--glass-bg, rgba(255, 255, 255, 0.1));
+    border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.2));
+    color: var(--text-glass, rgba(255, 255, 255, 0.8));
+    margin-right: var(--space-sm, 8px);
+    border-radius: var(--radius-md, 12px) var(--radius-md, 12px) 0 0;
+    transition: all var(--transition-fast, 0.3s);
+    display: inline-block !important;
+}
+
+.settings-tabs .nav-link:hover {
+    background: var(--glass-bg-strong, rgba(255, 255, 255, 0.15));
+    color: var(--text-white, #ffffff);
+}
+
+.settings-tabs .nav-link.active {
+    background: var(--gradient-primary, linear-gradient(135deg, #667eea 0%, #764ba2 100%));
+    border-color: transparent;
+    color: var(--text-white, #ffffff);
+}
+
+.card {
+    background: var(--glass-bg, rgba(255, 255, 255, 0.1));
+    backdrop-filter: blur(10px);
+    border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.2));
+    border-radius: var(--radius-lg, 16px);
+}
+
+.card-header {
+    background: var(--glass-bg-strong, rgba(255, 255, 255, 0.15));
+    border-bottom: 1px solid var(--glass-border, rgba(255, 255, 255, 0.2));
+    border-radius: var(--radius-lg, 16px) var(--radius-lg, 16px) 0 0;
+}
+
+.system-info .info-row {
+    display: flex;
+    justify-content: space-between;
+    padding: var(--space-sm, 8px) 0;
+    border-bottom: 1px solid var(--glass-border, rgba(255, 255, 255, 0.1));
+    font-size: 0.9rem;
+}
+
+.system-info .info-row:last-child {
+    border-bottom: none;
+}
+
+.requirements-list .requirement-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm, 8px);
+    padding: var(--space-sm, 8px) 0;
+    border-bottom: 1px solid var(--glass-border, rgba(255, 255, 255, 0.1));
+}
+
+.requirements-list .requirement-item:last-child {
+    border-bottom: none;
+}
+
+.version-display {
+    text-align: center;
+    padding: var(--space-md, 16px);
+    background: var(--glass-bg-strong, rgba(255, 255, 255, 0.1));
+    border-radius: var(--radius-md, 12px);
+}
+
+.version-badge {
+    display: inline-block;
+    padding: var(--space-sm, 8px) var(--space-md, 16px);
+    border-radius: var(--radius-md, 12px);
+    font-weight: 600;
+    font-size: 1rem;
+    margin-bottom: var(--space-sm, 8px);
+}
+
+.version-badge.current {
+    background: var(--gradient-primary, linear-gradient(135deg, #667eea 0%, #764ba2 100%));
+    color: var(--text-white, #ffffff);
+}
+
+.version-badge.available {
+    background: linear-gradient(135deg, #f39c12 0%, #e74c3c 100%);
+    color: var(--text-white, #ffffff);
+    animation: pulse 2s ease-in-out infinite;
+}
+
+.version-details {
+    font-size: 0.8rem;
+    color: var(--text-glass, rgba(255, 255, 255, 0.7));
+}
+
+.changelog-content {
+    background: var(--glass-bg, rgba(255, 255, 255, 0.1));
+    border-radius: var(--radius-sm, 6px);
+    padding: var(--space-md, 16px);
+    font-size: 0.9rem;
+    max-height: 200px;
+    overflow-y: auto;
+    white-space: pre-line;
+}
+
+/* Form Styling */
+.form-control,
+.form-select {
+    background: var(--glass-bg-strong, rgba(255, 255, 255, 0.15));
+    border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.3));
+    color: var(--text-white, #ffffff);
+}
+
+.form-control:focus,
+.form-select:focus {
+    background: var(--glass-bg-strong, rgba(255, 255, 255, 0.2));
+    border-color: var(--accent-color, #3498db);
+    box-shadow: 0 0 0 0.25rem rgba(52, 152, 219, 0.25);
+    color: var(--text-white, #ffffff);
+}
+
+.form-label {
+    color: var(--text-white, #ffffff);
+    font-weight: 500;
+}
+
+.form-check-label {
+    color: var(--text-glass, rgba(255, 255, 255, 0.9));
+}
+
+/* Table Styling */
+.table {
+    color: var(--text-white, #ffffff);
+}
+
+.table th {
+    border-color: var(--glass-border, rgba(255, 255, 255, 0.2));
+    background: var(--glass-bg-strong, rgba(255, 255, 255, 0.1));
+}
+
+.table td {
+    border-color: var(--glass-border, rgba(255, 255, 255, 0.1));
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .settings-title {
+        font-size: 1.5rem;
+    }
+    
+    .system-info .info-row {
+        flex-direction: column;
+        gap: var(--space-xs, 4px);
+    }
+    
+    .version-display {
+        margin-bottom: var(--space-md, 16px);
+    }
+}
+
+/* Animations */
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.7;
+    }
+}
+
+/* AJAX-Specific Styles */
+.save-status {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 1050;
+    min-width: 300px;
+}
+
+.btn-save {
+    position: relative;
+}
+
+.btn-save.saving {
+    pointer-events: none;
+}
+
+.btn-save.saving::after {
+    content: '';
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    margin-left: 10px;
+    border: 2px solid #fff;
+    border-radius: 50%;
+    border-top-color: transparent;
+    animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.fade-in {
+    animation: fadeIn 0.3s ease-in;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+
+/* ===== BUTTON STYLES ===== */
+.btn-save,
+.btn-primary {
+    background: var(--gradient-primary, linear-gradient(135deg, #667eea 0%, #764ba2 100%)) !important;
+    border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.3)) !important;
+    color: var(--text-white, #ffffff) !important;
+    font-weight: 600;
+    padding: 12px 24px;
+    border-radius: var(--radius-md, 12px);
+    transition: all var(--transition-fast, 0.3s);
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+    position: relative;
+    overflow: hidden;
+}
+
+.btn-save:hover,
+.btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+}
+
+.btn-save:active,
+.btn-primary:active {
+    transform: translateY(0);
+}
+
+.btn-save i,
+.btn-primary i {
+    margin-right: 8px;
+}
+
+/* Success State */
+.btn-success {
+    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%) !important;
+    border: 1px solid rgba(56, 239, 125, 0.3) !important;
+    box-shadow: 0 4px 15px rgba(56, 239, 125, 0.3);
+}
+
+.btn-success:hover {
+    box-shadow: 0 6px 20px rgba(56, 239, 125, 0.4);
+}
+
+/* Secondary Buttons */
+.btn-secondary,
+.btn-outline-light {
+    background: var(--glass-bg, rgba(255, 255, 255, 0.1)) !important;
+    border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.2)) !important;
+    color: var(--text-glass, rgba(255, 255, 255, 0.9)) !important;
+    backdrop-filter: blur(10px);
+}
+
+.btn-secondary:hover,
+.btn-outline-light:hover {
+    background: var(--glass-bg-strong, rgba(255, 255, 255, 0.15)) !important;
+    border-color: var(--glass-border, rgba(255, 255, 255, 0.3)) !important;
+}
+
+/* Disabled State */
+.btn-save:disabled,
+.btn-primary:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none !important;
+}
+
+/* ===== TEXT LESBARKEITS-FIXES ===== */
+
+/* Fix 1: Dropdown-Text (Select-Felder) */
+.form-select,
+select.form-control,
+select {
+    background-color: rgba(255, 255, 255, 0.95) !important; /* Fast weißer Hintergrund */
+    color: #2d3748 !important; /* Dunkler Text */
+    border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.3));
+    border-radius: var(--radius-md, 12px);
+}
+
+.form-select option,
+select option {
+    background-color: #ffffff !important; /* Weißer Hintergrund für Optionen */
+    color: #2d3748 !important; /* Dunkler Text */
+}
+
+.form-select:focus,
+select:focus {
+    background-color: #ffffff !important;
+    color: #2d3748 !important;
+    border-color: rgba(102, 126, 234, 0.5);
+    box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+}
+
+/* Fix 2: System-Tab Text (alle Texte hell) */
+#system .card-body,
+#system .system-info,
+#system .info-row,
+#system .requirements-list,
+#system .version-display,
+#system dt,
+#system dd,
+#system p,
+#system h6,
+#system small,
+#system .text-muted,
+#system .alert {
+    color: var(--text-white, rgba(255, 255, 255, 0.9)) !important;
+}
+
+/* System-Tab Links */
+#system a {
+    color: rgba(102, 126, 234, 0.9) !important;
+}
+
+#system a:hover {
+    color: rgba(102, 126, 234, 1) !important;
+}
+
+/* Alle Input-Felder: Dunkler Text auf hellem Hintergrund */
+.form-control,
+input[type="text"],
+input[type="url"],
+input[type="number"],
+input[type="email"],
+input[type="password"],
+textarea {
+    background-color: rgba(255, 255, 255, 0.95) !important;
+    color: #2d3748 !important;
+    border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.3));
+}
+
+.form-control:focus,
+input:focus,
+textarea:focus {
+    background-color: #ffffff !important;
+    color: #2d3748 !important;
+    border-color: rgba(102, 126, 234, 0.5);
+    box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+}
+
+.form-control::placeholder,
+input::placeholder,
+textarea::placeholder {
+    color: rgba(45, 55, 72, 0.5) !important;
+}
+
+/* Labels sollten hell sein (für dunklen Hintergrund) */
+.form-label,
+label {
+    color: var(--text-white, rgba(255, 255, 255, 0.9)) !important;
+    font-weight: 500;
+}
+
+/* Small Text / Hilfetext */
+small.text-muted,
+.form-text {
+    color: var(--text-glass, rgba(255, 255, 255, 0.7)) !important;
+}
+
+/* Checkbox-Labels */
+.form-check-label {
+    color: var(--text-white, rgba(255, 255, 255, 0.9)) !important;
+}

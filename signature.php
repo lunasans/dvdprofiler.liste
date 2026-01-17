@@ -49,7 +49,7 @@ if (file_exists($cacheFile) && (time() - filemtime($cacheFile)) < $cacheTime) {
 
 // Banner-Dimensionen (fest 600x100)
 $width = 600;
-$height = 100;
+$height = 600;
 
 // Erstelle Bild
 $img = imagecreatetruecolor($width, $height);

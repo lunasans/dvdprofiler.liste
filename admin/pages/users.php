@@ -18,8 +18,45 @@ $error = $_SESSION['error'] ?? '';
 unset($_SESSION['success'], $_SESSION['error']);
 ?>
 
+
+<style>
+/* Modal Text-Fix: Lesbare Farben auf weißem Hintergrund */
+.modal-content {
+    color: #212529 !important; /* Dunkler Text */
+}
+
+.modal-content .modal-header,
+.modal-content .modal-body,
+.modal-content .modal-footer {
+    color: #212529 !important;
+}
+
+.modal-content .form-label {
+    color: #212529 !important;
+    font-weight: 500;
+}
+
+.modal-content .form-text {
+    color: #6c757d !important; /* Grauer Hilfetext */
+}
+
+.modal-content .modal-title {
+    color: #212529 !important;
+}
+
+/* Input-Felder im Modal */
+.modal-content .form-control {
+    color: #212529 !important;
+    background-color: #fff !important;
+}
+
+.modal-content .form-control::placeholder {
+    color: #6c757d !important;
+}
+</style>
+
 <div class="container-fluid">
-    <h3><i class="bi bi-people"></i> Benutzerverwaltung</h3>
+    
 
     <?php if ($success): ?>
         <div class="alert alert-success alert-dismissible fade show">

@@ -4,6 +4,7 @@ declare(strict_types=1);
 // Bootstrap (startet bereits die Session)
 require_once __DIR__ . '/../includes/bootstrap.php';
 require_once __DIR__ . '/../includes/version.php'; // Neue Versionsverwaltung laden
+require_once __DIR__ . '/includes/session-security-check.php'; // Session-Sicherheitscheck
 
 // Zugriffsschutz
 if (!isset($_SESSION['user_id'])) {
@@ -52,6 +53,7 @@ $memoryStart = memory_get_usage(true);
     
     <!-- Custom Admin CSS (überschreibt Bootstrap) -->
     <link href="css/admin.css" rel="stylesheet">
+    <link href="css/settings.css" rel="stylesheet">
     
     <!-- Favicons -->
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎬</text></svg>">
