@@ -20,38 +20,245 @@ unset($_SESSION['success'], $_SESSION['error']);
 
 
 <style>
-/* Modal Text-Fix: Lesbare Farben auf weißem Hintergrund */
+/* ============================================
+   DARK THEME für User-Tabelle
+   ============================================ */
+
+/* Card & Container */
+.card {
+    background: var(--clr-card) !important;
+    border-color: var(--clr-border) !important;
+}
+
+.card-header {
+    background: rgba(255, 255, 255, 0.05) !important;
+    border-bottom-color: var(--clr-border) !important;
+    color: var(--clr-text) !important;
+}
+
+.card-body {
+    background: var(--clr-card) !important;
+}
+
+/* Table */
+.table-responsive {
+    background: var(--clr-card) !important;
+}
+
+.table {
+    background: var(--clr-card) !important;
+    color: var(--clr-text) !important;
+}
+
+.table thead {
+    background: rgba(255, 255, 255, 0.1) !important;
+}
+
+.table thead th {
+    background: transparent !important;
+    color: var(--clr-text) !important;
+    border-bottom-color: var(--clr-border) !important;
+}
+
+.table tbody {
+    background: var(--clr-card) !important;
+}
+
+.table tbody tr {
+    background: var(--clr-card) !important;
+    border-bottom-color: var(--clr-border) !important;
+}
+
+.table tbody tr:hover {
+    background: rgba(255, 255, 255, 0.05) !important;
+}
+
+.table tbody td {
+    background: transparent !important;
+    color: var(--clr-text) !important;
+    border-bottom-color: var(--clr-border) !important;
+}
+
+/* Text Colors */
+.fw-medium {
+    color: var(--clr-text) !important;
+}
+
+.text-muted,
+.table .text-muted {
+    color: var(--clr-text-muted) !important;
+}
+
+small.text-muted {
+    color: var(--clr-text-muted) !important;
+}
+
+/* Badges */
+.badge.bg-success {
+    background: #2ecc71 !important;
+    color: #ffffff !important;
+}
+
+.badge.bg-secondary {
+    background: #6c757d !important;
+    color: #ffffff !important;
+}
+
+.badge.bg-warning {
+    background: #f39c12 !important;
+    color: #ffffff !important;
+}
+
+.badge.bg-danger {
+    background: #e74c3c !important;
+    color: #ffffff !important;
+}
+
+.badge.bg-info {
+    background: #3498db !important;
+    color: #ffffff !important;
+}
+
+/* Text Warning (für "Keine Backup-Codes") */
+small.text-warning {
+    color: #f39c12 !important;
+}
+
+/* Buttons */
+.btn-group .btn {
+    border-color: var(--clr-border) !important;
+}
+
+.btn-outline-primary {
+    color: var(--clr-accent) !important;
+    border-color: var(--clr-accent) !important;
+}
+
+.btn-outline-primary:hover {
+    background: var(--clr-accent) !important;
+    color: #ffffff !important;
+}
+
+.btn-outline-success {
+    color: #2ecc71 !important;
+    border-color: #2ecc71 !important;
+}
+
+.btn-outline-success:hover {
+    background: #2ecc71 !important;
+    color: #ffffff !important;
+}
+
+.btn-outline-warning {
+    color: #f39c12 !important;
+    border-color: #f39c12 !important;
+}
+
+.btn-outline-warning:hover {
+    background: #f39c12 !important;
+    color: #ffffff !important;
+}
+
+.btn-outline-danger {
+    color: #e74c3c !important;
+    border-color: #e74c3c !important;
+}
+
+.btn-outline-danger:hover {
+    background: #e74c3c !important;
+    color: #ffffff !important;
+}
+
+/* Alerts */
+.alert-success {
+    background: rgba(46, 204, 113, 0.1) !important;
+    border-color: #2ecc71 !important;
+    color: #2ecc71 !important;
+}
+
+.alert-danger {
+    background: rgba(231, 76, 60, 0.1) !important;
+    border-color: #e74c3c !important;
+    color: #e74c3c !important;
+}
+
+/* Modal - Dunkles Theme */
 .modal-content {
-    color: #212529 !important; /* Dunkler Text */
+    background: var(--clr-card) !important;
+    color: var(--clr-text) !important;
+    border-color: var(--clr-border) !important;
 }
 
-.modal-content .modal-header,
-.modal-content .modal-body,
-.modal-content .modal-footer {
-    color: #212529 !important;
+.modal-header {
+    background: rgba(255, 255, 255, 0.05) !important;
+    border-bottom-color: var(--clr-border) !important;
 }
 
+.modal-title {
+    color: var(--clr-text) !important;
+}
+
+.modal-body {
+    color: var(--clr-text) !important;
+}
+
+.modal-footer {
+    background: rgba(255, 255, 255, 0.05) !important;
+    border-top-color: var(--clr-border) !important;
+}
+
+/* Form Elements in Modal */
 .modal-content .form-label {
-    color: #212529 !important;
+    color: var(--clr-text) !important;
     font-weight: 500;
 }
 
 .modal-content .form-text {
-    color: #6c757d !important; /* Grauer Hilfetext */
+    color: var(--clr-text-muted) !important;
 }
 
-.modal-content .modal-title {
-    color: #212529 !important;
-}
-
-/* Input-Felder im Modal */
 .modal-content .form-control {
-    color: #212529 !important;
-    background-color: #fff !important;
+    background: rgba(255, 255, 255, 0.1) !important;
+    color: var(--clr-text) !important;
+    border-color: var(--clr-border) !important;
+}
+
+.modal-content .form-control:focus {
+    background: rgba(255, 255, 255, 0.15) !important;
+    color: var(--clr-text) !important;
+    border-color: var(--clr-accent) !important;
+    box-shadow: 0 0 0 0.25rem rgba(52, 152, 219, 0.25) !important;
 }
 
 .modal-content .form-control::placeholder {
-    color: #6c757d !important;
+    color: var(--clr-text-muted) !important;
+}
+
+/* Close Button */
+.btn-close {
+    filter: invert(1);
+    opacity: 0.5;
+}
+
+.btn-close:hover {
+    opacity: 1;
+}
+
+/* QR Code Container */
+#qrcode-container {
+    background: rgba(255, 255, 255, 0.1) !important;
+}
+
+/* Backup Codes */
+.backup-code {
+    background: rgba(255, 255, 255, 0.1) !important;
+    color: var(--clr-text) !important;
+    border-color: var(--clr-border) !important;
+}
+
+/* Avatar */
+.avatar div {
+    background: var(--clr-accent) !important;
 }
 </style>
 
@@ -82,7 +289,7 @@ unset($_SESSION['success'], $_SESSION['error']);
         <div class="card-body p-0">
             <div class="table-responsive">
                 <table class="table table-hover mb-0">
-                    <thead class="table-light">
+                    <thead>
                         <tr>
                             <th>Benutzer</th>
                             <th>2FA-Status</th>

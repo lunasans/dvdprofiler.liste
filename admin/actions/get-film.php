@@ -24,7 +24,8 @@ if ($filmId === 0) {
 try {
     $stmt = $pdo->prepare("
         SELECT id, title, year, genre, runtime, overview, 
-               rating_age, collection_type, trailer_url, cover_id
+               rating_age, collection_type, trailer_url, cover_id,
+               created_at
         FROM dvds 
         WHERE id = ? AND deleted = 0
     ");

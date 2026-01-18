@@ -58,49 +58,23 @@ class Simple2FA {
     }
 }
 
-// SESSION-TIMEOUT PRÜFUNG (NEU!)
-function checkSessionTimeout(): bool {
-    if (!isset($_SESSION['user_id']) || !isset($_SESSION['login_time'])) {
-        return true; // Keine aktive Session
-    }
-    
-    $sessionTimeout = (int)getSetting('session_timeout', '3600'); // Standard: 1 Stunde
-    $loginTime = (int)$_SESSION['login_time'];
-    $now = time();
-    
-    if (($now - $loginTime) > $sessionTimeout) {
-        // Session abgelaufen
-        session_unset();
-        session_destroy();
-        return false;
-    }
-    
-    // Session-Zeit aktualisieren (Keep-Alive)
-    $_SESSION['login_time'] = $now;
-    return true;
-}
-
-// Redirect wenn bereits eingeloggt UND Session nicht abgelaufen
+// Redirect wenn bereits eingeloggt
 if (isset($_SESSION['user_id']) && !isset($_SESSION['require_2fa'])) {
-    if (checkSessionTimeout()) {
-        $redirect = (defined('BASE_URL') && BASE_URL !== '')
-            ? BASE_URL . '/admin/index.php?page=dashboard'
-            : 'index.php?page=dashboard';
-        header("Location: $redirect");
-        exit;
-    }
+    $redirect = (defined('BASE_URL') && BASE_URL !== '')
+        ? BASE_URL . '/admin/index.php?page=dashboard'
+        : 'index.php?page=dashboard';
+    header("Location: $redirect");
+    exit;
 }
 
-// Rate-Limiting für Login-Versuche (MIT SETTINGS!)
+// Rate-Limiting für Login-Versuche
 $clientIp = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
 $rateLimitKey = 'login_attempts_' . md5($clientIp);
 
 function checkLoginRateLimit(): bool {
     global $rateLimitKey;
-    
-    // ✅ SETTINGS VERWENDEN STATT HARDCODED!
-    $maxAttempts = (int)getSetting('login_attempts_max', '5');
-    $timeWindow = (int)getSetting('login_lockout_time', '900'); // 15 Minuten
+    $maxAttempts = 5;
+    $timeWindow = 900; // 15 Minuten
     
     $attempts = getSetting($rateLimitKey, '0|0');
     [$count, $timestamp] = explode('|', $attempts . '|0');
@@ -109,7 +83,6 @@ function checkLoginRateLimit(): bool {
     $timestamp = (int)$timestamp;
     $now = time();
     
-    // Zeit-Fenster abgelaufen? Reset
     if ($now - $timestamp > $timeWindow) {
         $count = 0;
         $timestamp = $now;
@@ -129,43 +102,15 @@ function incrementLoginAttempts(): void {
     setSetting($rateLimitKey, $count . '|' . $timestamp);
 }
 
-function getRemainingLockoutTime(): int {
-    global $rateLimitKey;
-    $timeWindow = (int)getSetting('login_lockout_time', '900');
-    
-    $attempts = getSetting($rateLimitKey, '0|0');
-    [$count, $timestamp] = explode('|', $attempts . '|0');
-    
-    $timestamp = (int)$timestamp;
-    $now = time();
-    $elapsed = $now - $timestamp;
-    
-    return max(0, $timeWindow - $elapsed);
-}
-
 // Variablen initialisieren
 $error = null;
 $success = null;
 $require2FA = false;
 $userId = null;
-$lockoutRemaining = 0;
-
-// Session-Timeout Meldung prüfen
-if (isset($_GET['timeout']) && $_GET['timeout'] === '1') {
-    if (isset($_SESSION['timeout_message'])) {
-        $error = $_SESSION['timeout_message'];
-        unset($_SESSION['timeout_message']);
-        unset($_SESSION['timeout_duration']);
-    } else {
-        $error = "Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.";
-    }
-}
 
 // Rate-Limit prüfen
 if (!checkLoginRateLimit()) {
-    $lockoutRemaining = getRemainingLockoutTime();
-    $minutes = ceil($lockoutRemaining / 60);
-    $error = "Zu viele Login-Versuche. Bitte warten Sie noch {$minutes} Minute(n).";
+    $error = "Zu viele Login-Versuche. Bitte warten Sie 15 Minuten.";
 }
 
 // Login-Verarbeitung
@@ -222,6 +167,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($error)) {
                         $_SESSION['user_email'] = $user['email'];
                         $_SESSION['login_time'] = time();
                         $_SESSION['2fa_verified'] = true;
+                        // Update last_login
+                        $updateStmt = $pdo->prepare("UPDATE users SET last_login = NOW() WHERE id = ?");
+                        $updateStmt->execute([$userId]);
+                        
                         $_SESSION['initiated'] = true;
                         
                         // Temporäre Session-Daten löschen
@@ -286,6 +235,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($error)) {
                         $_SESSION['user_email'] = $user['email'];
                         $_SESSION['login_time'] = time();
                         $_SESSION['initiated'] = true;
+                        // Update last_login
+                        $updateStmt = $pdo->prepare("UPDATE users SET last_login = NOW() WHERE id = ?");
+                        $updateStmt->execute([$user['id']]);
+                        
                         
                         $success = "Login erfolgreich! Sie werden weitergeleitet...";
                         
@@ -345,6 +298,10 @@ function handleTwoFactorAuth($pdo, $userId, $twoFactorCode, &$error, &$success) 
         $_SESSION['user_id'] = $user['id'];
         $_SESSION['user_email'] = $user['email'];
         $_SESSION['initiated'] = true;
+        // Update last_login
+        $updateStmt = $pdo->prepare("UPDATE users SET last_login = NOW() WHERE id = ?");
+        $updateStmt->execute([$user['id']]);
+        
         
         // Temporäre Session-Daten löschen
         unset($_SESSION['temp_user_id']);
@@ -397,6 +354,10 @@ function handleEmailPasswordAuth($pdo, $email, $password, &$require2FA, &$userId
         $_SESSION['user_id'] = $user['id'];
         $_SESSION['user_email'] = $user['email'];
         $_SESSION['initiated'] = true;
+        // Update last_login
+        $updateStmt = $pdo->prepare("UPDATE users SET last_login = NOW() WHERE id = ?");
+        $updateStmt->execute([$user['id']]);
+        
         
         $success = "Login erfolgreich! Sie werden weitergeleitet...";
         

@@ -30,6 +30,7 @@ try {
     $runtime = !empty($_POST['runtime']) ? (int)$_POST['runtime'] : null;
     $ratingAge = !empty($_POST['rating_age']) ? (int)$_POST['rating_age'] : null;
     $collectionType = trim($_POST['collection_type'] ?? 'Owned');
+    $createdAt = trim($_POST['created_at'] ?? '');
     $trailerUrl = trim($_POST['trailer_url'] ?? '');
     $overview = trim($_POST['overview'] ?? '');
     
@@ -54,6 +55,23 @@ try {
         throw new Exception('Ungültiger Collection Type.');
     }
     
+    // created_at verarbeiten
+    if (!empty($createdAt)) {
+        // Validiere Datum
+        $dateCheck = DateTime::createFromFormat('Y-m-d', $createdAt);
+        if (!$dateCheck || $dateCheck->format('Y-m-d') !== $createdAt) {
+            throw new Exception('Ungültiges Datum-Format für "Hinzugefügt am".');
+        }
+        // Konvertiere zu MySQL DATETIME Format (Datum + Zeit)
+        $createdAtFormatted = $createdAt . ' 00:00:00';
+    } else {
+        // Falls leer, behalte aktuelles Datum aus DB
+        $stmt = $pdo->prepare("SELECT created_at FROM dvds WHERE id = ?");
+        $stmt->execute([$filmId]);
+        $currentFilm = $stmt->fetch();
+        $createdAtFormatted = $currentFilm['created_at'] ?? date('Y-m-d H:i:s');
+    }
+    
     // Update Film
     $stmt = $pdo->prepare("
         UPDATE dvds SET
@@ -63,6 +81,7 @@ try {
             runtime = :runtime,
             rating_age = :rating_age,
             collection_type = :collection_type,
+            created_at = :created_at,
             trailer_url = :trailer_url,
             overview = :overview,
             updated_at = NOW()
@@ -77,6 +96,7 @@ try {
         'runtime' => $runtime,
         'rating_age' => $ratingAge,
         'collection_type' => $collectionType,
+        'created_at' => $createdAtFormatted,
         'trailer_url' => !empty($trailerUrl) ? $trailerUrl : null,
         'overview' => !empty($overview) ? $overview : null
     ]);

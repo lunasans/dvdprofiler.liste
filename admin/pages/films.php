@@ -39,18 +39,105 @@ $offset = ($page - 1) * $perPage;
 $search = $_GET['search'] ?? '';
 $collectionType = $_GET['collection'] ?? '';
 
+// Sorting
+$sortColumn = $_GET['sort'] ?? 'id';
+$sortOrder = $_GET['order'] ?? 'desc';
+
+// Validate sort column
+$allowedColumns = ['id', 'title', 'year', 'genre', 'rating_age', 'collection_type', 'created_at'];
+if (!in_array($sortColumn, $allowedColumns)) {
+    $sortColumn = 'id';
+}
+
+// Validate sort order
+$sortOrder = strtolower($sortOrder);
+if (!in_array($sortOrder, ['asc', 'desc'])) {
+    $sortOrder = 'desc';
+}
+
+// Build ORDER BY clause
+$orderBy = "$sortColumn $sortOrder";
+
+// Helper function for sortable column headers
+function getSortUrl($column, $currentSort, $currentOrder, $search, $collectionType) {
+    // Toggle order if same column, otherwise default to ASC
+    if ($currentSort === $column) {
+        $newOrder = ($currentOrder === 'asc') ? 'desc' : 'asc';
+    } else {
+        $newOrder = 'asc';
+    }
+    
+    // Build URL with all parameters
+    $params = [
+        'page' => 'films',
+        'sort' => $column,
+        'order' => $newOrder
+    ];
+    
+    if (!empty($search)) {
+        $params['search'] = $search;
+    }
+    
+    if (!empty($collectionType)) {
+        $params['collection'] = $collectionType;
+    }
+    
+    return '?' . http_build_query($params);
+}
+
+// Helper function for pagination URLs
+function getPaginationUrl($page, $search, $collectionType, $sortColumn, $sortOrder) {
+    $params = [
+        'page' => 'films',
+        'p' => $page
+    ];
+    
+    if (!empty($search)) {
+        $params['search'] = $search;
+    }
+    
+    if (!empty($collectionType)) {
+        $params['collection'] = $collectionType;
+    }
+    
+    if (!empty($sortColumn) && $sortColumn !== 'id') {
+        $params['sort'] = $sortColumn;
+    }
+    
+    if (!empty($sortOrder) && $sortOrder !== 'desc') {
+        $params['order'] = $sortOrder;
+    }
+    
+    return '?' . http_build_query($params);
+}
+
+// Helper function to get sort icon
+function getSortIcon($column, $currentSort, $currentOrder) {
+    if ($currentSort !== $column) {
+        return '<i class="bi bi-arrow-down-up text-muted ms-1" style="font-size: 0.8em;"></i>';
+    }
+    
+    if ($currentOrder === 'asc') {
+        return '<i class="bi bi-arrow-up ms-1" style="font-size: 0.8em;"></i>';
+    } else {
+        return '<i class="bi bi-arrow-down ms-1" style="font-size: 0.8em;"></i>';
+    }
+}
+
+
 // Build Query
 $where = ["deleted = 0"];
 $params = [];
 
 if (!empty($search)) {
-    $where[] = "(title LIKE :search OR genre LIKE :search)";
-    $params['search'] = '%' . $search . '%';
+    $where[] = "(title LIKE ? OR genre LIKE ?)";
+    $params[] = '%' . $search . '%';
+    $params[] = '%' . $search . '%';
 }
 
 if (!empty($collectionType)) {
-    $where[] = "collection_type = :collection_type";
-    $params['collection_type'] = $collectionType;
+    $where[] = "collection_type = ?";
+    $params[] = $collectionType;
 }
 
 $whereClause = implode(' AND ', $where);
@@ -67,19 +154,299 @@ $sql = "
            cover_id, trailer_url, created_at
     FROM dvds 
     WHERE " . $whereClause . "
-    ORDER BY id DESC
-    LIMIT :limit OFFSET :offset
+    ORDER BY " . $orderBy . "
+    LIMIT ? OFFSET ?
 ";
 
+// Add limit and offset to params
+$allParams = array_merge($params, [$perPage, $offset]);
+
 $stmt = $pdo->prepare($sql);
-foreach ($params as $key => $value) {
-    $stmt->bindValue($key, $value);
-}
-$stmt->bindValue(':limit', $perPage, PDO::PARAM_INT);
-$stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
-$stmt->execute();
+$stmt->execute($allParams);
 $films = $stmt->fetchAll();
 ?>
+
+<style>
+/* ============================================
+   FILMS PAGE - ULTRA-DUNKLES THEME
+   Mit MAXIMALER Priorität!
+   ============================================ */
+
+/* TABELLE & CONTAINER - SEHR DUNKEL! */
+.table-responsive {
+    background: var(--clr-card) !important;
+    border-radius: var(--radius);
+}
+
+.table {
+    background: var(--clr-card) !important;
+    color: var(--clr-text) !important;
+    margin-bottom: 0 !important;
+}
+
+.table thead {
+    background: rgba(255, 255, 255, 0.1) !important;
+}
+
+.table thead th {
+    background: rgba(255, 255, 255, 0.1) !important;
+    color: var(--clr-text) !important;
+    border-bottom: 1px solid var(--clr-border) !important;
+    font-weight: 600;
+    padding: 1rem !important;
+}
+
+.table tbody {
+    background: var(--clr-card) !important;
+}
+
+.table tbody tr {
+    background: var(--clr-card) !important;
+}
+
+.table tbody td {
+    background: transparent !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+    color: var(--clr-text) !important;
+    padding: 1rem !important;
+    vertical-align: middle;
+}
+
+.table tbody tr:hover {
+    background: rgba(255, 255, 255, 0.05) !important;
+}
+
+.table tbody tr:hover td {
+    background: transparent !important;
+}
+
+/* Titel in Tabelle - WEIß */
+.table tbody td strong {
+    color: var(--clr-text) !important;
+    font-weight: 600;
+}
+
+/* Normaler Text in Tabelle - WEIß */
+.table tbody td,
+.table tbody td span:not(.badge) {
+    color: var(--clr-text) !important;
+}
+
+/* BADGES - BEHALTEN IHRE FARBEN! */
+.badge {
+    font-weight: 600;
+    padding: 0.25rem 0.6rem;
+    border-radius: 12px;
+    font-size: 0.75rem;
+}
+
+.badge.bg-secondary {
+    background: #6c757d !important;
+    color: #ffffff !important;
+}
+
+.badge.bg-warning {
+    background: var(--clr-warning) !important;
+    color: #ffffff !important;
+}
+
+.badge.bg-success {
+    background: var(--clr-success) !important;
+    color: #ffffff !important;
+}
+
+.badge.bg-info {
+    background: var(--clr-info) !important;
+    color: #ffffff !important;
+}
+
+.badge.bg-primary {
+    background: var(--clr-accent) !important;
+    color: #ffffff !important;
+}
+
+.badge.bg-danger {
+    background: var(--clr-danger) !important;
+    color: #ffffff !important;
+}
+
+/* MODAL - DUNKEL */
+.modal-content {
+    background: var(--clr-card) !important;
+    color: var(--clr-text) !important;
+    border: 1px solid var(--clr-border) !important;
+}
+
+.modal-header {
+    background: rgba(255, 255, 255, 0.05) !important;
+    border-bottom: 1px solid var(--clr-border) !important;
+}
+
+.modal-title {
+    color: var(--clr-text) !important;
+    font-weight: 600;
+}
+
+.modal-body {
+    color: var(--clr-text) !important;
+}
+
+.modal-body .form-label,
+.modal-body label {
+    color: var(--clr-text) !important;
+    font-weight: 500;
+}
+
+.modal-body .form-control,
+.modal-body .form-select,
+.modal-body textarea.form-control {
+    background: rgba(255, 255, 255, 0.1) !important;
+    border: 1px solid var(--clr-border) !important;
+    color: var(--clr-text) !important;
+}
+
+.modal-body .form-control:focus,
+.modal-body .form-select:focus,
+.modal-body textarea:focus {
+    background: rgba(255, 255, 255, 0.15) !important;
+    border-color: var(--clr-accent) !important;
+    box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.2) !important;
+}
+
+.modal-body .form-control::placeholder {
+    color: var(--clr-text-muted) !important;
+}
+
+.modal-footer {
+    background: rgba(255, 255, 255, 0.05) !important;
+    border-top: 1px solid var(--clr-border) !important;
+}
+
+/* CARDS */
+.card {
+    background: var(--clr-card) !important;
+    border: 1px solid var(--clr-border) !important;
+}
+
+.card-header {
+    background: rgba(255, 255, 255, 0.05) !important;
+    border-bottom: 1px solid var(--clr-border) !important;
+    color: var(--clr-text) !important;
+}
+
+.card-body {
+    color: var(--clr-text) !important;
+}
+
+/* FORM CONTROLS - Hauptseite */
+.form-label {
+    color: var(--clr-text) !important;
+    font-weight: 500;
+}
+
+.form-control,
+.form-select {
+    background: rgba(255, 255, 255, 0.1) !important;
+    border: 1px solid var(--clr-border) !important;
+    color: var(--clr-text) !important;
+}
+
+.form-control:focus,
+.form-select:focus {
+    background: rgba(255, 255, 255, 0.15) !important;
+    border-color: var(--clr-accent) !important;
+    box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.2) !important;
+}
+
+.form-control::placeholder {
+    color: var(--clr-text-muted) !important;
+}
+
+/* BREADCRUMB */
+.breadcrumb-item,
+.breadcrumb-item a {
+    color: var(--clr-text-muted) !important;
+}
+
+.breadcrumb-item.active {
+    color: var(--clr-text) !important;
+}
+
+/* TEXT UTILITIES */
+.text-muted {
+    color: var(--clr-text-muted) !important;
+}
+
+small.text-muted {
+    color: var(--clr-text-muted) !important;
+}
+
+/* BUTTONS */
+.btn-group .btn {
+    border: 1px solid;
+}
+
+.btn-outline-primary {
+    border-color: var(--clr-accent);
+    color: var(--clr-accent);
+}
+
+.btn-outline-info {
+    border-color: var(--clr-info);
+    color: var(--clr-info);
+}
+
+.btn-outline-danger {
+    border-color: var(--clr-danger);
+    color: var(--clr-danger);
+}
+
+/* Icons */
+.bi-play-circle.text-danger {
+    color: var(--clr-danger) !important;
+}
+
+/* Pagination */
+.pagination .page-link {
+    background: var(--clr-card) !important;
+    border-color: var(--clr-border) !important;
+    color: var(--clr-text) !important;
+}
+
+.pagination .page-item.active .page-link {
+    background: var(--clr-accent) !important;
+    border-color: var(--clr-accent) !important;
+    color: #ffffff !important;
+}
+
+/* Sortable Table Headers */
+.table thead th a {
+    color: var(--clr-text) !important;
+    text-decoration: none !important;
+    display: inline-flex;
+    align-items: center;
+    transition: var(--transition);
+}
+
+.table thead th a:hover {
+    color: var(--clr-accent) !important;
+}
+
+.table thead th a i {
+    margin-left: 0.25rem;
+    font-size: 0.8em;
+}
+
+.table thead th a i.text-muted {
+    opacity: 0.5;
+}
+
+.table thead th a:hover i.text-muted {
+    opacity: 1;
+    color: var(--clr-accent) !important;
+}
+</style>
+
 
 <div class="container-fluid px-4">
     
@@ -142,11 +509,16 @@ $films = $stmt->fetchAll();
 
     <!-- Films Table -->
     <div class="card">
-        <div class="card-header">
-            <i class="bi bi-list"></i> <?= number_format($totalFilms) ?> Filme
-            <?php if (!empty($search) || !empty($collectionType)): ?>
-                <span class="badge bg-primary">Gefiltert</span>
-            <?php endif; ?>
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <div>
+                <i class="bi bi-list"></i> <?= number_format($totalFilms) ?> Filme
+                <?php if (!empty($search) || !empty($collectionType)): ?>
+                    <span class="badge bg-primary">Gefiltert</span>
+                <?php endif; ?>
+            </div>
+            <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#tmdbImportModal">
+                <i class="bi bi-cloud-download"></i> TMDb Import
+            </button>
         </div>
         <div class="card-body">
             <?php if (empty($films)): ?>
@@ -155,16 +527,45 @@ $films = $stmt->fetchAll();
                 </div>
             <?php else: ?>
                 <div class="table-responsive">
-                    <table class="table table-hover">
+                    <table class="table table-hover mb-0">
                         <thead>
                             <tr>
-                                <th width="60">ID</th>
-                                <th>Titel</th>
-                                <th width="80">Jahr</th>
-                                <th>Genre</th>
-                                <th width="80">FSK</th>
-                                <th width="100">Type</th>
-                                <th width="120">Hinzugefügt</th>
+                                <th width="60">
+                                    <a href="<?= getSortUrl('id', $sortColumn, $sortOrder, $search, $collectionType) ?>" class="text-decoration-none text-white">
+                                        ID<?= getSortIcon('id', $sortColumn, $sortOrder) ?>
+                                    </a>
+                                </th>
+                                <th width="50" class="text-center"><i class="bi bi-play-circle"></i></th>
+                                <th>
+                                    <a href="<?= getSortUrl('title', $sortColumn, $sortOrder, $search, $collectionType) ?>" class="text-decoration-none text-white">
+                                        Titel<?= getSortIcon('title', $sortColumn, $sortOrder) ?>
+                                    </a>
+                                </th>
+                                <th width="80">
+                                    <a href="<?= getSortUrl('year', $sortColumn, $sortOrder, $search, $collectionType) ?>" class="text-decoration-none text-white">
+                                        Jahr<?= getSortIcon('year', $sortColumn, $sortOrder) ?>
+                                    </a>
+                                </th>
+                                <th>
+                                    <a href="<?= getSortUrl('genre', $sortColumn, $sortOrder, $search, $collectionType) ?>" class="text-decoration-none text-white">
+                                        Genre<?= getSortIcon('genre', $sortColumn, $sortOrder) ?>
+                                    </a>
+                                </th>
+                                <th width="80">
+                                    <a href="<?= getSortUrl('rating_age', $sortColumn, $sortOrder, $search, $collectionType) ?>" class="text-decoration-none text-white">
+                                        FSK<?= getSortIcon('rating_age', $sortColumn, $sortOrder) ?>
+                                    </a>
+                                </th>
+                                <th width="100">
+                                    <a href="<?= getSortUrl('collection_type', $sortColumn, $sortOrder, $search, $collectionType) ?>" class="text-decoration-none text-white">
+                                        Type<?= getSortIcon('collection_type', $sortColumn, $sortOrder) ?>
+                                    </a>
+                                </th>
+                                <th width="120">
+                                    <a href="<?= getSortUrl('created_at', $sortColumn, $sortOrder, $search, $collectionType) ?>" class="text-decoration-none text-white">
+                                        Hinzugefügt<?= getSortIcon('created_at', $sortColumn, $sortOrder) ?>
+                                    </a>
+                                </th>
                                 <th width="150" class="text-end">Aktionen</th>
                             </tr>
                         </thead>
@@ -172,11 +573,15 @@ $films = $stmt->fetchAll();
                             <?php foreach ($films as $film): ?>
                             <tr>
                                 <td><?= $film['id'] ?></td>
-                                <td>
-                                    <strong><?= htmlspecialchars($film['title']) ?></strong>
+                                <td class="text-center">
                                     <?php if (!empty($film['trailer_url'])): ?>
                                         <i class="bi bi-play-circle text-danger" title="Hat Trailer"></i>
+                                    <?php else: ?>
+                                        <span class="text-muted">-</span>
                                     <?php endif; ?>
+                                </td>
+                                <td>
+                                    <strong><?= htmlspecialchars($film['title']) ?></strong>
                                 </td>
                                 <td><?= $film['year'] ?></td>
                                 <td><span class="badge bg-secondary"><?= htmlspecialchars($film['genre']) ?></span></td>
@@ -235,7 +640,7 @@ $films = $stmt->fetchAll();
                     <ul class="pagination justify-content-center">
                         <?php if ($page > 1): ?>
                         <li class="page-item">
-                            <a class="page-link" href="?page=films&p=<?= $page - 1 ?><?= !empty($search) ? '&search=' . urlencode($search) : '' ?><?= !empty($collectionType) ? '&collection=' . urlencode($collectionType) : '' ?>">
+                            <a class="page-link" href="<?= getPaginationUrl($page - 1, $search, $collectionType, $sortColumn, $sortOrder) ?>">
                                 <i class="bi bi-chevron-left"></i>
                             </a>
                         </li>
@@ -243,7 +648,7 @@ $films = $stmt->fetchAll();
 
                         <?php for ($i = max(1, $page - 2); $i <= min($totalPages, $page + 2); $i++): ?>
                         <li class="page-item <?= $i === $page ? 'active' : '' ?>">
-                            <a class="page-link" href="?page=films&p=<?= $i ?><?= !empty($search) ? '&search=' . urlencode($search) : '' ?><?= !empty($collectionType) ? '&collection=' . urlencode($collectionType) : '' ?>">
+                            <a class="page-link" href="<?= getPaginationUrl($i, $search, $collectionType, $sortColumn, $sortOrder) ?>">
                                 <?= $i ?>
                             </a>
                         </li>
@@ -251,7 +656,7 @@ $films = $stmt->fetchAll();
 
                         <?php if ($page < $totalPages): ?>
                         <li class="page-item">
-                            <a class="page-link" href="?page=films&p=<?= $page + 1 ?><?= !empty($search) ? '&search=' . urlencode($search) : '' ?><?= !empty($collectionType) ? '&collection=' . urlencode($collectionType) : '' ?>">
+                            <a class="page-link" href="<?= getPaginationUrl($page + 1, $search, $collectionType, $sortColumn, $sortOrder) ?>">
                                 <i class="bi bi-chevron-right"></i>
                             </a>
                         </li>
@@ -324,6 +729,12 @@ $films = $stmt->fetchAll();
                                 <option value="Stream">Stream</option>
                             </select>
                         </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="edit_created_at" class="form-label text-dark">Hinzugefügt am</label>
+                        <input type="date" class="form-control" id="edit_created_at" name="created_at">
+                        <div class="form-text text-dark">Datum, an dem der Film zur Sammlung hinzugefügt wurde</div>
                     </div>
 
                     <div class="mb-3">
@@ -424,6 +835,14 @@ function editFilm(filmId) {
                 document.getElementById('edit_trailer_url').value = film.trailer_url || '';
                 document.getElementById('edit_overview').value = film.overview || '';
                 
+                // created_at: Konvertiere von MySQL DATETIME zu HTML date format (YYYY-MM-DD)
+                if (film.created_at) {
+                    const createdDate = film.created_at.split(' ')[0]; // Nur Datum, keine Zeit
+                    document.getElementById('edit_created_at').value = createdDate;
+                } else {
+                    document.getElementById('edit_created_at').value = '';
+                }
+                
                 new bootstrap.Modal(document.getElementById('editFilmModal')).show();
             } catch (e) {
                 console.error('JSON Parse Error:', e);
@@ -461,4 +880,221 @@ function deleteFilm(filmId, filmTitle) {
     document.body.appendChild(form);
     form.submit();
 }
+
+// ============================================
+// TMDb Import Modal & Funktionen
+// ============================================
+
+// TMDb Search
+function tmdbSearch() {
+    const title = document.getElementById('tmdb-search-title').value.trim();
+    const year = document.getElementById('tmdb-search-year').value.trim();
+    
+    if (!title) {
+        alert('Bitte Titel eingeben');
+        return;
+    }
+    
+    const searchBtn = document.getElementById('tmdb-search-btn');
+    searchBtn.disabled = true;
+    searchBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Suche...';
+    
+    // Ergebnis-Container
+    const resultsDiv = document.getElementById('tmdb-results');
+    resultsDiv.innerHTML = '<div class="text-center"><div class="spinner-border" role="status"><span class="visually-hidden">Lädt...</span></div></div>';
+    
+    // AJAX Call
+    fetch('actions/tmdb-search.php', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+            'csrf_token': '<?= $csrfToken ?>',
+            'title': title,
+            'year': year
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        searchBtn.disabled = false;
+        searchBtn.innerHTML = '<i class="bi bi-search"></i> Suchen';
+        
+        if (!data.success) {
+            resultsDiv.innerHTML = `<div class="alert alert-danger">${data.error || 'Fehler bei der Suche'}</div>`;
+            return;
+        }
+        
+        if (data.count === 0) {
+            resultsDiv.innerHTML = '<div class="alert alert-info">Keine Filme gefunden</div>';
+            return;
+        }
+        
+        // Ergebnisse anzeigen
+        let html = `<div class="alert alert-success">${data.count} Film(e) gefunden</div>`;
+        html += '<div class="list-group">';
+        
+        data.results.forEach(movie => {
+            const posterUrl = movie.poster_path 
+                ? `https://image.tmdb.org/t/p/w200${movie.poster_path}`
+                : 'https://via.placeholder.com/200x300?text=Kein+Cover';
+            
+            const rating = movie.rating > 0 ? `⭐ ${movie.rating}` : '';
+            const overview = movie.overview.length > 150 
+                ? movie.overview.substring(0, 150) + '...'
+                : movie.overview;
+            
+            html += `
+                <div class="list-group-item">
+                    <div class="row">
+                        <div class="col-md-2">
+                            <img src="${posterUrl}" class="img-fluid rounded" alt="${movie.title}">
+                        </div>
+                        <div class="col-md-8">
+                            <h5 class="mb-1">${movie.title} (${movie.year || 'N/A'})</h5>
+                            <p class="mb-1 text-muted">${movie.genre || 'Genre unbekannt'} • ${rating}</p>
+                            <p class="mb-1 small">${overview || 'Keine Beschreibung verfügbar'}</p>
+                        </div>
+                        <div class="col-md-2 d-flex align-items-center">
+                            <button class="btn btn-success btn-sm w-100" onclick="tmdbImport(${movie.tmdb_id}, '${movie.title.replace(/'/g, "\\'")}')">
+                                <i class="bi bi-download"></i> Importieren
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        
+        html += '</div>';
+        resultsDiv.innerHTML = html;
+    })
+    .catch(error => {
+        searchBtn.disabled = false;
+        searchBtn.innerHTML = '<i class="bi bi-search"></i> Suchen';
+        resultsDiv.innerHTML = `<div class="alert alert-danger">Netzwerk-Fehler: ${error.message}</div>`;
+    });
+}
+
+// TMDb Import
+function tmdbImport(tmdbId, title) {
+    if (!confirm(`Film "${title}" importieren?`)) {
+        return;
+    }
+    
+    const collectionType = document.getElementById('tmdb-collection-type').value;
+    
+    // Button disablen
+    event.target.disabled = true;
+    event.target.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Importiere...';
+    
+    // AJAX Call
+    fetch('actions/tmdb-import-quick.php', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+            'csrf_token': '<?= $csrfToken ?>',
+            'tmdb_id': tmdbId,
+            'collection_type': collectionType
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (!data.success) {
+            alert('Fehler beim Import: ' + (data.error || 'Unbekannter Fehler'));
+            event.target.disabled = false;
+            event.target.innerHTML = '<i class="bi bi-download"></i> Importieren';
+            return;
+        }
+        
+        // Success
+        alert(data.message || 'Film erfolgreich importiert!');
+        
+        // Modal schließen
+        const modal = bootstrap.Modal.getInstance(document.getElementById('tmdbImportModal'));
+        modal.hide();
+        
+        // Seite neu laden
+        window.location.reload();
+    })
+    .catch(error => {
+        alert('Netzwerk-Fehler: ' + error.message);
+        event.target.disabled = false;
+        event.target.innerHTML = '<i class="bi bi-download"></i> Importieren';
+    });
+}
+
+// Enter-Taste im Suchfeld
+document.addEventListener('DOMContentLoaded', function() {
+    const titleInput = document.getElementById('tmdb-search-title');
+    const yearInput = document.getElementById('tmdb-search-year');
+    
+    if (titleInput) {
+        titleInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                tmdbSearch();
+            }
+        });
+    }
+    
+    if (yearInput) {
+        yearInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                tmdbSearch();
+            }
+        });
+    }
+});
+</script>
+
+<!-- TMDb Import Modal -->
+<div class="modal fade" id="tmdbImportModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-cloud-download"></i> Film von TMDb importieren</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Suchformular -->
+                <div class="row mb-4">
+                    <div class="col-md-5">
+                        <label for="tmdb-search-title" class="form-label">Film-Titel</label>
+                        <input type="text" class="form-control" id="tmdb-search-title" placeholder="z.B. Bloody Mary">
+                    </div>
+                    <div class="col-md-2">
+                        <label for="tmdb-search-year" class="form-label">Jahr (optional)</label>
+                        <input type="number" class="form-control" id="tmdb-search-year" placeholder="2006">
+                    </div>
+                    <div class="col-md-3">
+                        <label for="tmdb-collection-type" class="form-label">Collection Type</label>
+                        <select class="form-select" id="tmdb-collection-type">
+                            <option value="Owned" selected>Owned</option>
+                            <option value="Serie">Serie</option>
+                            <option value="Stream">Stream</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2 d-flex align-items-end">
+                        <button class="btn btn-primary w-100" id="tmdb-search-btn" onclick="tmdbSearch()">
+                            <i class="bi bi-search"></i> Suchen
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Ergebnisse -->
+                <div id="tmdb-results">
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> Geben Sie einen Film-Titel ein und klicken Sie auf "Suchen"
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Schließen</button>
+            </div>
+        </div>
+    </div>
+</div>
 </script>

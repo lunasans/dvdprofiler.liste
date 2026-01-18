@@ -122,6 +122,103 @@ class TMDbHelper {
      * @param string $coverId Cover-ID (z.B. "13geister")
      * @return bool Success
      */
+    
+    /**
+     * Suche Filme auf TMDb - gibt ALLE Ergebnisse zurück
+     * 
+     * @param string $title Film-Titel
+     * @param int $year Jahr (optional)
+     * @param int $limit Max. Anzahl Ergebnisse (Standard: 20)
+     * @return array|null Array mit Film-Ergebnissen
+     */
+    public function searchMovies($title, $year = null, $limit = 20) {
+        try {
+            $searchUrl = $this->baseUrl . '/search/movie';
+            $searchParams = [
+                'api_key' => $this->apiKey,
+                'query' => $title,
+                'language' => 'de-DE',
+                'page' => 1
+            ];
+            
+            if ($year) {
+                $searchParams['year'] = $year;
+            }
+            
+            $searchResult = $this->makeRequest($searchUrl, $searchParams);
+            
+            if (!$searchResult || empty($searchResult['results'])) {
+                return [];
+            }
+            
+            // Alle Ergebnisse formatieren
+            $movies = array_slice($searchResult['results'], 0, $limit);
+            
+            $formatted = array_map(function($movie) {
+                // Genre IDs zu Namen konvertieren
+                $genreNames = $this->getGenreNames($movie['genre_ids'] ?? []);
+                
+                return [
+                    'tmdb_id' => $movie['id'],
+                    'title' => $movie['title'] ?? 'Unbekannt',
+                    'original_title' => $movie['original_title'] ?? '',
+                    'year' => isset($movie['release_date']) ? substr($movie['release_date'], 0, 4) : null,
+                    'release_date' => $movie['release_date'] ?? null,
+                    'overview' => $movie['overview'] ?? '',
+                    'poster_path' => $movie['poster_path'] ?? null,
+                    'backdrop_path' => $movie['backdrop_path'] ?? null,
+                    'rating' => round($movie['vote_average'] ?? 0, 1),
+                    'votes' => $movie['vote_count'] ?? 0,
+                    'popularity' => round($movie['popularity'] ?? 0, 1),
+                    'genre' => implode(', ', $genreNames),
+                    'genre_ids' => $movie['genre_ids'] ?? []
+                ];
+            }, $movies);
+            
+            return $formatted;
+            
+        } catch (Exception $e) {
+            error_log('TMDb searchMovies error: ' . $e->getMessage());
+            return null;
+        }
+    }
+    
+    /**
+     * Konvertiere Genre-IDs zu Namen
+     */
+    private function getGenreNames($genreIds) {
+        // TMDb Genre Map (häufigste Genres)
+        $genreMap = [
+            28 => 'Action',
+            12 => 'Abenteuer',
+            16 => 'Animation',
+            35 => 'Komödie',
+            80 => 'Krimi',
+            99 => 'Dokumentarfilm',
+            18 => 'Drama',
+            10751 => 'Familie',
+            14 => 'Fantasy',
+            36 => 'Historie',
+            27 => 'Horror',
+            10402 => 'Musik',
+            9648 => 'Mystery',
+            10749 => 'Liebesfilm',
+            878 => 'Science Fiction',
+            10770 => 'TV-Film',
+            53 => 'Thriller',
+            10752 => 'Kriegsfilm',
+            37 => 'Western'
+        ];
+        
+        $names = [];
+        foreach ($genreIds as $id) {
+            if (isset($genreMap[$id])) {
+                $names[] = $genreMap[$id];
+            }
+        }
+        
+        return array_slice($names, 0, 3); // Max 3 Genres
+    }
     public function downloadPoster($title, $year, $coverId) {
         $ratings = $this->getFilmRatings($title, $year);
         
