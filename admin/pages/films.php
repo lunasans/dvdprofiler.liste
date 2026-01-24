@@ -621,8 +621,14 @@ small.text-muted {
                                             <i class="bi bi-eye"></i>
                                         </a>
                                         <button type="button" 
+                                                class="btn btn-outline-success"
+                                                onclick='updateFromTmdb(<?= $film["id"] ?>, <?= json_encode($film["title"], JSON_HEX_APOS | JSON_HEX_QUOT) ?>, <?= $film["year"] ?>)'
+                                                title="Mit TMDb aktualisieren">
+                                            <i class="bi bi-arrow-repeat"></i>
+                                        </button>
+                                        <button type="button" 
                                                 class="btn btn-outline-danger"
-                                                onclick="deleteFilm(<?= $film['id'] ?>, '<?= htmlspecialchars($film['title'], ENT_QUOTES) ?>')"
+                                                onclick='deleteFilm(<?= $film["id"] ?>, <?= json_encode($film["title"], JSON_HEX_APOS | JSON_HEX_QUOT) ?>)'
                                                 title="Löschen">
                                             <i class="bi bi-trash"></i>
                                         </button>
@@ -1025,6 +1031,148 @@ function tmdbImport(tmdbId, title) {
     });
 }
 
+// === TMDb UPDATE FUNCTIONS ===
+let currentUpdateFilmId = null;
+
+function updateFromTmdb(filmId, currentTitle, currentYear) {
+    currentUpdateFilmId = filmId;
+    
+    // Setze Werte im Modal
+    document.getElementById('update-current-film').textContent = `${currentTitle} (${currentYear})`;
+    document.getElementById('tmdb-update-search-title').value = currentTitle;
+    document.getElementById('tmdb-update-search-year').value = currentYear;
+    
+    // Reset results
+    document.getElementById('tmdb-update-results').innerHTML = '<div class="alert alert-info"><i class="bi bi-info-circle"></i> Suchen Sie nach dem Film in TMDb</div>';
+    
+    // Open modal
+    new bootstrap.Modal(document.getElementById('tmdbUpdateModal')).show();
+}
+
+function tmdbUpdateSearch() {
+    const title = document.getElementById('tmdb-update-search-title').value.trim();
+    const year = document.getElementById('tmdb-update-search-year').value.trim();
+    const searchBtn = document.getElementById('tmdb-update-search-btn');
+    const resultsDiv = document.getElementById('tmdb-update-results');
+    
+    if (!title) {
+        alert('Bitte geben Sie einen Film-Titel ein.');
+        return;
+    }
+    
+    searchBtn.disabled = true;
+    searchBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Suche...';
+    resultsDiv.innerHTML = '<div class="alert alert-info"><i class="bi bi-hourglass-split"></i> Suche in TMDb...</div>';
+    
+    const csrfToken = document.querySelector('input[name="csrf_token"]').value;
+    
+    fetch('actions/tmdb-search.php', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+            csrf_token: csrfToken,
+            title: title,
+            year: year || ''
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        searchBtn.disabled = false;
+        searchBtn.innerHTML = '<i class="bi bi-search"></i> Suchen';
+        
+        if (!data.success) {
+            resultsDiv.innerHTML = `<div class="alert alert-danger">Fehler: ${data.error || 'Unbekannter Fehler'}</div>`;
+            return;
+        }
+        
+        if (data.count === 0) {
+            resultsDiv.innerHTML = '<div class="alert alert-warning"><i class="bi bi-exclamation-triangle"></i> Keine Filme gefunden.</div>';
+            return;
+        }
+        
+        let html = `<div class="alert alert-success mb-3"><i class="bi bi-check-circle"></i> ${data.count} Film(e) gefunden</div>`;
+        html += '<div class="list-group">';
+        
+        data.results.forEach(movie => {
+            const posterUrl = movie.poster_path 
+                ? `https://image.tmdb.org/t/p/w200${movie.poster_path}`
+                : 'https://via.placeholder.com/200x300?text=Kein+Cover';
+            
+            const rating = movie.rating > 0 ? `⭐ ${movie.rating}` : '';
+            const overview = movie.overview.length > 150 
+                ? movie.overview.substring(0, 150) + '...'
+                : movie.overview;
+            
+            html += `
+                <div class="list-group-item">
+                    <div class="row">
+                        <div class="col-md-2">
+                            <img src="${posterUrl}" class="img-fluid rounded" alt="${movie.title}">
+                        </div>
+                        <div class="col-md-8">
+                            <h5 class="mb-1">${movie.title} (${movie.year || 'N/A'})</h5>
+                            <p class="mb-1 text-muted">${movie.genre || 'Genre unbekannt'} • ${rating}</p>
+                            <p class="mb-1 small">${overview || 'Keine Beschreibung'}</p>
+                        </div>
+                        <div class="col-md-2 d-flex align-items-center">
+                            <button class="btn btn-success btn-sm w-100" onclick='tmdbUpdate(${currentUpdateFilmId}, ${movie.tmdb_id}, ${JSON.stringify(movie.title)})'>
+                                <i class="bi bi-arrow-repeat"></i> Aktualisieren
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        
+        html += '</div>';
+        resultsDiv.innerHTML = html;
+    })
+    .catch(error => {
+        searchBtn.disabled = false;
+        searchBtn.innerHTML = '<i class="bi bi-search"></i> Suchen';
+        resultsDiv.innerHTML = `<div class="alert alert-danger">Netzwerk-Fehler: ${error.message}</div>`;
+    });
+}
+
+function tmdbUpdate(filmId, tmdbId, title) {
+    if (!confirm(`Film mit TMDb-Daten aktualisieren?\n\nFilm: ${title}\n\nCover, Trailer, Schauspieler werden überschrieben!`)) {
+        return;
+    }
+    
+    const csrfToken = document.querySelector('input[name="csrf_token"]').value;
+    const resultsDiv = document.getElementById('tmdb-update-results');
+    
+    resultsDiv.innerHTML = '<div class="alert alert-info"><i class="bi bi-hourglass-split"></i> Film wird aktualisiert...</div>';
+    
+    fetch('actions/tmdb-update-film.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ csrf_token: csrfToken, film_id: filmId, tmdb_id: tmdbId })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (!data.success) {
+            alert('Fehler: ' + (data.error || 'Unbekannter Fehler'));
+            resultsDiv.innerHTML = `<div class="alert alert-danger">Fehler: ${data.error}</div>`;
+            return;
+        }
+        
+        resultsDiv.innerHTML = '<div class="alert alert-success"><i class="bi bi-check-circle"></i> Film erfolgreich aktualisiert!</div>';
+        
+        setTimeout(() => {
+            const modal = bootstrap.Modal.getInstance(document.getElementById('tmdbUpdateModal'));
+            if (modal) modal.hide();
+            location.reload();
+        }, 1000);
+    })
+    .catch(error => {
+        alert('Netzwerk-Fehler: ' + error.message);
+        resultsDiv.innerHTML = `<div class="alert alert-danger">Netzwerk-Fehler: ${error.message}</div>`;
+    });
+}
+
 // Enter-Taste im Suchfeld
 document.addEventListener('DOMContentLoaded', function() {
     const titleInput = document.getElementById('tmdb-search-title');
@@ -1093,6 +1241,48 @@ document.addEventListener('DOMContentLoaded', function() {
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Schließen</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- TMDb Update Modal -->
+<div class="modal fade" id="tmdbUpdateModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-arrow-repeat"></i> Film mit TMDb aktualisieren</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info mb-4">
+                    <strong>Aktueller Film:</strong> <span id="update-current-film"></span>
+                </div>
+                
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <label for="tmdb-update-search-title" class="form-label">Film-Titel</label>
+                        <input type="text" class="form-control" id="tmdb-update-search-title" placeholder="z.B. Matrix">
+                    </div>
+                    <div class="col-md-3">
+                        <label for="tmdb-update-search-year" class="form-label">Jahr (optional)</label>
+                        <input type="number" class="form-control" id="tmdb-update-search-year" placeholder="1999">
+                    </div>
+                    <div class="col-md-3 d-flex align-items-end">
+                        <button class="btn btn-primary w-100" id="tmdb-update-search-btn" onclick="tmdbUpdateSearch()">
+                            <i class="bi bi-search"></i> Suchen
+                        </button>
+                    </div>
+                </div>
+                
+                <div id="tmdb-update-results">
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> Suchen Sie nach dem Film in TMDb
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
             </div>
         </div>
     </div>

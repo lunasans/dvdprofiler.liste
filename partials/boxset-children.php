@@ -4,6 +4,7 @@
 header('Content-Type: application/json');
 
 require_once __DIR__ . '/../includes/bootstrap.php';
+require_once __DIR__ . '/../includes/tmdb-helper.php';
 
 $parentId = (int)($_GET['parent_id'] ?? 0);
 
@@ -41,6 +42,30 @@ try {
                     break;
                 }
             }
+        }
+        
+        // TMDb Rating aus Cache laden
+        try {
+            $apiKey = getSetting('tmdb_api_key', '');
+            if (!empty($apiKey)) {
+                $tmdb = new TMDbHelper($apiKey);
+                $ratings = $tmdb->getFilmRatings($child['title'], $child['year']);
+                
+                if ($ratings) {
+                    $child['tmdb_rating'] = $ratings['tmdb_rating'];
+                    $child['tmdb_votes'] = $ratings['tmdb_votes'];
+                } else {
+                    $child['tmdb_rating'] = null;
+                    $child['tmdb_votes'] = null;
+                }
+            } else {
+                $child['tmdb_rating'] = null;
+                $child['tmdb_votes'] = null;
+            }
+        } catch (Exception $e) {
+            error_log('Rating load error for film ' . $child['id'] . ': ' . $e->getMessage());
+            $child['tmdb_rating'] = null;
+            $child['tmdb_votes'] = null;
         }
     }
     

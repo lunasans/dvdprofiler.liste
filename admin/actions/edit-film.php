@@ -27,8 +27,8 @@ try {
     $title = trim($_POST['title'] ?? '');
     $year = (int)($_POST['year'] ?? 0);
     $genre = trim($_POST['genre'] ?? '');
-    $runtime = !empty($_POST['runtime']) ? (int)$_POST['runtime'] : null;
-    $ratingAge = !empty($_POST['rating_age']) ? (int)$_POST['rating_age'] : null;
+    $runtime = isset($_POST['runtime']) && $_POST['runtime'] !== '' ? (int)$_POST['runtime'] : null;
+    $ratingAge = isset($_POST['rating_age']) && $_POST['rating_age'] !== '' ? (int)$_POST['rating_age'] : null;
     $collectionType = trim($_POST['collection_type'] ?? 'Owned');
     $createdAt = trim($_POST['created_at'] ?? '');
     $trailerUrl = trim($_POST['trailer_url'] ?? '');
