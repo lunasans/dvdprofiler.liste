@@ -224,8 +224,20 @@ try {
         <button class="trailer-modal-close" onclick="closeTrailerModal()" aria-label="Schließen">
             <i class="bi bi-x-lg"></i>
         </button>
-        <div class="trailer-video-container" id="trailerVideoContainer">
-            <!-- YouTube iframe wird hier eingefügt -->
+        <div class="trailer-video-wrapper" id="trailerVideoWrapper">
+            <!-- Cover-Placeholder (wird initial angezeigt) -->
+            <div class="trailer-video-placeholder" id="trailerPlaceholder">
+                <img id="trailerCoverImage" src="" alt="Film Cover">
+                <div class="modal-play-overlay">
+                    <div class="modal-play-button" onclick="playVideoInModal()">
+                        <i class="bi bi-play-fill"></i>
+                    </div>
+                </div>
+            </div>
+            <!-- Video Container (wird nach Play-Click angezeigt) -->
+            <div class="trailer-video-container" id="trailerVideoContainer" style="display: none;">
+                <!-- YouTube iframe wird hier eingefügt -->
+            </div>
         </div>
     </div>
 </div>
@@ -467,10 +479,81 @@ try {
     transform: rotate(90deg);
 }
 
-.trailer-video-container {
+.trailer-video-wrapper {
     position: relative;
     width: 100%;
     padding-bottom: 56.25%; /* 16:9 Aspect Ratio */
+    background: #000;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.trailer-video-placeholder {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: #000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.trailer-video-placeholder img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.modal-play-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.4);
+    transition: background 0.3s ease;
+}
+
+.modal-play-overlay:hover {
+    background: rgba(0, 0, 0, 0.6);
+}
+
+.modal-play-button {
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.2);
+    backdrop-filter: blur(10px);
+    border: 3px solid rgba(255, 255, 255, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.modal-play-button:hover {
+    transform: scale(1.1);
+    background: rgba(255, 255, 255, 0.3);
+}
+
+.modal-play-button i {
+    font-size: 3rem;
+    color: white;
+    margin-left: 5px; /* Play-Icon optisch zentrieren */
+}
+
+.trailer-video-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
     background: #000;
     border-radius: 8px;
     overflow: hidden;
@@ -624,27 +707,41 @@ try {
      JAVASCRIPT
      ============================================================================ -->
 <script>
+// Globale Variable für Embed-URL
+let currentEmbedUrl = '';
+let currentCoverUrl = '';
+
 // ============================================================================
-// TRAILER ABSPIELEN
+// TRAILER MODAL ÖFFNEN (zeigt Cover)
 // ============================================================================
 function playTrailer(element) {
     const embedUrl = element.dataset.embedUrl;
+    const coverImg = element.querySelector('img');
+    const coverUrl = coverImg ? coverImg.src : '';
+    
     if (!embedUrl) {
         console.error('Keine Embed-URL gefunden');
         return;
     }
     
-    const modal = document.getElementById('trailerModal');
-    const container = document.getElementById('trailerVideoContainer');
+    // URLs speichern
+    currentEmbedUrl = embedUrl;
+    currentCoverUrl = coverUrl;
     
-    // YouTube iframe einfügen mit Autoplay
-    container.innerHTML = `
-        <iframe 
-            src="${embedUrl}?autoplay=1&rel=0" 
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
-            allowfullscreen>
-        </iframe>
-    `;
+    const modal = document.getElementById('trailerModal');
+    const placeholder = document.getElementById('trailerPlaceholder');
+    const videoContainer = document.getElementById('trailerVideoContainer');
+    const coverImage = document.getElementById('trailerCoverImage');
+    
+    // Cover anzeigen
+    if (coverUrl) {
+        coverImage.src = coverUrl;
+    }
+    
+    // Sicherstellen dass Placeholder sichtbar und Video versteckt ist
+    placeholder.style.display = 'flex';
+    videoContainer.style.display = 'none';
+    videoContainer.innerHTML = ''; // Video zurücksetzen
     
     // Modal anzeigen
     modal.classList.add('show');
@@ -652,18 +749,50 @@ function playTrailer(element) {
 }
 
 // ============================================================================
+// VIDEO IM MODAL ABSPIELEN (nach Play-Button Click)
+// ============================================================================
+function playVideoInModal() {
+    if (!currentEmbedUrl) return;
+    
+    const placeholder = document.getElementById('trailerPlaceholder');
+    const videoContainer = document.getElementById('trailerVideoContainer');
+    
+    // YouTube iframe einfügen mit Autoplay
+    videoContainer.innerHTML = `
+        <iframe 
+            src="${currentEmbedUrl}?autoplay=1&rel=0" 
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+            allowfullscreen>
+        </iframe>
+    `;
+    
+    // Cover verstecken, Video anzeigen
+    placeholder.style.display = 'none';
+    videoContainer.style.display = 'block';
+}
+
+// ============================================================================
 // TRAILER MODAL SCHLIEẞEN
 // ============================================================================
 function closeTrailerModal() {
     const modal = document.getElementById('trailerModal');
-    const container = document.getElementById('trailerVideoContainer');
+    const placeholder = document.getElementById('trailerPlaceholder');
+    const videoContainer = document.getElementById('trailerVideoContainer');
     
     // Video stoppen (iframe entfernen)
-    container.innerHTML = '';
+    videoContainer.innerHTML = '';
+    
+    // Zurück zum Cover-State
+    placeholder.style.display = 'flex';
+    videoContainer.style.display = 'none';
     
     // Modal verstecken
     modal.classList.remove('show');
     document.body.style.overflow = '';
+    
+    // URLs zurücksetzen
+    currentEmbedUrl = '';
+    currentCoverUrl = '';
 }
 
 // ============================================================================
