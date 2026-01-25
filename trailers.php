@@ -7,7 +7,10 @@
  * @version    1.4.8
  */
 
-// Datenbankverbindung sicherstellen
+// ============================================================================
+// BOOTSTRAP & DATENBANKVERBINDUNG
+// ============================================================================
+
 global $pdo;
 if (!isset($pdo) || !($pdo instanceof PDO)) {
     // Fallback: Bootstrap laden falls nicht vorhanden
@@ -16,7 +19,15 @@ if (!isset($pdo) || !($pdo instanceof PDO)) {
     }
 }
 
-// Helper: YouTube URL zu Embed URL
+// ============================================================================
+// HELPER FUNCTIONS
+// ============================================================================
+
+/**
+ * YouTube URL zu Embed URL konvertieren
+ * @param string $url YouTube URL
+ * @return string Embed URL oder leer
+ */
 function getYouTubeEmbedUrl($url) {
     if (empty($url)) return '';
     
@@ -29,12 +40,16 @@ function getYouTubeEmbedUrl($url) {
     return "https://www.youtube.com/embed/{$videoId}";
 }
 
+// ============================================================================
+// PAGINATION & DATEN LADEN
+// ============================================================================
+
 // Anzahl Trailer pro Seite
 $trailersPerPage = 12;
 $page = max(1, (int)($_GET['p'] ?? 1));
 $offset = ($page - 1) * $trailersPerPage;
 
-// Debug
+// Debug Output
 error_log('Trailers Page - $_GET: ' . print_r($_GET, true));
 error_log("Trailers Page - Current page: $page, Offset: $offset");
 
@@ -65,6 +80,9 @@ try {
 }
 ?>
 
+<!-- ============================================================================
+     PAGE HEADER
+     ============================================================================ -->
 <main class="trailers-page">
     <div class="page-header">
         <div class="page-header-content">
@@ -74,37 +92,67 @@ try {
             </h1>
             <p class="page-subtitle">
                 <?= $totalTrailers ?> Trailer in der Sammlung
+                <?php /* Debug Info - kann entfernt werden wenn alles funktioniert */ ?>
+                <!--
                 <small style="opacity: 0.6; margin-left: 1rem;">
                     (Seite: <?= $page ?>, Offset: <?= $offset ?>, Total Pages: <?= $totalPages ?>)
                 </small>
+                -->
             </p>
         </div>
     </div>
     
+    <!-- ========================================================================
+         EMPTY STATE oder TRAILER GRID
+         ======================================================================== -->
     <?php if (empty($trailers)): ?>
+        <!-- Empty State -->
         <div class="empty-state">
             <i class="bi bi-play-circle"></i>
             <h2>Keine Trailer verfügbar</h2>
             <p>Es wurden noch keine Trailer hinzugefügt.</p>
         </div>
+        
     <?php else: ?>
+        <!-- Trailers Grid -->
         <div class="trailers-grid">
             <?php foreach ($trailers as $trailer): 
-                // Cover-Bild finden
-                $coverUrl = findCoverImage($trailer['cover_id'] ?? '', 'f');
+                // Cover-Bild finden mit Fallback
+                $coverUrl = 'cover/placeholder.png'; // Default
+                if (isset($trailer['cover_id']) && $trailer['cover_id']) {
+                    if (function_exists('findCoverImage')) {
+                        $coverUrl = findCoverImage($trailer['cover_id'], 'f');
+                    } else {
+                        // Manueller Fallback falls Funktion fehlt
+                        $testCover = "cover/{$trailer['cover_id']}f.jpg";
+                        if (file_exists($testCover)) {
+                            $coverUrl = $testCover;
+                        }
+                    }
+                }
+                
+                $embedUrl = getYouTubeEmbedUrl($trailer['trailer_url']);
             ?>
                 <div class="trailer-card" data-trailer-id="<?= $trailer['id'] ?>">
-                    <div class="trailer-thumbnail" onclick="playTrailer(this)" data-embed-url="<?= htmlspecialchars(getYouTubeEmbedUrl($trailer['trailer_url'])) ?>">
+                    <!-- Trailer Thumbnail mit Play Button -->
+                    <div class="trailer-thumbnail" 
+                         onclick="playTrailer(this)" 
+                         data-embed-url="<?= htmlspecialchars($embedUrl) ?>">
                         <img src="<?= htmlspecialchars($coverUrl) ?>" 
                              alt="<?= htmlspecialchars($trailer['title']) ?> Cover"
                              loading="lazy"
                              onerror="this.src='cover/placeholder.png'">
+                        
+                        <!-- Play Overlay -->
                         <div class="play-overlay">
                             <i class="bi bi-play-circle-fill"></i>
                         </div>
+                        
+                        <!-- Trailer Badge -->
                         <div class="trailer-duration">Trailer</div>
                     </div>
                     
+                    <!-- Film Info -->
                     <div class="trailer-info">
                         <h3 class="trailer-title">
                             <a href="?page=film&id=<?= $trailer['id'] ?>">
@@ -126,14 +174,18 @@ try {
             <?php endforeach; ?>
         </div>
         
-        <!-- Pagination -->
+        <!-- ====================================================================
+             PAGINATION
+             ==================================================================== -->
         <?php if ($totalPages > 1): ?>
             <nav class="pagination">
+                <!-- Erste / Zurück -->
                 <?php if ($page > 1): ?>
                     <a href="?page=trailers&p=1" class="pagination-link">« Erste</a>
                     <a href="?page=trailers&p=<?= $page - 1 ?>" class="pagination-link">‹ Zurück</a>
                 <?php endif; ?>
                 
+                <!-- Page Numbers -->
                 <?php
                 $window = 2;
                 $start = max(1, $page - $window);
@@ -148,12 +200,14 @@ try {
                 endfor;
                 ?>
                 
+                <!-- Weiter / Letzte -->
                 <?php if ($page < $totalPages): ?>
                     <a href="?page=trailers&p=<?= $page + 1 ?>" class="pagination-link">Weiter ›</a>
                     <a href="?page=trailers&p=<?= $totalPages ?>" class="pagination-link">Letzte »</a>
                 <?php endif; ?>
             </nav>
             
+            <!-- Pagination Info -->
             <div class="pagination-info">
                 Seite <?= $page ?> von <?= $totalPages ?>
             </div>
@@ -161,7 +215,9 @@ try {
     <?php endif; ?>
 </main>
 
-<!-- Trailer Modal -->
+<!-- ============================================================================
+     TRAILER MODAL
+     ============================================================================ -->
 <div id="trailerModal" class="trailer-modal">
     <div class="trailer-modal-backdrop" onclick="closeTrailerModal()"></div>
     <div class="trailer-modal-content">
@@ -174,14 +230,22 @@ try {
     </div>
 </div>
 
+<!-- ============================================================================
+     STYLES
+     ============================================================================ -->
 <style>
-/* Trailers Page Styles */
+/* ============================================================================
+   MAIN LAYOUT
+   ============================================================================ */
 .trailers-page {
     max-width: 1400px;
     margin: 0 auto;
     padding: var(--space-xl, 2rem) var(--space-lg, 1.5rem);
 }
 
+/* ============================================================================
+   PAGE HEADER
+   ============================================================================ */
 .page-header {
     text-align: center;
     margin-bottom: var(--space-2xl, 3rem);
@@ -207,7 +271,9 @@ try {
     color: var(--text-muted, rgba(228, 228, 231, 0.6));
 }
 
-/* Trailers Grid */
+/* ============================================================================
+   TRAILERS GRID
+   ============================================================================ */
 .trailers-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
@@ -215,6 +281,9 @@ try {
     margin-bottom: var(--space-2xl, 3rem);
 }
 
+/* ============================================================================
+   TRAILER CARD
+   ============================================================================ */
 .trailer-card {
     background: var(--bg-secondary, rgba(255, 255, 255, 0.05));
     border: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
@@ -229,6 +298,9 @@ try {
     transform: translateY(-4px);
 }
 
+/* ============================================================================
+   TRAILER THUMBNAIL
+   ============================================================================ */
 .trailer-thumbnail {
     position: relative;
     width: 100%;
@@ -252,6 +324,9 @@ try {
     transform: scale(1.05);
 }
 
+/* ============================================================================
+   PLAY OVERLAY
+   ============================================================================ */
 .play-overlay {
     position: absolute;
     top: 0;
@@ -281,6 +356,9 @@ try {
     transform: scale(1.2);
 }
 
+/* ============================================================================
+   TRAILER BADGE
+   ============================================================================ */
 .trailer-duration {
     position: absolute;
     bottom: 8px;
@@ -293,6 +371,9 @@ try {
     font-weight: 600;
 }
 
+/* ============================================================================
+   TRAILER INFO
+   ============================================================================ */
 .trailer-info {
     padding: var(--space-md, 1rem);
 }
@@ -325,7 +406,9 @@ try {
     gap: var(--space-xs, 0.35rem);
 }
 
-/* Trailer Modal */
+/* ============================================================================
+   TRAILER MODAL
+   ============================================================================ */
 .trailer-modal {
     position: fixed;
     top: 0;
@@ -387,7 +470,7 @@ try {
 .trailer-video-container {
     position: relative;
     width: 100%;
-    padding-bottom: 56.25%;
+    padding-bottom: 56.25%; /* 16:9 Aspect Ratio */
     background: #000;
     border-radius: 8px;
     overflow: hidden;
@@ -402,7 +485,9 @@ try {
     border: none;
 }
 
-/* Animations */
+/* ============================================================================
+   ANIMATIONS
+   ============================================================================ */
 @keyframes fadeIn {
     from { opacity: 0; }
     to { opacity: 1; }
@@ -419,7 +504,9 @@ try {
     }
 }
 
-/* Empty State */
+/* ============================================================================
+   EMPTY STATE
+   ============================================================================ */
 .empty-state {
     text-align: center;
     padding: var(--space-3xl, 4rem) var(--space-lg, 1.5rem);
@@ -431,7 +518,72 @@ try {
     margin-bottom: var(--space-md, 1rem);
 }
 
-/* Responsive */
+.empty-state h2 {
+    color: var(--text-primary, #e4e4e7);
+    margin-bottom: var(--space-sm, 0.5rem);
+}
+
+.empty-state p {
+    color: var(--text-muted, rgba(228, 228, 231, 0.6));
+}
+
+/* ============================================================================
+   PAGINATION
+   ============================================================================ */
+.pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    margin: 2rem 0 1rem 0;
+    flex-wrap: wrap;
+}
+
+.pagination-link,
+.pagination-current {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 40px;
+    height: 40px;
+    padding: 0.5rem 0.75rem;
+    border-radius: 8px;
+    text-decoration: none;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    border: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+}
+
+.pagination-link {
+    background: var(--bg-secondary, rgba(255, 255, 255, 0.05));
+    color: var(--text-primary, #e4e4e7);
+}
+
+.pagination-link:hover {
+    background: var(--accent-primary, #667eea);
+    border-color: var(--accent-primary, #667eea);
+    color: white;
+    transform: translateY(-2px);
+}
+
+.pagination-current {
+    background: var(--accent-primary, #667eea);
+    color: white;
+    border-color: var(--accent-primary, #667eea);
+    font-weight: 600;
+    cursor: default;
+}
+
+.pagination-info {
+    text-align: center;
+    color: var(--text-muted, rgba(228, 228, 231, 0.6));
+    font-size: 0.9rem;
+    margin-bottom: var(--space-xl, 2rem);
+}
+
+/* ============================================================================
+   RESPONSIVE DESIGN - TABLET
+   ============================================================================ */
 @media (max-width: 768px) {
     .trailers-grid {
         grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
@@ -448,23 +600,44 @@ try {
     }
 }
 
+/* ============================================================================
+   RESPONSIVE DESIGN - MOBILE
+   ============================================================================ */
 @media (max-width: 480px) {
     .trailers-grid {
         grid-template-columns: 1fr;
     }
+    
+    .page-header-content h1 {
+        font-size: 1.5rem;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    
+    .page-header-content h1 i {
+        font-size: 2rem;
+    }
 }
 </style>
 
+<!-- ============================================================================
+     JAVASCRIPT
+     ============================================================================ -->
 <script>
-// Trailer Modal Functions
+// ============================================================================
+// TRAILER ABSPIELEN
+// ============================================================================
 function playTrailer(element) {
     const embedUrl = element.dataset.embedUrl;
-    if (!embedUrl) return;
+    if (!embedUrl) {
+        console.error('Keine Embed-URL gefunden');
+        return;
+    }
     
     const modal = document.getElementById('trailerModal');
     const container = document.getElementById('trailerVideoContainer');
     
-    // YouTube iframe einfügen
+    // YouTube iframe einfügen mit Autoplay
     container.innerHTML = `
         <iframe 
             src="${embedUrl}?autoplay=1&rel=0" 
@@ -473,25 +646,35 @@ function playTrailer(element) {
         </iframe>
     `;
     
+    // Modal anzeigen
     modal.classList.add('show');
     document.body.style.overflow = 'hidden';
 }
 
+// ============================================================================
+// TRAILER MODAL SCHLIEẞEN
+// ============================================================================
 function closeTrailerModal() {
     const modal = document.getElementById('trailerModal');
     const container = document.getElementById('trailerVideoContainer');
     
-    // Video stoppen
+    // Video stoppen (iframe entfernen)
     container.innerHTML = '';
     
+    // Modal verstecken
     modal.classList.remove('show');
     document.body.style.overflow = '';
 }
 
-// ESC-Key schließt Modal
+// ============================================================================
+// ESC-KEY HANDLER
+// ============================================================================
 document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {
-        closeTrailerModal();
+        const modal = document.getElementById('trailerModal');
+        if (modal.classList.contains('show')) {
+            closeTrailerModal();
+        }
     }
 });
 </script>

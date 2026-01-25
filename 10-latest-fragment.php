@@ -1,6 +1,14 @@
 <?php
-// 10-latest-fragment.php - Zeigt die neuesten Filme (dynamisch konfigurierbar)
+/**
+ * 10-latest-fragment.php
+ * Zeigt die neuesten Filme (dynamisch konfigurierbar)
+ */
+
 require_once __DIR__ . '/includes/bootstrap.php';
+
+// ============================================================================
+// KONFIGURATION & DATEN LADEN
+// ============================================================================
 
 // Anzahl aus Settings laden (Standard: 10)
 $latestCount = (int)getSetting('latest_films_count', '10');
@@ -20,7 +28,11 @@ $latest = $stmt->fetchAll();
 $countStmt = $pdo->query("SELECT COUNT(*) FROM dvds WHERE deleted = 0");
 $totalRecords = (int)$countStmt->fetchColumn();
 
-// Helper function
+/**
+ * Helper: Laufzeit formatieren
+ * @param int $minutes
+ * @return string
+ */
 function safeFormatRuntime($minutes) {
     if (!$minutes || $minutes <= 0) return '';
     $h = intdiv($minutes, 60);
@@ -29,6 +41,9 @@ function safeFormatRuntime($minutes) {
 }
 ?>
 
+<!-- ============================================================================
+     HEADER SECTION
+     ============================================================================ -->
 <header class="latest-header">
     <h2>
         <i class="bi bi-stars"></i>
@@ -36,8 +51,13 @@ function safeFormatRuntime($minutes) {
         <span class="item-count">(<?= count($latest) ?> neueste von <?= number_format($totalRecords) ?> Filmen)</span>
     </h2>
 </header>
+
+<!-- ============================================================================
+     FILM GRID SECTION
+     ============================================================================ -->
 <section class="latest-grid" style="padding-top: 37px;">
     <?php if (empty($latest)): ?>
+        <!-- Empty State -->
         <div class="empty-state">
             <i class="bi bi-film"></i>
             <h3>Keine Filme gefunden</h3>
@@ -46,7 +66,9 @@ function safeFormatRuntime($minutes) {
     <?php else: ?>
         <div class="latest-list">
             <?php foreach ($latest as $dvd): 
-                // Sichere Werte
+                // ================================================================
+                // Film-Daten vorbereiten
+                // ================================================================
                 $title = isset($dvd['title']) ? htmlspecialchars($dvd['title']) : 'Unbekannt';
                 $year = isset($dvd['year']) && $dvd['year'] ? (int)$dvd['year'] : 0;
                 $id = isset($dvd['id']) ? (int)$dvd['id'] : 0;
@@ -54,12 +76,11 @@ function safeFormatRuntime($minutes) {
                 $genre = isset($dvd['genre']) && $dvd['genre'] ? htmlspecialchars($dvd['genre']) : 'Unbekannt';
                 
                 // Cover mit Fallback
-                $cover = 'cover/placeholder.png'; // Default
+                $cover = 'cover/placeholder.png';
                 if (isset($dvd['cover_id']) && $dvd['cover_id']) {
                     if (function_exists('findCoverImage')) {
                         $cover = findCoverImage($dvd['cover_id'], 'f');
                     } else {
-                        // Manueller Fallback falls Funktion fehlt
                         $testCover = "cover/{$dvd['cover_id']}f.jpg";
                         if (file_exists($testCover)) {
                             $cover = $testCover;
@@ -67,7 +88,7 @@ function safeFormatRuntime($minutes) {
                     }
                 }
                 
-                // Added Date
+                // Hinzugefügt-Datum formatieren
                 $addedDate = '';
                 if (isset($dvd['created_at']) && $dvd['created_at']) {
                     try {
@@ -89,7 +110,7 @@ function safeFormatRuntime($minutes) {
                     }
                 }
                 
-                // View count
+                // View Count & Badges
                 $viewCount = isset($dvd['view_count']) ? (int)$dvd['view_count'] : 0;
                 $isPopular = $viewCount > 20;
                 $isRecent = false;
@@ -98,8 +119,10 @@ function safeFormatRuntime($minutes) {
                     $isRecent = (time() - strtotime($dvd['created_at'])) < (7 * 24 * 60 * 60);
                 }
             ?>
+                <!-- Film Card -->
                 <div class="latest-card <?= $isPopular ? 'popular' : '' ?>" data-film-id="<?= $id ?>">
                     
+                    <!-- NEU Badge -->
                     <?php if ($isRecent): ?>
                         <div class="new-badge">
                             <i class="bi bi-star-fill"></i>
@@ -107,25 +130,30 @@ function safeFormatRuntime($minutes) {
                         </div>
                     <?php endif; ?>
                     
+                    <!-- Popularity Badge -->
                     <?php if ($isPopular): ?>
                         <div class="popularity-badge" title="<?= $viewCount ?> Aufrufe">
                             <i class="bi bi-eye-fill"></i>
                         </div>
                     <?php endif; ?>
                     
+                    <!-- Film Link -->
                     <a href="#" class="toggle-detail" data-id="<?= $id ?>">
+                        <!-- Cover Image -->
                         <div class="card-image">
                             <img src="<?= htmlspecialchars($cover) ?>" 
                                  alt="Cover von <?= $title ?>"
                                  loading="lazy"
                                  onerror="this.src='cover/placeholder.png'">
                             
+                            <!-- Hover Overlay mit Play Button -->
                             <div class="image-overlay">
                                 <div class="play-button">
                                     <i class="bi bi-play-fill"></i>
                                 </div>
                             </div>
                             
+                            <!-- Hover Info (Genre, Runtime, Views) -->
                             <div class="hover-info">
                                 <div class="info-item">
                                     <i class="bi bi-tag"></i>
@@ -148,6 +176,7 @@ function safeFormatRuntime($minutes) {
                             </div>
                         </div>
                         
+                        <!-- Film Titel & Meta -->
                         <div class="latest-title">
                             <h3><?= $title ?></h3>
                             <div class="film-meta">
@@ -190,20 +219,29 @@ function safeFormatRuntime($minutes) {
     <?php endif; ?>
 </section>
 
+<!-- ============================================================================
+     JAVASCRIPT
+     ============================================================================ -->
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     console.log('Latest fragment loaded with', <?= count($latest) ?>, 'films');
     
-    // Quick Actions
-    document.querySelectorAll('.wishlist-btn').forEach(btn => {
-        btn.addEventListener('click', function(e) {
+    // ========================================================================
+    // FILM DETAIL ANZEIGEN
+    // ========================================================================
+    document.querySelectorAll('.toggle-detail').forEach(link => {
+        link.addEventListener('click', function(e) {
             e.preventDefault();
-            e.stopPropagation();
-            console.log('Wishlist clicked for film', this.dataset.filmId);
-            // TODO: Implement wishlist functionality
+            const filmId = this.dataset.id;
+            if (filmId) {
+                window.location.href = '?page=detail&id=' + filmId;
+            }
         });
     });
     
+    // ========================================================================
+    // QUICK ACTIONS - Als gesehen markieren
+    // ========================================================================
     document.querySelectorAll('.watched-btn').forEach(btn => {
         btn.addEventListener('click', function(e) {
             e.preventDefault();
@@ -213,19 +251,23 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
     
+    // ========================================================================
+    // QUICK ACTIONS - Film teilen
+    // ========================================================================
     document.querySelectorAll('.share-btn').forEach(btn => {
         btn.addEventListener('click', function(e) {
             e.preventDefault();
             e.stopPropagation();
             const filmId = this.dataset.filmId;
             
+            // Native Share API wenn verfügbar
             if (navigator.share) {
                 navigator.share({
                     title: 'Film teilen',
                     url: window.location.origin + window.location.pathname + '?id=' + filmId
                 });
             } else {
-                // Fallback
+                // Fallback: Clipboard
                 const url = window.location.origin + window.location.pathname + '?id=' + filmId;
                 if (navigator.clipboard) {
                     navigator.clipboard.writeText(url).then(() => {
@@ -237,104 +279,126 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     });
-    
-    // Lazy Loading für Bilder
-    if ('IntersectionObserver' in window) {
-        const imageObserver = new IntersectionObserver((entries) => {
-            entries.forEach(entry => {
-                if (entry.isIntersecting) {
-                    const img = entry.target;
-                    img.classList.add('loaded');
-                    imageObserver.unobserve(img);
-                }
-            });
-        });
-        
-        document.querySelectorAll('.latest-card img').forEach(img => {
-            imageObserver.observe(img);
-        });
-    }
 });
 </script>
 
+<!-- ============================================================================
+     STYLES
+     ============================================================================ -->
 <style>
-/* Basis-Styles für die Latest Cards */
+/* ============================================================================
+   HEADER STYLES
+   ============================================================================ */
 .latest-header {
-    margin-bottom: 2rem;
-    text-align: center;
+    margin-bottom: 1.5rem;
+    padding: 0 1rem;
 }
 
 .latest-header h2 {
+    font-size: 1.8rem;
+    font-weight: 600;
+    color: var(--text-white, #fff);
     display: flex;
     align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
-    color: var(--text-white, #fff);
+    gap: 0.75rem;
     margin: 0;
 }
 
+.latest-header h2 i {
+    color: var(--gradient-primary, #667eea);
+    font-size: 1.5rem;
+}
+
 .item-count {
-    font-size: 0.8em;
-    opacity: 0.7;
+    font-size: 0.9rem;
+    color: var(--text-glass, rgba(255,255,255,0.7));
     font-weight: 400;
 }
 
-.page-info {
-    margin-top: 0.5rem;
-    color: var(--text-glass, rgba(255,255,255,0.8));
-    font-size: 0.9rem;
+/* ============================================================================
+   GRID LAYOUT
+   ============================================================================ */
+.latest-grid {
+    width: 100%;
+    max-width: 1400px;
+    margin: 0 auto;
 }
 
 .latest-list {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
     gap: 1.5rem;
-    margin-bottom: 2rem;
+    padding: 0 1rem;
 }
 
+/* ============================================================================
+   FILM CARDS
+   ============================================================================ */
 .latest-card {
     position: relative;
-    background: var(--glass-bg, rgba(255,255,255,0.1));
+    background: var(--glass-bg, rgba(255,255,255,0.05));
+    border: 1px solid var(--glass-border, rgba(255,255,255,0.1));
     border-radius: 12px;
     overflow: hidden;
-    border: 1px solid var(--glass-border, rgba(255,255,255,0.2));
     transition: all 0.3s ease;
-    backdrop-filter: blur(10px);
+    cursor: pointer;
 }
 
 .latest-card:hover {
-    transform: translateY(-8px) scale(1.02);
-    box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+    transform: translateY(-8px);
+    box-shadow: 0 12px 24px rgba(0,0,0,0.3);
+    border-color: var(--gradient-primary, rgba(102,126,234,0.5));
 }
 
+.latest-card a {
+    text-decoration: none;
+    display: block;
+}
+
+/* ============================================================================
+   BADGES
+   ============================================================================ */
 .new-badge {
     position: absolute;
-    top: 0.5rem;
-    left: 0.5rem;
-    background: linear-gradient(45deg, #ff6b6b, #ff8e53);
+    top: 0.75rem;
+    left: 0.75rem;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: white;
-    padding: 2px 8px;
-    border-radius: 4px;
-    font-size: 0.7rem;
+    padding: 0.35rem 0.75rem;
+    border-radius: 20px;
+    font-size: 0.75rem;
     font-weight: 600;
-    z-index: 3;
     display: flex;
     align-items: center;
-    gap: 2px;
+    gap: 0.35rem;
+    z-index: 3;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
+
+.new-badge i {
+    font-size: 0.7rem;
 }
 
 .popularity-badge {
     position: absolute;
-    top: 0.5rem;
-    right: 0.5rem;
-    background: linear-gradient(45deg, #4facfe, #00f2fe);
+    top: 0.75rem;
+    right: 0.75rem;
+    background: rgba(255,193,7,0.9);
     color: white;
-    padding: 4px;
+    width: 32px;
+    height: 32px;
     border-radius: 50%;
-    font-size: 0.8rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.9rem;
     z-index: 3;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
 }
 
+/* ============================================================================
+   COVER IMAGE & OVERLAY
+   ============================================================================ */
 .card-image {
     position: relative;
     overflow: hidden;
@@ -389,6 +453,9 @@ document.addEventListener('DOMContentLoaded', function() {
     transform: scale(1);
 }
 
+/* ============================================================================
+   HOVER INFO
+   ============================================================================ */
 .hover-info {
     position: absolute;
     bottom: 0;
@@ -413,6 +480,13 @@ document.addEventListener('DOMContentLoaded', function() {
     margin-bottom: 0.25rem;
 }
 
+.info-item i {
+    opacity: 0.8;
+}
+
+/* ============================================================================
+   TITEL & META
+   ============================================================================ */
 .latest-title {
     padding: 1rem;
 }
@@ -434,14 +508,25 @@ document.addEventListener('DOMContentLoaded', function() {
     color: var(--text-glass, rgba(255,255,255,0.8));
 }
 
+.year {
+    font-weight: 500;
+}
+
 .added-date {
     display: flex;
     align-items: center;
-    gap: 2px;
+    gap: 0.25rem;
     opacity: 0.8;
     font-size: 0.8rem;
 }
 
+.added-date i {
+    font-size: 0.7rem;
+}
+
+/* ============================================================================
+   QUICK ACTIONS
+   ============================================================================ */
 .card-actions {
     position: absolute;
     top: 0.5rem;
@@ -477,8 +562,16 @@ document.addEventListener('DOMContentLoaded', function() {
 .action-btn:hover {
     background: var(--gradient-primary, #667eea);
     transform: scale(1.1);
+    border-color: var(--gradient-primary, #667eea);
 }
 
+.action-btn:active {
+    transform: scale(0.95);
+}
+
+/* ============================================================================
+   EMPTY STATE
+   ============================================================================ */
 .empty-state {
     grid-column: 1 / -1;
     text-align: center;
@@ -492,6 +585,20 @@ document.addEventListener('DOMContentLoaded', function() {
     opacity: 0.5;
 }
 
+.empty-state h3 {
+    font-size: 1.5rem;
+    margin-bottom: 0.5rem;
+    color: var(--text-white, #fff);
+}
+
+.empty-state p {
+    font-size: 0.9rem;
+    opacity: 0.7;
+}
+
+/* ============================================================================
+   PAGINATION
+   ============================================================================ */
 .pagination-wrapper {
     display: flex;
     flex-direction: column;
@@ -527,12 +634,14 @@ document.addEventListener('DOMContentLoaded', function() {
     background: var(--gradient-primary, #667eea);
     color: white;
     font-weight: 600;
+    border-color: transparent;
 }
 
 .pagination a:hover {
     background: var(--gradient-accent, #4facfe);
     color: white;
     transform: translateY(-2px);
+    border-color: transparent;
 }
 
 .pagination-info {
@@ -541,7 +650,9 @@ document.addEventListener('DOMContentLoaded', function() {
     text-align: center;
 }
 
-/* Mobile Optimierungen */
+/* ============================================================================
+   RESPONSIVE DESIGN - TABLET
+   ============================================================================ */
 @media (max-width: 768px) {
     .latest-list {
         grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
@@ -568,8 +679,15 @@ document.addEventListener('DOMContentLoaded', function() {
         padding: 0.5rem;
         background: rgba(0,0,0,0.5);
     }
+    
+    .latest-header h2 {
+        font-size: 1.5rem;
+    }
 }
 
+/* ============================================================================
+   RESPONSIVE DESIGN - MOBILE
+   ============================================================================ */
 @media (max-width: 480px) {
     .latest-list {
         grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
@@ -578,6 +696,23 @@ document.addEventListener('DOMContentLoaded', function() {
     
     .card-image img {
         height: 160px;
+    }
+    
+    .latest-header h2 {
+        font-size: 1.3rem;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+    }
+    
+    .item-count {
+        font-size: 0.8rem;
+    }
+    
+    .action-btn {
+        width: 28px;
+        height: 28px;
+        font-size: 0.8rem;
     }
 }
 </style>

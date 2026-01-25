@@ -444,6 +444,115 @@ class TMDbHelper {
     }
     
     /**
+     * Hole Film-Crew (Director, Writer, Composer, etc.)
+     * 
+     * @param string $title Film-Titel
+     * @param int $year Jahr (optional)
+     * @return array|null ['director' => 'Name', 'writers' => ['Name1', 'Name2'], 'composer' => 'Name', ...]
+     */
+    public function getFilmCrew($title, $year = null) {
+        // Cache-Key generieren
+        $cacheKey = md5('crew_' . $title . ($year ?? ''));
+        $cacheFile = $this->cacheDir . '/' . $cacheKey . '.json';
+        
+        // Cache-Dauer aus Settings (Standard: 24 Stunden)
+        $cacheHours = (int)getSetting('tmdb_cache_hours', '24');
+        $cacheSeconds = $cacheHours * 3600;
+        
+        // Cache prüfen
+        if (file_exists($cacheFile) && (time() - filemtime($cacheFile)) < $cacheSeconds) {
+            $cached = file_get_contents($cacheFile);
+            return json_decode($cached, true);
+        }
+        
+        try {
+            // 1. Film suchen
+            $searchUrl = $this->baseUrl . '/search/movie';
+            $searchParams = [
+                'api_key' => $this->apiKey,
+                'query' => $title,
+                'language' => 'de-DE'
+            ];
+            
+            if ($year) {
+                $searchParams['year'] = $year;
+            }
+            
+            $searchResult = $this->makeRequest($searchUrl, $searchParams);
+            
+            if (!$searchResult || empty($searchResult['results'])) {
+                return null;
+            }
+            
+            $movieId = $searchResult['results'][0]['id'];
+            
+            // 2. Film-Details mit Credits holen
+            $detailsUrl = $this->baseUrl . '/movie/' . $movieId;
+            $detailsParams = [
+                'api_key' => $this->apiKey,
+                'append_to_response' => 'credits',
+                'language' => 'de-DE'
+            ];
+            
+            $details = $this->makeRequest($detailsUrl, $detailsParams);
+            
+            if (!$details || empty($details['credits']['crew'])) {
+                return null;
+            }
+            
+            $crew = $details['credits']['crew'];
+            
+            // 3. Crew-Mitglieder nach Job filtern
+            $crewData = [
+                'director' => null,
+                'writers' => [],
+                'composer' => null,
+                'cinematographer' => null,
+                'producer' => null
+            ];
+            
+            foreach ($crew as $member) {
+                $name = $member['name'] ?? '';
+                $job = $member['job'] ?? '';
+                
+                if ($job === 'Director' && !$crewData['director']) {
+                    $crewData['director'] = $name;
+                }
+                
+                if (in_array($job, ['Screenplay', 'Writer', 'Story'])) {
+                    if (!in_array($name, $crewData['writers'])) {
+                        $crewData['writers'][] = $name;
+                    }
+                }
+                
+                if ($job === 'Original Music Composer' && !$crewData['composer']) {
+                    $crewData['composer'] = $name;
+                }
+                
+                if ($job === 'Director of Photography' && !$crewData['cinematographer']) {
+                    $crewData['cinematographer'] = $name;
+                }
+                
+                if ($job === 'Producer' && !$crewData['producer']) {
+                    $crewData['producer'] = $name;
+                }
+            }
+            
+            // Limitiere Writers auf maximal 3
+            $crewData['writers'] = array_slice($crewData['writers'], 0, 3);
+            
+            // Cache speichern
+            file_put_contents($cacheFile, json_encode($crewData));
+            
+            return $crewData;
+            
+        } catch (Exception $e) {
+            error_log('TMDb Crew API Error: ' . $e->getMessage());
+            return null;
+        }
+    }
+    
+    /**
      * Hole komplette Film-Details von TMDb
      * 
      * @param int $tmdbId TMDb Movie ID
@@ -606,6 +715,26 @@ function getFilmRatings($title, $year = null) {
     }
     
     return $tmdb->getFilmRatings($title, $year);
+}
+
+/**
+ * Helper-Funktion: Hole Crew-Mitglieder für einen Film
+ */
+function getFilmCrew($title, $year = null) {
+    static $tmdb = null;
+    
+    // TMDb API Key aus Settings laden
+    $apiKey = getSetting('tmdb_api_key', '');
+    
+    if (empty($apiKey)) {
+        return null; // Kein API Key konfiguriert
+    }
+    
+    if ($tmdb === null) {
+        $tmdb = new TMDbHelper($apiKey);
+    }
+    
+    return $tmdb->getFilmCrew($title, $year);
 }
 
 /**

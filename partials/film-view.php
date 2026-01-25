@@ -14,6 +14,12 @@ $backCover = findCoverImage($dvd['cover_id'] ?? '', 'b');
 // Schauspieler laden
 $actors = getActorsByDvdId($pdo, (int)$dvd['id']);
 
+// Crew-Mitglieder laden (Regie, Drehbuch, etc.)
+$crew = null;
+if (getSetting('tmdb_api_key', '')) {
+    $crew = getFilmCrew($dvd['title'], $dvd['year'] ?? null);
+}
+
 // Staffeln & Episoden laden (für Serien)
 $seasons = [];
 $totalEpisodes = 0;
@@ -225,6 +231,22 @@ $backdropUrl = $backCover ?? '';
     position: relative;
     overflow: hidden;
     margin-bottom: 3rem;
+    border-radius: 16px;
+}
+
+/* Titel auf Backdrop - Weiße Farbe mit starkem Shadow */
+.hero-content .film-header h2 {
+    margin: 0;
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: #ffffff !important;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.9), 0 4px 8px rgba(0, 0, 0, 0.7);
+}
+
+.hero-content .film-header .film-year {
+    font-weight: 400;
+    opacity: 0.9;
+    color: #ffffff !important;
 }
 
 /* Moderne Action-Buttons */
@@ -445,6 +467,9 @@ $backdropUrl = $backCover ?? '';
 .hero-cover {
     flex-shrink: 0;
     width: 300px;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
 }
 
 .hero-cover img {
@@ -466,24 +491,43 @@ $backdropUrl = $backCover ?? '';
     color: var(--text-muted);
 }
 
+/* Crew-Info unter dem Cover */
+.crew-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: 1rem;
+    background: rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(10px);
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.crew-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.crew-role {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-muted, rgba(228, 228, 231, 0.6));
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.crew-name {
+    font-size: 0.9rem;
+    color: var(--text-primary, #e4e4e7);
+    line-height: 1.4;
+}
+
 .hero-content {
     flex: 1;
     display: flex;
     flex-direction: column;
     gap: 1.5rem;
-}
-
-.hero-content .film-header h2 {
-    margin: 0;
-    font-size: 2.5rem;
-    font-weight: 700;
-    color: var(--text-primary, #e4e4e7);
-    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8);
-}
-
-.hero-content .film-header .film-year {
-    font-weight: 400;
-    opacity: 0.8;
 }
 
 .hero-meta-line {
@@ -570,6 +614,32 @@ $backdropUrl = $backCover ?? '';
                     <i class="bi bi-film"></i>
                     <span>Kein Cover</span>
                 </div>
+            <?php endif; ?>
+            
+            <!-- Crew-Informationen (Regie, Drehbuch, etc.) -->
+            <?php if ($crew): ?>
+            <div class="crew-info">
+                <?php if (!empty($crew['director'])): ?>
+                <div class="crew-item">
+                    <span class="crew-role">Regie</span>
+                    <span class="crew-name"><?= htmlspecialchars($crew['director']) ?></span>
+                </div>
+                <?php endif; ?>
+                
+                <?php if (!empty($crew['writers'])): ?>
+                <div class="crew-item">
+                    <span class="crew-role">Drehbuch</span>
+                    <span class="crew-name"><?= htmlspecialchars(implode(', ', $crew['writers'])) ?></span>
+                </div>
+                <?php endif; ?>
+                
+                <?php if (!empty($crew['composer'])): ?>
+                <div class="crew-item">
+                    <span class="crew-role">Musik</span>
+                    <span class="crew-name"><?= htmlspecialchars($crew['composer']) ?></span>
+                </div>
+                <?php endif; ?>
+            </div>
             <?php endif; ?>
         </div>
         
