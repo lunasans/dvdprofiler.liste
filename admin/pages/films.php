@@ -445,6 +445,28 @@ small.text-muted {
     opacity: 1;
     color: var(--clr-accent) !important;
 }
+
+/* TMDB MODAL - LIST GROUP ITEMS */
+.list-group-item {
+    background: var(--clr-card) !important;
+    border: 1px solid var(--clr-border) !important;
+    color: var(--clr-text) !important;
+}
+
+.list-group-item h5,
+.list-group-item h6,
+.list-group-item p,
+.list-group-item small {
+    color: var(--clr-text) !important;
+}
+
+.list-group-item .text-muted {
+    color: var(--clr-text-muted) !important;
+}
+
+.list-group-item:hover {
+    background: rgba(255, 255, 255, 0.05) !important;
+}
 </style>
 
 
@@ -1117,7 +1139,11 @@ function tmdbUpdateSearch() {
                             <p class="mb-1 small">${overview || 'Keine Beschreibung'}</p>
                         </div>
                         <div class="col-md-2 d-flex align-items-center">
-                            <button class="btn btn-success btn-sm w-100" onclick='tmdbUpdate(${currentUpdateFilmId}, ${movie.tmdb_id}, ${JSON.stringify(movie.title)})'>
+                            <button class="btn btn-success btn-sm w-100" 
+                                    data-film-id="${currentUpdateFilmId}" 
+                                    data-tmdb-id="${movie.tmdb_id}" 
+                                    data-title="${movie.title.replace(/"/g, '&quot;')}" 
+                                    onclick="tmdbUpdate(this.dataset.filmId, this.dataset.tmdbId, this.dataset.title)">
                                 <i class="bi bi-arrow-repeat"></i> Aktualisieren
                             </button>
                         </div>

@@ -205,6 +205,42 @@ HTML;
 }
 ?>
 
+<!-- ============================================================ -->
+<!-- VERSION TEST BANNER - SICHTBAR AUF SEITE -->
+<!-- VERSION: V3.1 - OHNE ALERT -->
+<!-- ============================================================ -->
+<div id="version-test-banner" style="
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    background: #ff0000;
+    color: #ffffff;
+    padding: 20px;
+    text-align: center;
+    font-size: 24px;
+    font-weight: bold;
+    z-index: 999999;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+">
+    ✅ VERSION: ROBUST-POSITION-V3.2 GELADEN! ✅
+    <div style="font-size: 16px; margin-top: 10px;">
+        SYNTAX-FEHLER BEHOBEN! Funktion sollte jetzt funktionieren!
+    </div>
+    <button onclick="document.getElementById('version-test-banner').remove();" style="
+        margin-top: 10px;
+        padding: 10px 20px;
+        background: white;
+        color: black;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        font-size: 14px;
+    ">
+        Banner schließen
+    </button>
+</div>
+
 <!-- Tabs für Collection Types -->
 <div class="tabs-wrapper">
   <ul class="tabs">
@@ -590,9 +626,11 @@ HTML;
 
 <script>
 // ============================================================
-// VERSION: ROBUST-POSITION-V3.0 - 2025-01-24
-// Falls dieser Marker NICHT zu sehen ist, lädt alte Datei!
+// VERSION: ROBUST-POSITION-V3.2 - 2025-01-24
+// SYNTAX-FEHLER BEHOBEN - Duplizierten Code entfernt!
 // ============================================================
+
+console.log('🔴 START: film-list.php lädt...');
 
 // BoxSet Modal Functions
 let isDragging = false;
@@ -603,10 +641,9 @@ let initialY;
 let xOffset = 0;
 let yOffset = 0;
 
-// DEBUG: Version-Check
-console.log('✅ film-list.php VERSION: ROBUST-POSITION-V3.0 geladen!');
-console.log('✅ openBoxSetModal Funktion wird definiert...');
+console.log('🔴 SCHRITT 1: Variablen definiert');
 
+// WICHTIG: Funktion SOFORT definieren!
 function openBoxSetModal(event, parentId) {
     console.log('🎯 openBoxSetModal aufgerufen!', { event, parentId });
     
@@ -704,13 +741,6 @@ function openBoxSetModal(event, parentId) {
             console.error('BoxSet load error:', error);
             modalBody.innerHTML = '<div class="loading">❌ Fehler beim Laden</div>';
             modalContent.style.visibility = 'visible';
-            modalContent.style.opacity = '1';
-        });
-}
-        })
-        .catch(error => {
-            console.error('BoxSet load error:', error);
-            modalBody.innerHTML = '<div class="loading">❌ Fehler beim Laden</div>';
             modalContent.style.opacity = '1';
         });
 }
@@ -872,6 +902,11 @@ document.addEventListener('keydown', function(e) {
         closeBoxSetModal();
     }
 });
+
+// ERFOLG: Alle Funktionen definiert!
+console.log('✅ ERFOLG: Alle Funktionen geladen!');
+console.log('✅ openBoxSetModal ist definiert:', typeof openBoxSetModal);
+console.log('✅ VERSION: ROBUST-POSITION-V3.2 - SYNTAX-FEHLER BEHOBEN!');
 </script>
 <style>
 .tmdb-rating-badge {

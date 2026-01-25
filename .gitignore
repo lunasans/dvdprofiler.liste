@@ -49,3 +49,4 @@ admin/pages/settings_backup_ohne_tmdb.php
 
 composer.json
 composer.lock
+.github/copilot-instructions.md

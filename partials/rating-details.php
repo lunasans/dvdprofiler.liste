@@ -46,24 +46,30 @@ if (!$ratings) {
             <?php endif; ?>
         </div>
         <?php endif; ?>
-        
-        <!-- IMDb Link (wenn ID vorhanden) -->
+    </div>
+    
+    <!-- External Links - Logo-Leiste -->
+    <div class="external-links">
         <?php if (!empty($ratings['imdb_id'])): ?>
-        <div class="rating-card imdb">
-            <div class="rating-logo">
-                <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Cpath fill='%23f5c518' d='M0 0h48v48H0z'/%3E%3Cpath d='M9 13h4v22H9zm6 0h4l2 8 2-8h4v22h-3V20l-2 7h-2l-2-7v15h-3zm17 0h8v3h-5v5h5v3h-5v8h5v3h-8z'/%3E%3C/svg%3E" 
-                     alt="IMDb" 
-                     style="height: 32px;">
-            </div>
-            <div class="rating-link">
-                <a href="https://www.imdb.com/title/<?= htmlspecialchars($ratings['imdb_id']) ?>/" 
-                   target="_blank" 
-                   rel="noopener">
-                    Auf IMDb ansehen
-                    <i class="bi bi-box-arrow-up-right"></i>
-                </a>
-            </div>
-        </div>
+        <a href="https://www.imdb.com/title/<?= htmlspecialchars($ratings['imdb_id']) ?>/" 
+           target="_blank" 
+           rel="noopener"
+           class="external-logo-link"
+           title="Auf IMDb ansehen">
+            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Cpath fill='%23f5c518' d='M0 0h48v48H0z'/%3E%3Cpath d='M9 13h4v22H9zm6 0h4l2 8 2-8h4v22h-3V20l-2 7h-2l-2-7v15h-3zm17 0h8v3h-5v5h5v3h-5v8h5v3h-8z'/%3E%3C/svg%3E" 
+                 alt="IMDb">
+        </a>
+        <?php endif; ?>
+        
+        <?php if (!empty($ratings['tmdb_rating'])): ?>
+        <a href="https://www.themoviedb.org/search?query=<?= urlencode($film['title']) ?>" 
+           target="_blank" 
+           rel="noopener"
+           class="external-logo-link"
+           title="Auf TMDb ansehen">
+            <img src="https://www.themoviedb.org/assets/2/v4/logos/v2/blue_short-8e7b30f73a4020692ccca9c88bafe5dcb6f8a62a4c6bc55cd9ba82bb2cd95f6c.svg" 
+                 alt="TMDb">
+        </a>
         <?php endif; ?>
     </div>
 </div>
@@ -163,6 +169,39 @@ if (!$ratings) {
     background: var(--accent-hover, #764ba2);
     transform: translateY(-2px);
     box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+/* External Links - Logo-Leiste */
+.external-links {
+    display: flex;
+    gap: 1.5rem;
+    align-items: center;
+    margin-top: var(--space-lg, 1.5rem);
+    padding-top: var(--space-lg, 1.5rem);
+    border-top: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+}
+
+.external-logo-link {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.75rem 1.25rem;
+    background: var(--bg-tertiary, rgba(255, 255, 255, 0.03));
+    border: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+    border-radius: var(--radius-md, 8px);
+    transition: all 0.3s ease;
+    text-decoration: none;
+}
+
+.external-logo-link:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+    border-color: var(--border-color, rgba(255, 255, 255, 0.3));
+}
+
+.external-logo-link img {
+    height: 36px;
+    width: auto;
 }
 
 /* Responsive */

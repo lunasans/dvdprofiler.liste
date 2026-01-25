@@ -197,50 +197,370 @@ function generateStarRating(float $rating, int $maxStars = 5): string {
 }
 ?>
 
-<div class="detail-inline" itemscope itemtype="https://schema.org/Movie">
-    <!-- Film-Titel mit Schema.org Markup -->
-    <header class="film-header">
-        <h2 itemprop="name">
-            <?= htmlspecialchars($dvd['title']) ?>
-            <span class="film-year" itemprop="datePublished">(<?= htmlspecialchars((string)($dvd['year'] ?? '')) ?>)</span>
-        </h2>
-        
-        <!-- User-Status Badges -->
-        <?php if (isset($_SESSION['user_id'])): ?>
-            <div class="user-status-badges">
-                <?php if ($isOnWishlist): ?>
-                    <span class="badge badge-wishlist">
-                        <i class="bi bi-heart-fill"></i> Auf Wunschliste
-                    </span>
-                <?php endif; ?>
-                <?php if ($isWatched): ?>
-                    <span class="badge badge-watched">
-                        <i class="bi bi-check-circle-fill"></i> Gesehen
-                    </span>
-                <?php endif; ?>
-            </div>
-        <?php endif; ?>
-        
-        <?php if ($boxsetParent): ?>
-            <div class="boxset-breadcrumb">
-                <i class="bi bi-collection"></i>
-                Teil von: 
-                <a href="#" class="toggle-detail" data-id="<?= $boxsetParent['id'] ?>">
-                    <?= htmlspecialchars($boxsetParent['title']) ?> (<?= $boxsetParent['year'] ?>)
-                </a>
-            </div>
-        <?php endif; ?>
-    </header>
+<?php
+// Backcover als Backdrop verwenden
+$backdropUrl = $backCover ?? '';
+?>
 
-    <!-- Cover Gallery mit Lightbox -->
-    <section class="cover-gallery" aria-label="Film-Cover">
-        <div class="cover-pair">
+<style>
+/* Backdrop Hintergrund */
+.detail-inline {
+    position: relative;
+    overflow: hidden;
+}
+
+.backdrop-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 100%;
+    z-index: 0;
+    overflow: hidden;
+}
+
+/* Hero-Wrapper für Backdrop-Container */
+.hero-wrapper {
+    position: relative;
+    overflow: hidden;
+    margin-bottom: 3rem;
+}
+
+/* Moderne Action-Buttons */
+.film-actions {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+    padding: 1.5rem 0;
+    margin-top: 2rem;
+}
+
+/* User-Status Badges (Gesehen) */
+.user-status-badges {
+    display: flex;
+    gap: 0.75rem;
+    margin-top: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.badge-watched {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background: linear-gradient(135deg, rgba(40, 167, 69, 0.2) 0%, rgba(40, 167, 69, 0.1) 100%);
+    border: 2px solid rgba(40, 167, 69, 0.4);
+    border-radius: 20px;
+    color: #28a745;
+    font-size: 0.9rem;
+    font-weight: 600;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 2px 8px rgba(40, 167, 69, 0.2);
+    backdrop-filter: blur(10px);
+}
+
+.badge-watched i {
+    font-size: 1rem;
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
+}
+
+.action-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1.5rem;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.action-btn i {
+    font-size: 1.1rem;
+}
+
+.action-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+}
+
+.action-btn:active {
+    transform: translateY(0);
+}
+
+/* Schließen Button */
+.action-close {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.action-close:hover {
+    background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+}
+
+/* Als gesehen Button */
+.action-watched {
+    background: rgba(40, 167, 69, 0.1);
+    color: #28a745;
+    border: 2px solid rgba(40, 167, 69, 0.3);
+}
+
+.action-watched:hover {
+    background: rgba(40, 167, 69, 0.2);
+    border-color: #28a745;
+}
+
+.action-watched.active {
+    background: #28a745;
+    color: white;
+    border-color: #28a745;
+}
+
+.action-watched.active:hover {
+    background: #218838;
+}
+
+/* Teilen Button */
+.action-share {
+    background: rgba(23, 162, 184, 0.1);
+    color: #17a2b8;
+    border: 2px solid rgba(23, 162, 184, 0.3);
+}
+
+.action-share:hover {
+    background: rgba(23, 162, 184, 0.2);
+    border-color: #17a2b8;
+}
+
+/* Responsive */
+@media (max-width: 600px) {
+    .film-actions {
+        flex-direction: column;
+    }
+    
+    .action-btn {
+        width: 100%;
+        justify-content: center;
+    }
+}
+
+.backdrop-image {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    filter: blur(2px);
+    transform: scale(1.1);
+}
+
+.backdrop-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(
+        to bottom,
+        rgba(26, 26, 46, 0.5) 0%,
+        rgba(26, 26, 46, 0.7) 40%,
+        rgba(26, 26, 46, 0.85) 65%,
+        rgba(26, 26, 46, 0.95) 85%,
+        rgba(26, 26, 46, 1) 100%
+    );
+}
+
+/* Content über Backdrop */
+.film-header,
+.cover-gallery,
+.film-info,
+.film-meta,
+.ratings-section,
+.film-description,
+.cast-section,
+.seasons-section,
+.boxset-children,
+.trailer-section,
+.actions-bar,
+.close-detail {
+    position: relative;
+    z-index: 1;
+}
+
+/* Hero Section - Horizontales Layout (TMDb-Style) */
+.hero-section {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    gap: 3rem;
+    padding: 3rem 2rem;
+    min-height: 500px;
+}
+
+/* WICHTIG: Alle Elemente in Hero transparent halten */
+.hero-section .film-header,
+.hero-section .meta-card,
+.hero-section .rating-card,
+.hero-section .ratings-section {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+}
+
+/* Ratings in Hero-Section - transparent und kompakt */
+.hero-section .ratings-container {
+    background: transparent !important;
+    border: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+}
+
+.hero-section .ratings-title {
+    font-size: 1.1rem;
+    margin-bottom: 0.75rem;
+}
+
+.hero-section .rating-card {
+    background: rgba(0, 0, 0, 0.4) !important;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.15) !important;
+}
+
+.hero-section .rating-card.tmdb {
+    background: rgba(1, 180, 228, 0.1) !important;
+}
+
+.hero-section .rating-card.imdb {
+    background: rgba(245, 197, 24, 0.1) !important;
+}
+
+.hero-cover {
+    flex-shrink: 0;
+    width: 300px;
+}
+
+.hero-cover img {
+    width: 100%;
+    height: auto;
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+.hero-cover .no-cover {
+    width: 100%;
+    height: 450px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    color: var(--text-muted);
+}
+
+.hero-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.hero-content .film-header h2 {
+    margin: 0;
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: var(--text-primary, #e4e4e7);
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8);
+}
+
+.hero-content .film-header .film-year {
+    font-weight: 400;
+    opacity: 0.8;
+}
+
+.hero-meta-line {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+    font-size: 1rem;
+    color: var(--text-secondary, rgba(228, 228, 231, 0.9));
+}
+
+.hero-meta-line .fsk-badge {
+    display: inline-flex;
+    align-items: center;
+}
+
+.hero-meta-line .fsk-logo {
+    height: 20px;
+    width: auto;
+}
+
+.hero-overview {
+    font-size: 1.05rem;
+    line-height: 1.7;
+    color: var(--text-secondary, rgba(228, 228, 231, 0.95));
+    max-width: 800px;
+}
+
+.hero-overview h3 {
+    color: var(--text-primary, #e4e4e7);
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.6);
+}
+
+/* Responsive */
+@media (max-width: 968px) {
+    .hero-section {
+        flex-direction: column;
+        gap: 2rem;
+        padding: 2rem 1.5rem;
+    }
+    
+    .hero-cover {
+        width: 250px;
+        margin: 0 auto;
+    }
+    
+    .hero-content .film-header h2 {
+        font-size: 2rem;
+    }
+}
+
+/* Cover-Gallery transparent, damit Backdrop sichtbar bleibt */
+.cover-gallery {
+    background: transparent !important;
+}
+</style>
+
+<div class="detail-inline" itemscope itemtype="https://schema.org/Movie">
+    <!-- Hero Wrapper - für Backdrop-Begrenzung -->
+    <div class="hero-wrapper">
+        <!-- Backdrop Hintergrund -->
+        <?php if ($backdropUrl): ?>
+        <div class="backdrop-container">
+            <div class="backdrop-image" style="background-image: url('<?= htmlspecialchars($backdropUrl) ?>');"></div>
+            <div class="backdrop-overlay"></div>
+        </div>
+        <?php endif; ?>
+        
+        <!-- Hero Section - Cover + Film-Infos nebeneinander (TMDb-Style) -->
+        <section class="hero-section">
+        <!-- Cover links -->
+        <div class="hero-cover">
             <?php if ($frontCover): ?>
                 <a href="<?= htmlspecialchars($frontCover) ?>" 
                    data-fancybox="gallery" 
                    data-caption="<?= htmlspecialchars($dvd['title']) ?> - Frontcover">
-                    <img class="thumb" 
-                         src="<?= htmlspecialchars($frontCover) ?>" 
+                    <img src="<?= htmlspecialchars($frontCover) ?>" 
                          alt="<?= htmlspecialchars($dvd['title']) ?> Frontcover"
                          itemprop="image"
                          loading="lazy">
@@ -251,99 +571,100 @@ function generateStarRating(float $rating, int $maxStars = 5): string {
                     <span>Kein Cover</span>
                 </div>
             <?php endif; ?>
+        </div>
+        
+        <!-- Film-Infos rechts -->
+        <div class="hero-content">
+            <!-- Film-Titel -->
+            <header class="film-header">
+                <h2 itemprop="name">
+                    <?= htmlspecialchars($dvd['title']) ?>
+                    <span class="film-year" itemprop="datePublished">(<?= htmlspecialchars((string)($dvd['year'] ?? '')) ?>)</span>
+                </h2>
+                
+                <!-- User-Status Badges (nur Gesehen) -->
+                <?php if (isset($_SESSION['user_id']) && $isWatched): ?>
+                    <div class="user-status-badges">
+                        <span class="badge badge-watched">
+                            <i class="bi bi-check-circle-fill"></i> Gesehen
+                        </span>
+                    </div>
+                <?php endif; ?>
+                
+                <?php if ($boxsetParent): ?>
+                    <div class="boxset-breadcrumb">
+                        <i class="bi bi-collection"></i>
+                        Teil von: 
+                        <a href="#" class="toggle-detail" data-id="<?= $boxsetParent['id'] ?>">
+                            <?= htmlspecialchars($boxsetParent['title']) ?> (<?= $boxsetParent['year'] ?>)
+                        </a>
+                    </div>
+                <?php endif; ?>
+            </header>
             
-            <?php if ($backCover): ?>
-                <a href="<?= htmlspecialchars($backCover) ?>" 
-                   data-fancybox="gallery" 
-                   data-caption="<?= htmlspecialchars($dvd['title']) ?> - Backcover">
-                    <img class="thumb" 
-                         src="<?= htmlspecialchars($backCover) ?>" 
-                         alt="<?= htmlspecialchars($dvd['title']) ?> Backcover"
-                         loading="lazy">
-                </a>
+            <!-- Meta-Infos in einer Zeile -->
+            <div class="hero-meta-line">
+                <?php if (isset($dvd['rating_age']) && $dvd['rating_age'] !== null && $dvd['rating_age'] !== ''): ?>
+                    <span class="fsk-badge">
+                        <?php
+                        $fskAge = (int)$dvd['rating_age'];
+                        $fskSvgPath = "assets/svg/fsk/fsk-{$fskAge}.svg";
+                        
+                        if (file_exists($fskSvgPath)): ?>
+                            <img src="<?= htmlspecialchars($fskSvgPath) ?>" 
+                                 alt="FSK <?= $fskAge ?>" 
+                                 class="fsk-logo"
+                                 title="Freigegeben ab <?= $fskAge ?> Jahren">
+                        <?php else: ?>
+                            <span class="fsk-text">FSK <?= $fskAge ?></span>
+                        <?php endif; ?>
+                    </span>
+                    <span>•</span>
+                <?php endif; ?>
+                
+                <?php if (!empty($dvd['genre'])): ?>
+                    <span itemprop="genre"><?= htmlspecialchars($dvd['genre']) ?></span>
+                    <span>•</span>
+                <?php endif; ?>
+                
+                <?php if (!empty($dvd['runtime'])): ?>
+                    <span itemprop="duration"><?= formatRuntime((int)$dvd['runtime']) ?></span>
+                <?php endif; ?>
+                
+                <?php if ($filmStats['created_at']): ?>
+                    <span>•</span>
+                    <span title="Hinzugefügt am">
+                        <i class="bi bi-calendar-plus"></i> <?= formatDate($filmStats['created_at']) ?>
+                    </span>
+                <?php endif; ?>
+            </div>
+            
+            <!-- TMDb Ratings -->
+            <?php 
+            if (getSetting('tmdb_show_ratings_details', '1') == '1') {
+                $film = $dvd;
+                include __DIR__ . '/rating-details.php';
+            }
+            ?>
+            
+            <!-- Handlung -->
+            <?php if (!empty($dvd['overview'])): ?>
+                <div class="hero-overview">
+                    <h3 style="margin-bottom: 0.75rem; font-size: 1.2rem;">Handlung</h3>
+                    <div itemprop="description">
+                        <?php
+                        if (function_exists('purifyHTML')) {
+                            echo purifyHTML($dvd['overview'], true);
+                        } else {
+                            echo nl2br(htmlspecialchars($dvd['overview'], ENT_QUOTES, 'UTF-8'));
+                        }
+                        ?>
+                    </div>
+                </div>
             <?php endif; ?>
         </div>
     </section>
-
-    <!-- Film-Informationen in Grid-Layout -->
-    <section class="film-info-grid">
-        <div class="film-info-item">
-            <span class="label">Genre</span>
-            <span class="value" itemprop="genre"><?= htmlspecialchars($dvd['genre'] ?? 'Unbekannt') ?></span>
-        </div>
-        
-        <?php if (!empty($dvd['runtime'])): ?>
-            <div class="film-info-item">
-                <span class="label">Laufzeit</span>
-                <span class="value" itemprop="duration"><?= formatRuntime((int)$dvd['runtime']) ?></span>
-            </div>
-        <?php endif; ?>
-        
-        <?php if (isset($dvd['rating_age']) && $dvd['rating_age'] !== null && $dvd['rating_age'] !== ''): ?>
-            <div class="film-info-item">
-                <span class="label">Altersfreigabe</span>
-                <span class="value fsk-badge">
-                    <?php
-                    $fskAge = (int)$dvd['rating_age'];
-                    $fskSvgPath = "assets/svg/fsk/fsk-{$fskAge}.svg";
-                    
-                    if (file_exists($fskSvgPath)): ?>
-                        <img src="<?= htmlspecialchars($fskSvgPath) ?>" 
-                             alt="FSK <?= $fskAge ?>" 
-                             class="fsk-logo"
-                             title="Freigegeben ab <?= $fskAge ?> Jahren">
-                    <?php else: ?>
-                        <span class="fsk-text">FSK <?= $fskAge ?></span>
-                    <?php endif; ?>
-                </span>
-            </div>
-        <?php endif; ?>
-        
-        <?php if (!empty($dvd['collection_type'])): ?>
-            <div class="film-info-item">
-                <span class="label">Sammlung</span>
-                <span class="value"><?= htmlspecialchars($dvd['collection_type']) ?></span>
-            </div>
-        <?php endif; ?>
-        
-        <div class="film-info-item">
-            <span class="label">Aufrufe</span>
-            <span class="value"><?= number_format($filmStats['view_count']) ?></span>
-        </div>
-        
-        <?php if ($filmStats['created_at']): ?>
-            <div class="film-info-item">
-                <span class="label">Hinzugefügt</span>
-                <span class="value"><?= formatDate($filmStats['created_at']) ?></span>
-            </div>
-        <?php endif; ?>
-    </section>
-
-    <!-- Handlung -->
-    <?php if (!empty($dvd['overview'])): ?>
-        <section class="meta-card full-width">
-            <h3><i class="bi bi-card-text"></i> Handlung</h3>
-            <div class="overview-text" itemprop="description">
-                <?php
-                // HTML sicher anzeigen mit nl2br + htmlspecialchars
-                // Falls purifyHTML() Funktion existiert, verwende sie, sonst Fallback
-                if (function_exists('purifyHTML')) {
-                    echo purifyHTML($dvd['overview'], true);
-                } else {
-                    echo nl2br(htmlspecialchars($dvd['overview'], ENT_QUOTES, 'UTF-8'));
-                }
-                ?>
-            </div>
-        </section>
-    <?php endif; ?>
-
-    <!-- TMDb Ratings -->
-    <?php 
-    if (getSetting('tmdb_show_ratings_details', '1') == '1') {
-        $film = $dvd; // rating-details.php erwartet $film Variable
-        include __DIR__ . '/rating-details.php';
-    }
-    ?>
+    </div><!-- Ende hero-wrapper -->
 
     <!-- Schauspieler -->
     <?php if (!empty($actors)): ?>
@@ -558,27 +879,6 @@ function generateStarRating(float $rating, int $maxStars = 5): string {
                             <i class="bi bi-check-circle"></i> Speichern
                         </button>
                     </div>
-                    
-                    <!-- Community Bewertung -->
-                    <?php if ($averageRating > 0): ?>
-                    <div class="rating-card community">
-                        <div class="rating-logo">
-                            <i class="bi bi-people-fill" style="font-size: 32px; color: #4caf50;"></i>
-                        </div>
-                        <div class="rating-score" style="color: #4caf50;">
-                            <?= $averageRating ?><span class="rating-max">/5</span>
-                        </div>
-                        <div class="stars-display">
-                            <?= generateStarRating($averageRating) ?>
-                        </div>
-                        <div class="rating-votes">
-                            <?= $ratingCount ?> Bewertung<?= $ratingCount !== 1 ? 'en' : '' ?>
-                        </div>
-                        <div class="rating-meta">
-                            Community-Durchschnitt
-                        </div>
-                    </div>
-                    <?php endif; ?>
                 </div>
             <?php else: ?>
                 <div class="login-required">
@@ -600,26 +900,24 @@ function generateStarRating(float $rating, int $maxStars = 5): string {
 
     <!-- Film-Aktionen -->
     <section class="film-actions">
-        <button class="close-detail-button btn btn-secondary" onclick="closeDetail()">
-            <i class="bi bi-x-lg"></i> Schließen
+        <button class="action-btn action-close" onclick="closeDetail()">
+            <i class="bi bi-x-lg"></i>
+            <span>Schließen</span>
         </button>
         
         <?php if (isset($_SESSION['user_id'])): ?>
-            <button class="btn btn-outline-primary add-to-wishlist <?= $isOnWishlist ? 'active' : '' ?>" 
-                    data-film-id="<?= $dvd['id'] ?>">
-                <i class="bi bi-heart<?= $isOnWishlist ? '-fill' : '' ?>"></i>
-                <?= $isOnWishlist ? 'Auf Wunschliste' : 'Zur Wunschliste' ?>
-            </button>
-            
-            <button class="btn btn-outline-secondary mark-as-watched <?= $isWatched ? 'active' : '' ?>" 
+            <button class="action-btn action-watched mark-as-watched <?= $isWatched ? 'active' : '' ?>" 
                     data-film-id="<?= $dvd['id'] ?>">
                 <i class="bi bi-check-circle<?= $isWatched ? '-fill' : '' ?>"></i>
-                <?= $isWatched ? 'Gesehen' : 'Als gesehen markieren' ?>
+                <span><?= $isWatched ? 'Gesehen' : 'Als gesehen markieren' ?></span>
             </button>
         <?php endif; ?>
         
-        <button class="btn btn-outline-info share-film" data-film-id="<?= $dvd['id'] ?>" data-film-title="<?= htmlspecialchars($dvd['title']) ?>">
-            <i class="bi bi-share"></i> Teilen
+        <button class="action-btn action-share share-film" 
+                data-film-id="<?= $dvd['id'] ?>" 
+                data-film-title="<?= htmlspecialchars($dvd['title']) ?>">
+            <i class="bi bi-share"></i>
+            <span>Teilen</span>
         </button>
     </section>
 </div>
@@ -845,15 +1143,6 @@ function generateStarRating(float $rating, int $maxStars = 5): string {
         });
     }
     
-    // Wishlist-Funktionalität
-    const wishlistBtn = document.querySelector('.add-to-wishlist');
-    if (wishlistBtn) {
-        wishlistBtn.addEventListener('click', function() {
-            const filmId = this.dataset.filmId;
-            toggleWishlist(filmId, this);
-        });
-    }
-    
     // Als gesehen markieren
     const watchedBtn = document.querySelector('.mark-as-watched');
     if (watchedBtn) {
@@ -904,41 +1193,13 @@ async function saveUserRating(filmId, rating) {
             showNotification('Bewertung gespeichert!', 'success');
             document.querySelector('.save-rating').style.display = 'none';
             
-            // Seite nach kurzer Zeit neu laden um Community-Rating zu aktualisieren
+            // Seite neu laden um Bewertung anzuzeigen
             setTimeout(() => {
                 location.reload();
             }, 1500);
         }
     } catch (error) {
         showNotification('Fehler beim Speichern der Bewertung', 'error');
-    }
-}
-
-async function toggleWishlist(filmId, button) {
-    try {
-        const response = await fetch('api/toggle-wishlist.php', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ film_id: filmId })
-        });
-        
-        if (response.ok) {
-            const result = await response.json();
-            const icon = button.querySelector('i');
-            if (result.added) {
-                button.innerHTML = '<i class="bi bi-heart-fill"></i> Auf Wunschliste';
-                button.classList.add('active');
-                showNotification('Zur Wunschliste hinzugefügt!', 'success');
-            } else {
-                button.innerHTML = '<i class="bi bi-heart"></i> Zur Wunschliste';
-                button.classList.remove('active');
-                showNotification('Von Wunschliste entfernt!', 'info');
-            }
-        }
-    } catch (error) {
-        showNotification('Fehler bei Wunschliste', 'error');
     }
 }
 
@@ -955,11 +1216,11 @@ async function toggleWatched(filmId, button) {
         if (response.ok) {
             const result = await response.json();
             if (result.watched) {
-                button.innerHTML = '<i class="bi bi-check-circle-fill"></i> Gesehen';
+                button.innerHTML = '<i class="bi bi-check-circle-fill"></i><span>Gesehen</span>';
                 button.classList.add('active');
                 showNotification('Als gesehen markiert!', 'success');
             } else {
-                button.innerHTML = '<i class="bi bi-check-circle"></i> Als gesehen markieren';
+                button.innerHTML = '<i class="bi bi-check-circle"></i><span>Als gesehen markieren</span>';
                 button.classList.remove('active');
                 showNotification('Markierung entfernt!', 'info');
             }

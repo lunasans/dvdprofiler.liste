@@ -102,10 +102,10 @@ try {
         }
     }
     
-    // Cast: Top 5 Schauspieler aus credits.cast
+    // Cast: Alle Schauspieler aus credits.cast
     $cast = [];
     if (!empty($movieDetails['credits']['cast'])) {
-        $cast = array_slice($movieDetails['credits']['cast'], 0, 5);
+        $cast = $movieDetails['credits']['cast'];
     }
     
     // Poster und Backdrop Pfade
@@ -123,7 +123,7 @@ try {
         
         // Download Front Cover (Poster)
         $posterUrl = 'https://image.tmdb.org/t/p/w500' . $posterPath;
-        $frontPath = __DIR__ . '/../../covers/' . $newCoverId . 'f.jpg';
+        $frontPath = __DIR__ . '/../../cover/' . $newCoverId . 'f.jpg';
         
         $posterContent = @file_get_contents($posterUrl);
         if ($posterContent !== false) {
@@ -133,7 +133,7 @@ try {
         // Download Back Cover (Backdrop) falls vorhanden
         if (!empty($backdropPath)) {
             $backdropUrl = 'https://image.tmdb.org/t/p/w1280' . $backdropPath;
-            $backPath = __DIR__ . '/../../covers/' . $newCoverId . 'b.jpg';
+            $backPath = __DIR__ . '/../../cover/' . $newCoverId . 'b.jpg';
             
             $backdropContent = @file_get_contents($backdropUrl);
             if ($backdropContent !== false) {
@@ -143,8 +143,8 @@ try {
         
         // Lösche altes Cover (falls anders)
         if ($oldCoverId && $oldCoverId !== $newCoverId) {
-            @unlink(__DIR__ . '/../../covers/' . $oldCoverId . 'f.jpg');
-            @unlink(__DIR__ . '/../../covers/' . $oldCoverId . 'b.jpg');
+            @unlink(__DIR__ . '/../../cover/' . $oldCoverId . 'f.jpg');
+            @unlink(__DIR__ . '/../../cover/' . $oldCoverId . 'b.jpg');
         }
     }
     
@@ -177,7 +177,7 @@ try {
             // Prüfe ob film_actor Tabelle existiert
             $checkTableStmt = $pdo->query("SHOW TABLES LIKE 'film_actor'");
             
-            if ($checkTableStmt->rowCount() > 0) {
+            if ($checkTableStmt->fetch()) {
                 // Tabellen existieren → Schauspieler aktualisieren
                 
                 // Lösche alte Verknüpfungen für diesen Film
@@ -192,22 +192,24 @@ try {
                     $role = $actor['character'] ?? null;
                     $profilePath = $actor['profile_path'] ?? null;
                     
-                    // Prüfe ob Schauspieler schon in actors Tabelle existiert
-                    $checkStmt = $pdo->prepare("SELECT id FROM actors WHERE id = ?");
-                    $checkStmt->execute([$actorId]);
+                    // Name in first_name und last_name aufteilen
+                    $nameParts = explode(' ', $actorName, 2);
+                    $firstName = $nameParts[0];
+                    $lastName = isset($nameParts[1]) ? $nameParts[1] : '';
                     
-                    if (!$checkStmt->fetch()) {
-                        // Schauspieler existiert noch nicht → Einfügen
-                        $insertActorStmt = $pdo->prepare("
-                            INSERT INTO actors (id, name, profile_path)
-                            VALUES (?, ?, ?)
-                        ");
-                        $insertActorStmt->execute([$actorId, $actorName, $profilePath]);
-                    }
+                    // Schauspieler einfügen oder aktualisieren
+                    $insertActorStmt = $pdo->prepare("
+                        INSERT INTO actors (id, first_name, last_name)
+                        VALUES (?, ?, ?)
+                        ON DUPLICATE KEY UPDATE
+                            first_name = ?,
+                            last_name = ?
+                    ");
+                    $insertActorStmt->execute([$actorId, $firstName, $lastName, $firstName, $lastName]);
                     
                     // Verknüpfung in film_actor erstellen
                     $linkStmt = $pdo->prepare("
-                        INSERT INTO film_actor (film_id, actor_id, role, cast_order)
+                        INSERT INTO film_actor (film_id, actor_id, role, sort_order)
                         VALUES (?, ?, ?, ?)
                     ");
                     $linkStmt->execute([$filmId, $actorId, $role, $castOrder]);
