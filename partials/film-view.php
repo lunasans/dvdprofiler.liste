@@ -982,6 +982,154 @@ span[itemprop="datePublished"] {
     </div>
     <?php endif; ?>
 
+<script>
+// ===================================================================
+// ALTERSVERIFIZIERUNG - Event-Delegation auf Document-Level
+// Funktioniert auch bei AJAX-Loads
+// ===================================================================
+(function() {
+    console.log('🎬 Trailer Age-Verification Script geladen');
+    
+    // Event-Delegation auf document für trailer-box clicks
+    document.addEventListener('click', function(e) {
+        const trailerBox = e.target.closest('.trailer-box');
+        if (!trailerBox) return;
+        
+        // Prüfe ob es wirklich ein Trailer in film-view ist (nicht in trailers.php)
+        const isFilmView = trailerBox.closest('.meta-card') !== null;
+        if (!isFilmView) return;
+        
+        e.preventDefault();
+        e.stopPropagation();
+        
+        const ratingAge = parseInt(trailerBox.dataset.ratingAge || 0);
+        const trailerUrl = trailerBox.dataset.src;
+        
+        console.log('🎬 Trailer geklickt - FSK:', ratingAge);
+        
+        // Cookie-Check
+        function hasAgeConfirmation() {
+            return document.cookie.includes('age_confirmed_18=true');
+        }
+        
+        if (ratingAge >= 18 && !hasAgeConfirmation()) {
+            console.log('🔞 Zeige Altersverifizierung');
+            const ageModal = document.getElementById('ageVerificationModal');
+            if (ageModal) {
+                ageModal.style.display = 'flex';
+                document.body.style.overflow = 'hidden';
+                
+                // Speichere Trailer-Info für Bestätigung
+                window._pendingTrailerBox = trailerBox;
+                window._pendingTrailerUrl = trailerUrl;
+            } else {
+                console.error('❌ Age Modal nicht gefunden');
+            }
+        } else {
+            console.log('✅ Spiele Trailer direkt ab');
+            playTrailerNow(trailerBox, trailerUrl);
+        }
+    }, true); // useCapture = true, damit wir VOR anderen Handlern greifen
+    
+    // Age-Verification Buttons Setup
+    function setupAgeButtons() {
+        const ageConfirmBtn = document.getElementById('ageConfirmBtn');
+        const ageDenyBtn = document.getElementById('ageDenyBtn');
+        const ageModal = document.getElementById('ageVerificationModal');
+        
+        if (!ageModal) return;
+        
+        if (ageConfirmBtn && !ageConfirmBtn.dataset.listenerAdded) {
+            ageConfirmBtn.dataset.listenerAdded = 'true';
+            ageConfirmBtn.addEventListener('click', function() {
+                console.log('✅ Alter bestätigt');
+                
+                // Cookie setzen (30 Tage)
+                const expires = new Date();
+                expires.setDate(expires.getDate() + 30);
+                document.cookie = `age_confirmed_18=true; expires=${expires.toUTCString()}; path=/; SameSite=Strict`;
+                
+                ageModal.style.display = 'none';
+                document.body.style.overflow = '';
+                
+                // Trailer abspielen
+                if (window._pendingTrailerBox && window._pendingTrailerUrl) {
+                    playTrailerNow(window._pendingTrailerBox, window._pendingTrailerUrl);
+                    window._pendingTrailerBox = null;
+                    window._pendingTrailerUrl = null;
+                }
+            });
+        }
+        
+        if (ageDenyBtn && !ageDenyBtn.dataset.listenerAdded) {
+            ageDenyBtn.dataset.listenerAdded = 'true';
+            ageDenyBtn.addEventListener('click', function() {
+                console.log('❌ Alter abgelehnt');
+                ageModal.style.display = 'none';
+                document.body.style.overflow = '';
+                window._pendingTrailerBox = null;
+                window._pendingTrailerUrl = null;
+            });
+        }
+        
+        // ESC Key
+        if (!ageModal.dataset.escListenerAdded) {
+            ageModal.dataset.escListenerAdded = 'true';
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape' && ageModal.style.display === 'flex') {
+                    ageModal.style.display = 'none';
+                    document.body.style.overflow = '';
+                }
+            });
+            
+            // Click outside
+            ageModal.addEventListener('click', function(e) {
+                if (e.target === ageModal) {
+                    ageModal.style.display = 'none';
+                    document.body.style.overflow = '';
+                }
+            });
+        }
+    }
+    
+    // Trailer abspielen
+    function playTrailerNow(box, url) {
+        if (!url) return;
+        
+        const container = box.closest('.trailer-container');
+        if (!container) return;
+        
+        // Convert URL to embed
+        let embedUrl = url;
+        if (url.includes('youtube.com') || url.includes('youtu.be')) {
+            const videoId = url.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/)?.[1];
+            if (videoId) embedUrl = `https://www.youtube.com/embed/${videoId}?autoplay=1&modestbranding=1`;
+        }
+        
+        // Iframe erstellen
+        const iframe = document.createElement('iframe');
+        iframe.src = embedUrl;
+        iframe.width = '100%';
+        iframe.style.aspectRatio = '16/9';
+        iframe.style.border = 'none';
+        iframe.style.borderRadius = '8px';
+        iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture';
+        iframe.allowFullscreen = true;
+        
+        box.style.display = 'none';
+        container.appendChild(iframe);
+        
+        console.log('▶️ Trailer wird abgespielt');
+    }
+    
+    // Setup sofort und bei DOM-ready
+    setupAgeButtons();
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', setupAgeButtons);
+    }
+})();
+</script>
+
     <!-- User-Bewertung (falls eingeloggt) -->
     <section class="meta-card user-rating-card">
         <h3><i class="bi bi-star-fill"></i> Ihre Bewertung</h3>
@@ -1070,261 +1218,6 @@ span[itemprop="datePublished"] {
 
 <!-- Enhanced JavaScript -->
 <script>
-// Trailer-Funktionalität mit Age-Verification
-// Warte kurz bis DOM aktualisiert ist (wichtig bei AJAX-Loads)
-setTimeout(function() {
-    const trailerContainer = document.querySelector('.trailer-container');
-    const ageModal = document.getElementById('ageVerificationModal');
-    const ageConfirmBtn = document.getElementById('ageConfirmBtn');
-    const ageDenyBtn = document.getElementById('ageDenyBtn');
-    
-    if (trailerContainer) {
-        // Event Delegation - fängt Clicks auf Child-Elemente
-        trailerContainer.addEventListener('click', function(e) {
-            const trailerBox = e.target.closest('.trailer-box');
-            if (!trailerBox) return; // Nicht auf trailer-box geklickt
-            
-            e.preventDefault();
-            e.stopPropagation();
-            
-            const ratingAge = parseInt(trailerBox.dataset.ratingAge || 0);
-            const trailerUrl = trailerBox.dataset.src;
-            
-            // Cookie-Check
-            function hasAgeConfirmation() {
-                return document.cookie.includes('age_confirmed_18=true');
-            }
-            
-            // Cookie setzen (30 Tage)
-            function setAgeConfirmation() {
-                const expires = new Date();
-                expires.setDate(expires.getDate() + 30);
-                document.cookie = `age_confirmed_18=true; expires=${expires.toUTCString()}; path=/; SameSite=Strict`;
-            }
-            
-            if (ratingAge >= 18 && !hasAgeConfirmation()) {
-                // Zeige Age-Verification
-                if (ageModal) {
-                    ageModal.style.display = 'flex';
-                    document.body.style.overflow = 'hidden';
-                }
-            } else {
-                // Spiele Trailer ab
-                playTrailer(trailerBox, trailerUrl);
-            }
-            
-            function playTrailer(box, url) {
-                if (!url) return;
-                
-                const container = box.closest('.trailer-container');
-                const embedUrl = convertToEmbedUrl(url);
-                
-                // Iframe erstellen
-                const iframe = document.createElement('iframe');
-                iframe.src = embedUrl;
-                iframe.width = '100%';
-                iframe.style.aspectRatio = '16/9';
-                iframe.style.border = 'none';
-                iframe.style.borderRadius = '8px';
-                iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture';
-                iframe.allowFullscreen = true;
-                
-                box.style.display = 'none';
-                container.appendChild(iframe);
-                
-                // Kanal-Link hinzufügen (nur für YouTube)
-                if (url.includes('youtube.com') || url.includes('youtu.be')) {
-                    const videoId = url.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/)?.[1];
-                    if (videoId) {
-                        const channelLink = document.createElement('div');
-                        channelLink.className = 'trailer-channel-link';
-                        channelLink.innerHTML = `
-                            <a href="https://www.youtube.com/watch?v=${videoId}" target="_blank" rel="noopener noreferrer">
-                                <i class="bi bi-youtube"></i> Auf YouTube ansehen
-                            </a>
-                        `;
-                        container.appendChild(channelLink);
-                    }
-                }
-            }
-            
-            function convertToEmbedUrl(url) {
-                // YouTube
-                if (url.includes('youtube.com') || url.includes('youtu.be')) {
-                    const videoId = url.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/)?.[1];
-                    if (videoId) return `https://www.youtube.com/embed/${videoId}?autoplay=1`;
-                }
-                // Vimeo
-                if (url.includes('vimeo.com')) {
-                    const videoId = url.match(/vimeo\.com\/(\d+)/)?.[1];
-                    if (videoId) return `https://player.vimeo.com/video/${videoId}?autoplay=1`;
-                }
-                // Dailymotion
-                if (url.includes('dailymotion.com')) {
-                    const videoId = url.match(/dailymotion\.com\/video\/([^_]+)/)?.[1];
-                    if (videoId) return `https://www.dailymotion.com/embed/video/${videoId}?autoplay=1`;
-                }
-                return url;
-            }
-        });
-        
-        // Bestätigen
-        if (ageConfirmBtn) {
-            ageConfirmBtn.addEventListener('click', function() {
-                const expires = new Date();
-                expires.setDate(expires.getDate() + 30);
-                document.cookie = `age_confirmed_18=true; expires=${expires.toUTCString()}; path=/; SameSite=Strict`;
-                
-                if (ageModal) {
-                    ageModal.style.display = 'none';
-                    document.body.style.overflow = '';
-                }
-                
-                // Spiele Trailer ab
-                const trailerBox = document.querySelector('.trailer-box');
-                const trailerUrl = trailerBox?.dataset.src;
-                if (trailerBox && trailerUrl) {
-                    const container = trailerBox.closest('.trailer-container');
-                    const embedUrl = (function(url) {
-                        if (url.includes('youtube.com') || url.includes('youtu.be')) {
-                            const videoId = url.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/)?.[1];
-                            if (videoId) return `https://www.youtube.com/embed/${videoId}?autoplay=1`;
-                        }
-                        if (url.includes('vimeo.com')) {
-                            const videoId = url.match(/vimeo\.com\/(\d+)/)?.[1];
-                            if (videoId) return `https://player.vimeo.com/video/${videoId}?autoplay=1`;
-                        }
-                        return url;
-                    })(trailerUrl);
-                    
-                    const iframe = document.createElement('iframe');
-                    iframe.src = embedUrl;
-                    iframe.width = '100%';
-                    iframe.style.aspectRatio = '16/9';
-                    iframe.style.border = 'none';
-                    iframe.style.borderRadius = '8px';
-                    iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture';
-                    iframe.allowFullscreen = true;
-                    
-                    trailerBox.style.display = 'none';
-                    container.appendChild(iframe);
-                }
-            });
-        }
-        
-        // Ablehnen
-        if (ageDenyBtn) {
-            ageDenyBtn.addEventListener('click', function() {
-                if (ageModal) {
-                    ageModal.style.display = 'none';
-                    document.body.style.overflow = '';
-                }
-            });
-        }
-        
-        // ESC-Taste
-        document.addEventListener('keydown', function(e) {
-            if (e.key === 'Escape' && ageModal && ageModal.style.display === 'flex') {
-                ageModal.style.display = 'none';
-                document.body.style.overflow = '';
-            }
-        });
-        
-        // Click außerhalb
-        if (ageModal) {
-            ageModal.addEventListener('click', function(e) {
-                if (e.target === ageModal) {
-                    ageModal.style.display = 'none';
-                    document.body.style.overflow = '';
-                }
-            });
-        }
-    }
-    
-    // Rating-System mit Debug-Ausgaben
-    const ratingStars = document.querySelectorAll('.rating-star');
-    const saveRatingBtn = document.querySelector('.save-rating');
-    const ratingDisplay = document.querySelector('.rating-display');
-    const currentRating = parseFloat(document.querySelector('.star-rating-input')?.dataset.currentRating || 0);
-    let selectedRating = currentRating;
-    
-    ratingStars.forEach((star, index) => {
-        star.addEventListener('mouseenter', function() {
-            const rating = parseInt(this.dataset.rating);
-            highlightStars(rating);
-        });
-        
-        star.addEventListener('mouseleave', function() {
-            highlightStars(selectedRating);
-        });
-        
-        star.addEventListener('click', function() {
-            selectedRating = parseInt(this.dataset.rating);
-            highlightStars(selectedRating);
-            if (saveRatingBtn) {
-                saveRatingBtn.style.display = 'inline-block';
-            }
-            if (ratingDisplay) {
-                ratingDisplay.textContent = selectedRating + '/5';
-            }
-        });
-    });
-    
-    function highlightStars(rating) {
-        ratingStars.forEach((star, index) => {
-            if (index < rating) {
-                star.classList.remove('bi-star');
-                star.classList.add('bi-star-fill');
-            } else {
-                star.classList.remove('bi-star-fill');
-                star.classList.add('bi-star');
-            }
-        });
-    }
-    
-    // Rating speichern
-    if (saveRatingBtn) {
-        saveRatingBtn.addEventListener('click', function() {
-            const filmId = document.querySelector('.star-rating-input').dataset.filmId;
-            saveUserRating(filmId, selectedRating);
-        });
-    }
-    
-    // Als gesehen markieren
-    const watchedBtn = document.querySelector('.mark-as-watched');
-    if (watchedBtn) {
-        watchedBtn.addEventListener('click', function() {
-            const filmId = this.dataset.filmId;
-            toggleWatched(filmId, this);
-        });
-    }
-    
-    // Share-Funktionalität
-    const shareBtn = document.querySelector('.share-film');
-    if (shareBtn) {
-        shareBtn.addEventListener('click', function() {
-            const filmId = this.dataset.filmId;
-            const filmTitle = this.dataset.filmTitle;
-            shareFilm(filmId, filmTitle);
-        });
-    }
-    
-    // Lazy Loading für zusätzliche Bilder
-    const lazyImages = document.querySelectorAll('img[loading="lazy"]');
-    if ('IntersectionObserver' in window) {
-        const imageObserver = new IntersectionObserver((entries) => {
-            entries.forEach(entry => {
-                if (entry.isIntersecting) {
-                    const img = entry.target;
-                    img.classList.add('fade-in');
-                }
-            });
-        });
-        
-        lazyImages.forEach(img => imageObserver.observe(img));
-    }
-}, 10); // Kurzer Timeout damit DOM aktualisiert ist
-
 // AJAX-Funktionen
 async function saveUserRating(filmId, rating) {
     try {

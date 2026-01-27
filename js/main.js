@@ -91,21 +91,14 @@ class DVDApp {
             return;
         }
 
-        // Pagination Links - prüfe zuerst ob es Trailer-Pagination ist
+        // Pagination Links - laden in LINKE Seite (film-list-area)
         const paginationLink = e.target.closest('.pagination a');
         if (paginationLink) {
             const href = paginationLink.getAttribute('href');
             if (href && href.startsWith('?')) {
                 e.preventDefault();
                 history.pushState({}, '', href);
-                
-                // Trailer-Pagination? → Lade in RECHTE Seite (detail-container)
-                if (paginationLink.classList.contains('trailer-pagination-link')) {
-                    this.loadTrailerPage(href);
-                } else {
-                    // Normale Pagination → Lade in LINKE Seite (film-list-area)
-                    this.loadPaginationPage(href);
-                }
+                this.loadPaginationPage(href);
             }
             return;
         }
@@ -278,65 +271,6 @@ class DVDApp {
             });
         }
         
-        // Trailer-Button - GEÄNDERT: Inline Wiedergabe
-        const trailerBox = document.querySelector('.trailer-box');
-        if (trailerBox) {
-            trailerBox.addEventListener('click', function(e) {
-                e.stopImmediatePropagation();
-                e.preventDefault();
-                
-                const trailerUrl = this.dataset.src;
-                if (trailerUrl) {
-                    // URL zu Embed-URL konvertieren
-                    let embedUrl = convertToEmbedUrl(trailerUrl);
-                    
-                    if (embedUrl) {
-                        // Erstelle iframe
-                        const iframe = document.createElement('iframe');
-                        iframe.src = embedUrl + '&autoplay=1';
-                        iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';
-                        iframe.allowFullscreen = true;
-                        iframe.style.cssText = `
-                            width: 100%;
-                            height: 100%;
-                            position: absolute;
-                            top: 0;
-                            left: 0;
-                            border: none;
-                            border-radius: 8px;
-                        `;
-                        
-                        // Ersetze Inhalt mit iframe
-                        this.innerHTML = '';
-                        this.appendChild(iframe);
-                        this.style.cursor = 'default';
-                    }
-                }
-            });
-        }
-        
-        // Helper-Funktion: URL zu Embed-URL konvertieren
-        function convertToEmbedUrl(url) {
-            // YouTube
-            let match = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]+)/);
-            if (match) {
-                return `https://www.youtube.com/embed/${match[1]}?autoplay=1`;
-            }
-            
-            // Vimeo
-            match = url.match(/vimeo\.com\/(\d+)/);
-            if (match) {
-                return `https://player.vimeo.com/video/${match[1]}?autoplay=1`;
-            }
-            
-            // Dailymotion
-            match = url.match(/dailymotion\.com\/video\/([a-zA-Z0-9]+)/);
-            if (match) {
-                return `https://www.dailymotion.com/embed/video/${match[1]}?autoplay=1`;
-            }
-            
-            return null;
-        }
     }
     
     // 📺 NEUE METHODE: Staffeln/Episoden Toggle initialisieren
@@ -615,9 +549,7 @@ class DVDApp {
     }
 
     async loadPage(page) {
-        // trailers.php liegt im Root, andere Pages in partials/
-        const url = (page === 'trailers') ? 'trailers.php' : `partials/${page}.php`;
-        const response = await fetch(url);
+        const response = await fetch(`partials/${page}.php`);
         const html = await response.text();
         
         this.container.innerHTML = html;
@@ -726,30 +658,6 @@ class DVDApp {
             }
         } catch (error) {
             console.error('Pagination Fehler:', error);
-        }
-    }
-
-    async loadTrailerPage(href) {
-        try {
-            // Lade in detail-container (RECHTE Seite) für Trailer-Pagination
-            if (!this.container) {
-                console.error('detail-container nicht gefunden');
-                return;
-            }
-            
-            const response = await fetch(`trailers.php${href}`);
-            const html = await response.text();
-            this.container.innerHTML = html;
-            
-            // Inline-Scripts ausführen (für Trailer-Modal etc.)
-            this.executeInlineScripts(this.container);
-            
-            console.log(`🎬 Trailer-Seite geladen: ${href}`);
-        } catch (error) {
-            console.error('Trailer-Pagination Fehler:', error);
-            if (this.container) {
-                this.container.innerHTML = '<div class="alert alert-danger">Fehler beim Laden der Trailer-Seite</div>';
-            }
         }
     }
 
