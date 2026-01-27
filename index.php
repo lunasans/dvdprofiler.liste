@@ -183,12 +183,8 @@ $schema = [
         <section class="film-list-area" aria-label="Film-Liste">
             <?php 
             try {
-                // Entscheide welche Partial geladen werden soll
-                if ($page === 'trailers') {
-                    include __DIR__ . '/trailers.php';
-                } else {
-                    include __DIR__ . '/partials/film-list.php';
-                }
+                // Lade immer film-list.php in der linken Seite
+                include __DIR__ . '/partials/film-list.php';
             } catch (Exception $e) {
                 error_log('Content include error: ' . $e->getMessage());
                 echo '<div class="error-message">Inhalt konnte nicht geladen werden.</div>';

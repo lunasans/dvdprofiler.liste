@@ -296,7 +296,7 @@ try {
 /* ============================================================================
    TRAILER CARD
    ============================================================================ */
-.trailer-card {
+.trailers-page .trailer-card {
     background: var(--bg-secondary, rgba(255, 255, 255, 0.05));
     border: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
     border-radius: var(--radius-lg, 12px);
@@ -304,7 +304,7 @@ try {
     transition: all 0.3s ease;
 }
 
-.trailer-card:hover {
+.trailers-page .trailer-card:hover {
     border-color: var(--accent-primary, #667eea);
     box-shadow: 0 8px 32px rgba(102, 126, 234, 0.3);
     transform: translateY(-4px);
@@ -313,7 +313,7 @@ try {
 /* ============================================================================
    TRAILER THUMBNAIL
    ============================================================================ */
-.trailer-thumbnail {
+.trailers-page .trailer-thumbnail {
     position: relative;
     width: 100%;
     padding-bottom: 150%; /* DVD Cover Hochformat (2:3 Aspect Ratio) */
@@ -322,7 +322,7 @@ try {
     background: var(--bg-tertiary, #16213e);
 }
 
-.trailer-thumbnail img {
+.trailers-page .trailer-thumbnail img {
     position: absolute;
     top: 0;
     left: 0;
@@ -332,14 +332,14 @@ try {
     transition: transform 0.3s ease;
 }
 
-.trailer-card:hover .trailer-thumbnail img {
+.trailers-page .trailer-card:hover .trailer-thumbnail img {
     transform: scale(1.05);
 }
 
 /* ============================================================================
-   PLAY OVERLAY
+   PLAY OVERLAY - Immer sichtbar mit Hover-Effekt
    ============================================================================ */
-.play-overlay {
+.trailers-page .play-overlay {
     position: absolute;
     top: 0;
     left: 0;
@@ -348,30 +348,42 @@ try {
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(0, 0, 0, 0.4);
-    opacity: 0;
-    transition: opacity 0.3s ease;
+    background: rgba(0, 0, 0, 0.3);
+    opacity: 1;
+    transition: all 0.3s ease;
+    pointer-events: none; /* Clicks gehen durch zum parent */
 }
 
-.trailer-card:hover .play-overlay {
+.trailers-page .trailer-card:hover .play-overlay {
+    background: rgba(0, 0, 0, 0.5);
+}
+
+.trailers-page .play-overlay i {
+    font-size: 4rem;
+    color: white;
+    opacity: 0.9;
+    filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.5));
+    transition: all 0.3s ease;
+}
+
+.trailers-page .trailer-card:hover .play-overlay i {
+    transform: scale(1.2);
     opacity: 1;
 }
 
-.play-overlay i {
-    font-size: 4rem;
-    color: white;
-    filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.5));
-    transition: transform 0.3s ease;
+.trailers-page .trailer-thumbnail:active .play-overlay {
+    background: rgba(0, 0, 0, 0.6);
 }
 
-.trailer-card:hover .play-overlay i {
-    transform: scale(1.2);
+.trailers-page .trailer-thumbnail:active .play-overlay i {
+    transform: scale(0.9);
+    transition: transform 0.1s ease;
 }
 
 /* ============================================================================
    TRAILER BADGE
    ============================================================================ */
-.trailer-duration {
+.trailers-page .trailer-duration {
     position: absolute;
     bottom: 8px;
     right: 8px;
@@ -386,33 +398,33 @@ try {
 /* ============================================================================
    TRAILER INFO
    ============================================================================ */
-.trailer-info {
+.trailers-page .trailer-info {
     padding: var(--space-md, 1rem);
 }
 
-.trailer-title {
+.trailers-page .trailer-title {
     margin: 0 0 var(--space-sm, 0.5rem) 0;
     font-size: 1.1rem;
 }
 
-.trailer-title a {
+.trailers-page .trailer-title a {
     color: var(--text-primary, #e4e4e7);
     text-decoration: none;
     transition: color 0.3s ease;
 }
 
-.trailer-title a:hover {
+.trailers-page .trailer-title a:hover {
     color: var(--accent-primary, #667eea);
 }
 
-.trailer-meta {
+.trailers-page .trailer-meta {
     display: flex;
     gap: var(--space-md, 1rem);
     font-size: 0.9rem;
     color: var(--text-muted, rgba(228, 228, 231, 0.6));
 }
 
-.trailer-meta span {
+.trailers-page .trailer-meta span {
     display: flex;
     align-items: center;
     gap: var(--space-xs, 0.35rem);
@@ -760,7 +772,7 @@ function playVideoInModal() {
     // YouTube iframe einfügen mit Autoplay
     videoContainer.innerHTML = `
         <iframe 
-            src="${currentEmbedUrl}?autoplay=1&rel=0" 
+            src="${currentEmbedUrl}?autoplay=1&rel=0&modestbranding=1" 
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
             allowfullscreen>
         </iframe>

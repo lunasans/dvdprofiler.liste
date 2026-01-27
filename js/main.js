@@ -91,14 +91,21 @@ class DVDApp {
             return;
         }
 
-        // Pagination Links - laden in LINKE Seite (film-list-area)
+        // Pagination Links - prüfe zuerst ob es Trailer-Pagination ist
         const paginationLink = e.target.closest('.pagination a');
         if (paginationLink) {
             const href = paginationLink.getAttribute('href');
             if (href && href.startsWith('?')) {
                 e.preventDefault();
                 history.pushState({}, '', href);
-                this.loadPaginationPage(href);
+                
+                // Trailer-Pagination? → Lade in RECHTE Seite (detail-container)
+                if (paginationLink.classList.contains('trailer-pagination-link')) {
+                    this.loadTrailerPage(href);
+                } else {
+                    // Normale Pagination → Lade in LINKE Seite (film-list-area)
+                    this.loadPaginationPage(href);
+                }
             }
             return;
         }
@@ -608,7 +615,9 @@ class DVDApp {
     }
 
     async loadPage(page) {
-        const response = await fetch(`partials/${page}.php`);
+        // trailers.php liegt im Root, andere Pages in partials/
+        const url = (page === 'trailers') ? 'trailers.php' : `partials/${page}.php`;
+        const response = await fetch(url);
         const html = await response.text();
         
         this.container.innerHTML = html;
@@ -717,6 +726,30 @@ class DVDApp {
             }
         } catch (error) {
             console.error('Pagination Fehler:', error);
+        }
+    }
+
+    async loadTrailerPage(href) {
+        try {
+            // Lade in detail-container (RECHTE Seite) für Trailer-Pagination
+            if (!this.container) {
+                console.error('detail-container nicht gefunden');
+                return;
+            }
+            
+            const response = await fetch(`trailers.php${href}`);
+            const html = await response.text();
+            this.container.innerHTML = html;
+            
+            // Inline-Scripts ausführen (für Trailer-Modal etc.)
+            this.executeInlineScripts(this.container);
+            
+            console.log(`🎬 Trailer-Seite geladen: ${href}`);
+        } catch (error) {
+            console.error('Trailer-Pagination Fehler:', error);
+            if (this.container) {
+                this.container.innerHTML = '<div class="alert alert-danger">Fehler beim Laden der Trailer-Seite</div>';
+            }
         }
     }
 

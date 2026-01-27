@@ -1070,8 +1070,9 @@ span[itemprop="datePublished"] {
 
 <!-- Enhanced JavaScript -->
 <script>
-(function() {
-    // Trailer-Funktionalität mit Age-Verification (sofort ausgeführt)
+// Trailer-Funktionalität mit Age-Verification
+// Warte kurz bis DOM aktualisiert ist (wichtig bei AJAX-Loads)
+setTimeout(function() {
     const trailerContainer = document.querySelector('.trailer-container');
     const ageModal = document.getElementById('ageVerificationModal');
     const ageConfirmBtn = document.getElementById('ageConfirmBtn');
@@ -1322,7 +1323,7 @@ span[itemprop="datePublished"] {
         
         lazyImages.forEach(img => imageObserver.observe(img));
     }
-})(); // IIFE - sofort ausgeführt
+}, 10); // Kurzer Timeout damit DOM aktualisiert ist
 
 // AJAX-Funktionen
 async function saveUserRating(filmId, rating) {
