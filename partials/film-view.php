@@ -224,6 +224,7 @@ $backdropUrl = $backCover ?? '';
     height: 100%;
     z-index: 0;
     overflow: hidden;
+    background-color: var(--bg-primary, #0f0f23);
 }
 
 /* Hero-Wrapper für Backdrop-Container */
@@ -234,8 +235,10 @@ $backdropUrl = $backCover ?? '';
     border-radius: 16px;
 }
 
-/* Titel auf Backdrop - Weiße Farbe mit starkem Shadow */
-.hero-content .film-header h2 {
+/* Titel auf Backdrop - Weiß mit starkem Shadow */
+.detail-inline .hero-wrapper .hero-section .hero-content .film-header h2,
+.hero-content .film-header h2,
+h2[itemprop="name"] {
     margin: 0;
     font-size: 2.5rem;
     font-weight: 700;
@@ -243,7 +246,9 @@ $backdropUrl = $backCover ?? '';
     text-shadow: 0 2px 4px rgba(0, 0, 0, 0.9), 0 4px 8px rgba(0, 0, 0, 0.7);
 }
 
-.hero-content .film-header .film-year {
+.detail-inline .hero-wrapper .hero-section .hero-content .film-header .film-year,
+.hero-content .film-header .film-year,
+span[itemprop="datePublished"] {
     font-weight: 400;
     opacity: 0.9;
     color: #ffffff !important;
@@ -389,13 +394,84 @@ $backdropUrl = $backCover ?? '';
     left: 0;
     right: 0;
     bottom: 0;
+}
+
+/* Default Theme - Dunkles Blau (#0f0f23) */
+:root .backdrop-overlay,
+[data-theme="default"] .backdrop-overlay {
     background: linear-gradient(
         to bottom,
-        rgba(26, 26, 46, 0.5) 0%,
-        rgba(26, 26, 46, 0.7) 40%,
-        rgba(26, 26, 46, 0.85) 65%,
-        rgba(26, 26, 46, 0.95) 85%,
-        rgba(26, 26, 46, 1) 100%
+        rgba(15, 15, 35, 0.3) 0%,
+        rgba(15, 15, 35, 0.5) 20%,
+        rgba(15, 15, 35, 0.7) 40%,
+        rgba(15, 15, 35, 0.85) 60%,
+        rgba(15, 15, 35, 0.95) 80%,
+        rgba(15, 15, 35, 1) 100%
+    );
+}
+
+/* Dark Theme - Schwarz (#000000) */
+[data-theme="dark"] .backdrop-overlay {
+    background: linear-gradient(
+        to bottom,
+        rgba(0, 0, 0, 0.3) 0%,
+        rgba(0, 0, 0, 0.5) 20%,
+        rgba(0, 0, 0, 0.7) 40%,
+        rgba(0, 0, 0, 0.85) 60%,
+        rgba(0, 0, 0, 0.95) 80%,
+        rgba(0, 0, 0, 1) 100%
+    );
+}
+
+/* Blue Theme - Dunkles Blau (#001f3f) */
+[data-theme="blue"] .backdrop-overlay {
+    background: linear-gradient(
+        to bottom,
+        rgba(0, 31, 63, 0.3) 0%,
+        rgba(0, 31, 63, 0.5) 20%,
+        rgba(0, 31, 63, 0.7) 40%,
+        rgba(0, 31, 63, 0.85) 60%,
+        rgba(0, 31, 63, 0.95) 80%,
+        rgba(0, 31, 63, 1) 100%
+    );
+}
+
+/* Purple Theme - Dunkles Lila (#1a0a1f) */
+[data-theme="purple"] .backdrop-overlay {
+    background: linear-gradient(
+        to bottom,
+        rgba(26, 10, 31, 0.3) 0%,
+        rgba(26, 10, 31, 0.5) 20%,
+        rgba(26, 10, 31, 0.7) 40%,
+        rgba(26, 10, 31, 0.85) 60%,
+        rgba(26, 10, 31, 0.95) 80%,
+        rgba(26, 10, 31, 1) 100%
+    );
+}
+
+/* Green Theme - Dunkles Grün (#0a1f0a) */
+[data-theme="green"] .backdrop-overlay {
+    background: linear-gradient(
+        to bottom,
+        rgba(10, 31, 10, 0.3) 0%,
+        rgba(10, 31, 10, 0.5) 20%,
+        rgba(10, 31, 10, 0.7) 40%,
+        rgba(10, 31, 10, 0.85) 60%,
+        rgba(10, 31, 10, 0.95) 80%,
+        rgba(10, 31, 10, 1) 100%
+    );
+}
+
+/* Red Theme - Dunkles Rot (#1a0a0a) */
+[data-theme="red"] .backdrop-overlay {
+    background: linear-gradient(
+        to bottom,
+        rgba(26, 10, 10, 0.3) 0%,
+        rgba(26, 10, 10, 0.5) 20%,
+        rgba(26, 10, 10, 0.7) 40%,
+        rgba(26, 10, 10, 0.85) 60%,
+        rgba(26, 10, 10, 0.95) 80%,
+        rgba(26, 10, 10, 1) 100%
     );
 }
 
@@ -536,7 +612,7 @@ $backdropUrl = $backCover ?? '';
     gap: 1rem;
     flex-wrap: wrap;
     font-size: 1rem;
-    color: var(--text-secondary, rgba(228, 228, 231, 0.9));
+    color: rgba(255, 255, 255, 0.9);
 }
 
 .hero-meta-line .fsk-badge {
@@ -552,7 +628,7 @@ $backdropUrl = $backCover ?? '';
 .hero-overview {
     font-size: 1.05rem;
     line-height: 1.7;
-    color: var(--text-secondary, rgba(228, 228, 231, 0.95));
+    color: rgba(255, 255, 255, 0.95);
     max-width: 800px;
 }
 
