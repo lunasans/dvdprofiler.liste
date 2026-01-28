@@ -6,6 +6,21 @@
 
 // CSRF-Token
 $csrfToken = generateCSRFToken();
+
+// System-Anforderungen prüfen
+$systemRequirements = [
+    'php' => version_compare(PHP_VERSION, '8.0.0', '>='),
+    'php_recommended' => version_compare(PHP_VERSION, '8.0.0', '>='),
+    'extensions' => [
+        'PDO' => extension_loaded('pdo'),
+        'pdo_mysql' => extension_loaded('pdo_mysql'),
+        'mbstring' => extension_loaded('mbstring'),
+        'gd' => extension_loaded('gd'),
+        'curl' => extension_loaded('curl'),
+        'json' => extension_loaded('json'),
+        'zip' => extension_loaded('zip')
+    ]
+];
 ?>
 
 <!-- Save Status Notifications -->
@@ -827,16 +842,16 @@ $csrfToken = generateCSRFToken();
                             <hr class="my-4">
                             
                             <!-- Vorschau & URLs -->
-                            <div class="card bg-light">
+                            <div class="card">
                                 <div class="card-body">
                                     <h6 class="mb-3">
                                         <i class="bi bi-link-45deg"></i> Banner-URLs & Vorschau
                                     </h6>
                                     
-                                    <div class="alert alert-success">
+                                    <div class="alert alert-info">
                                         <strong>Banner-URL:</strong><br>
                                         <code class="user-select-all"><?= htmlspecialchars(getSetting('base_url', 'https://deine-domain.de/')) ?>signature.php?type=1</code>
-                                        <button type="button" class="btn btn-sm btn-outline-success float-end" onclick="navigator.clipboard.writeText('<?= htmlspecialchars(getSetting('base_url', '')) ?>signature.php?type=1')">
+                                        <button type="button" class="btn btn-sm btn-outline-primary float-end" onclick="navigator.clipboard.writeText('<?= htmlspecialchars(getSetting('base_url', '')) ?>signature.php?type=1')">
                                             <i class="bi bi-clipboard"></i> Kopieren
                                         </button>
                                     </div>

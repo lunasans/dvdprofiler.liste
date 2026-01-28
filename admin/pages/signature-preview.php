@@ -78,6 +78,15 @@ label {
     </div>
 </div>
 
+<!-- Notification Container -->
+<div id="copyNotification" class="alert alert-success position-fixed top-0 start-50 translate-middle-x mt-3" 
+     style="display: none; z-index: 9999; min-width: 300px; box-shadow: 0 4px 6px rgba(0,0,0,0.3);">
+    <div class="d-flex align-items-center">
+        <i class="bi bi-check-circle-fill me-2"></i>
+        <span id="copyNotificationText">Code kopiert!</span>
+    </div>
+</div>
+
 <!-- Variante 1 -->
 <?php if (getSetting('signature_enable_type1', '1') == '1'): ?>
 <div class="card mb-4">
@@ -351,9 +360,66 @@ label {
         const element = document.getElementById(elementId);
         const text = element.value;
         
-        navigator.clipboard.writeText(text).then(() => {
-            // Visuelles Feedback
-            const button = event.target.closest('button');
+        // Moderne Clipboard API versuchen
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(() => {
+                copySuccess();
+            }).catch(err => {
+                console.log('Clipboard API fehlgeschlagen, verwende Fallback:', err);
+                copyFallback(text);
+            });
+        } else {
+            // Fallback für ältere Browser oder unsichere Kontexte
+            copyFallback(text);
+        }
+    }
+    
+    function copyFallback(text) {
+        try {
+            // Temporäres Textarea erstellen (funktioniert immer!)
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            textarea.style.position = 'fixed';
+            textarea.style.top = '0';
+            textarea.style.left = '0';
+            textarea.style.width = '2em';
+            textarea.style.height = '2em';
+            textarea.style.padding = '0';
+            textarea.style.border = 'none';
+            textarea.style.outline = 'none';
+            textarea.style.boxShadow = 'none';
+            textarea.style.background = 'transparent';
+            
+            document.body.appendChild(textarea);
+            textarea.focus();
+            textarea.select();
+            
+            // Für iOS
+            textarea.setSelectionRange(0, 99999);
+            
+            // Kopieren
+            const successful = document.execCommand('copy');
+            
+            // Aufräumen
+            document.body.removeChild(textarea);
+            
+            if (successful) {
+                copySuccess();
+            } else {
+                throw new Error('execCommand fehlgeschlagen');
+            }
+        } catch (err) {
+            console.error('Alle Kopiermethoden fehlgeschlagen:', err);
+            
+            // Letzter Versuch: Text in Alert anzeigen zum manuellen Kopieren
+            alert('Bitte kopieren Sie den Code manuell:\n\n' + text);
+        }
+    }
+    
+    function copySuccess() {
+        // Button-Feedback
+        const button = event.target.closest('button');
+        if (button) {
             const originalHTML = button.innerHTML;
             button.innerHTML = '<i class="bi bi-check"></i> Kopiert!';
             button.classList.add('btn-success');
@@ -364,7 +430,33 @@ label {
                 button.classList.add('btn-outline-primary');
                 button.classList.remove('btn-success');
             }, 2000);
-        });
+        }
+        
+        // Notification anzeigen
+        showCopyNotification();
+    }
+    
+    function showCopyNotification() {
+        const notification = document.getElementById('copyNotification');
+        if (!notification) return;
+        
+        // Notification einblenden
+        notification.style.display = 'block';
+        notification.style.opacity = '0';
+        
+        // Fade-in Animation
+        setTimeout(() => {
+            notification.style.transition = 'opacity 0.3s ease-in-out';
+            notification.style.opacity = '1';
+        }, 10);
+        
+        // Nach 3 Sekunden ausblenden
+        setTimeout(() => {
+            notification.style.opacity = '0';
+            setTimeout(() => {
+                notification.style.display = 'none';
+            }, 300);
+        }, 3000);
     }
     
     function clearCache() {
