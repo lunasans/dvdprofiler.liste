@@ -11,6 +11,56 @@ $baseUrl = $protocol . $host . dirname(dirname($_SERVER['PHP_SELF']));
 $baseUrl = rtrim($baseUrl, '/');
 ?>
 
+<style>
+/* EXPLIZIT WEISSE TEXTFARBE für Dark-Theme */
+.card,
+.card *:not(.badge):not(.btn):not(.text-primary):not(.form-control) {
+    color: #fff !important;
+}
+
+.card .card-header,
+.card .card-header *:not(.form-control) {
+    color: #fff !important;
+}
+
+.card .card-body,
+.card .card-body *:not(.form-control) {
+    color: #fff !important;
+}
+
+/* Labels und Form-Elemente (aber nicht die Inputs selbst) */
+.form-label,
+.form-label * {
+    color: #fff !important;
+}
+
+/* Zusätzliche Sicherheit für Text-Elemente */
+p:not(.text-primary), 
+span:not(.badge):not(.text-primary), 
+strong, 
+li, 
+h1, h2, h3, h4, h5, h6, 
+label {
+    color: #fff !important;
+}
+
+/* Icons bleiben primary (blau) */
+.text-primary,
+.text-primary * {
+    color: var(--bs-primary) !important;
+}
+
+/* Badges behalten ihre Farben */
+.badge {
+    color: white !important;
+}
+
+/* Input-Felder behalten normale Farbe (NICHT weiß) */
+.form-control {
+    color: inherit !important;
+}
+</style>
+
 <!-- Page Header -->
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
@@ -55,17 +105,17 @@ $baseUrl = rtrim($baseUrl, '/');
             <div class="col-md-6">
                 <div class="mb-3">
                     <label class="form-label fw-bold">
-                        <i class="bi bi-link-45deg"></i> Direkt-URL
+                        <i class="bi bi-code"></i> HTML-Code (verlinktes Banner)
                     </label>
                     <div class="input-group">
                         <input type="text" 
                                class="form-control" 
-                               value="<?= $baseUrl ?>/signature.php?type=1" 
-                               id="url1" 
+                               value="<a href=&quot;<?= $baseUrl ?>&quot;><img src=&quot;<?= $baseUrl ?>/signature.php?type=1&quot; alt=&quot;DVD Collection&quot;></a>" 
+                               id="html1" 
                                readonly>
                         <button class="btn btn-outline-primary" 
                                 type="button" 
-                                onclick="copyUrl('url1')">
+                                onclick="copyUrl('html1')">
                             <i class="bi bi-clipboard"></i>
                         </button>
                     </div>
@@ -79,7 +129,7 @@ $baseUrl = rtrim($baseUrl, '/');
                     <div class="input-group">
                         <input type="text" 
                                class="form-control" 
-                               value="[img]<?= $baseUrl ?>/signature.php?type=1[/img]" 
+                               value="[url=<?= $baseUrl ?>][img]<?= $baseUrl ?>/signature.php?type=1[/img][/url]" 
                                id="bb1" 
                                readonly>
                         <button class="btn btn-outline-primary" 
@@ -122,17 +172,17 @@ $baseUrl = rtrim($baseUrl, '/');
             <div class="col-md-6">
                 <div class="mb-3">
                     <label class="form-label fw-bold">
-                        <i class="bi bi-link-45deg"></i> Direkt-URL
+                        <i class="bi bi-code"></i> HTML-Code (verlinktes Banner)
                     </label>
                     <div class="input-group">
                         <input type="text" 
                                class="form-control" 
-                               value="<?= $baseUrl ?>/signature.php?type=2" 
-                               id="url2" 
+                               value="<a href=&quot;<?= $baseUrl ?>&quot;><img src=&quot;<?= $baseUrl ?>/signature.php?type=2&quot; alt=&quot;DVD Collection&quot;></a>" 
+                               id="html2" 
                                readonly>
                         <button class="btn btn-outline-primary" 
                                 type="button" 
-                                onclick="copyUrl('url2')">
+                                onclick="copyUrl('html2')">
                             <i class="bi bi-clipboard"></i>
                         </button>
                     </div>
@@ -146,7 +196,7 @@ $baseUrl = rtrim($baseUrl, '/');
                     <div class="input-group">
                         <input type="text" 
                                class="form-control" 
-                               value="[img]<?= $baseUrl ?>/signature.php?type=2[/img]" 
+                               value="[url=<?= $baseUrl ?>][img]<?= $baseUrl ?>/signature.php?type=2[/img][/url]" 
                                id="bb2" 
                                readonly>
                         <button class="btn btn-outline-primary" 
@@ -191,17 +241,17 @@ $baseUrl = rtrim($baseUrl, '/');
             <div class="col-md-6">
                 <div class="mb-3">
                     <label class="form-label fw-bold">
-                        <i class="bi bi-link-45deg"></i> Direkt-URL
+                        <i class="bi bi-code"></i> HTML-Code (verlinktes Banner)
                     </label>
                     <div class="input-group">
                         <input type="text" 
                                class="form-control" 
-                               value="<?= $baseUrl ?>/signature.php?type=3" 
-                               id="url3" 
+                               value="<a href=&quot;<?= $baseUrl ?>&quot;><img src=&quot;<?= $baseUrl ?>/signature.php?type=3&quot; alt=&quot;DVD Collection&quot;></a>" 
+                               id="html3" 
                                readonly>
                         <button class="btn btn-outline-primary" 
                                 type="button" 
-                                onclick="copyUrl('url3')">
+                                onclick="copyUrl('html3')">
                             <i class="bi bi-clipboard"></i>
                         </button>
                     </div>
@@ -215,7 +265,7 @@ $baseUrl = rtrim($baseUrl, '/');
                     <div class="input-group">
                         <input type="text" 
                                class="form-control" 
-                               value="[img]<?= $baseUrl ?>/signature.php?type=3[/img]" 
+                               value="[url=<?= $baseUrl ?>][img]<?= $baseUrl ?>/signature.php?type=3[/img][/url]" 
                                id="bb3" 
                                readonly>
                         <button class="btn btn-outline-primary" 
@@ -238,10 +288,10 @@ $baseUrl = rtrim($baseUrl, '/');
             <i class="bi bi-info-circle"></i> Aktuelle Einstellungen
         </h5>
     </div>
-    <div class="card-body">
+    <div class="card-body" style="color: var(--bs-card-color, var(--bs-body-color)) !important;">
         <div class="row">
             <div class="col-md-6">
-                <ul class="list-unstyled mb-3" style="color: var(--bs-body-color);">
+                <ul class="list-unstyled mb-3">
                     <li class="mb-2">
                         <i class="bi bi-collection text-primary"></i>
                         <strong>Anzahl Filme:</strong> <?= getSetting('signature_film_count', '10') ?>
@@ -266,7 +316,7 @@ $baseUrl = rtrim($baseUrl, '/');
                 </ul>
             </div>
             <div class="col-md-6">
-                <ul class="list-unstyled mb-3" style="color: var(--bs-body-color);">
+                <ul class="list-unstyled mb-3">
                     <li class="mb-2">
                         <i class="bi bi-image text-primary"></i>
                         <strong>Bildqualität:</strong> <?= getSetting('signature_quality', '9') ?>/9
