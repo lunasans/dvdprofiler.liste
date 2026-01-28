@@ -4,7 +4,7 @@ declare(strict_types=1);
 // Bootstrap (startet bereits die Session)
 require_once __DIR__ . '/../includes/bootstrap.php';
 require_once __DIR__ . '/../includes/version.php'; // Neue Versionsverwaltung laden
-require_once __DIR__ . '/includes/session-security-check.php'; // Session-Sicherheitscheck
+require_once __DIR__ . '/../includes/session-security-check.php'; // Session-Sicherheitscheck
 
 // Zugriffsschutz
 if (!isset($_SESSION['user_id'])) {
@@ -78,7 +78,11 @@ $memoryStart = memory_get_usage(true);
                                 'settings' => 'gear',
                                 'import' => 'upload',
                                 'update' => 'arrow-up-circle',
-                                'films' => 'film'
+                                'films' => 'film',
+                                'impressum' => 'info-circle',
+                                'tmdb-import' => 'cloud-download',
+                                'statistics' => 'bar-chart',
+                                'signature-preview' => 'eye'
                             ];
                             $icon = $pageIcons[$page] ?? 'file-earmark';
                             ?>
@@ -206,19 +210,6 @@ $memoryStart = memory_get_usage(true);
     <script>
         // Enhanced Admin JavaScript
         document.addEventListener('DOMContentLoaded', function() {
-            // Page Loader with enhanced timing
-            const loader = document.getElementById('pageLoader');
-            const systemStatus = document.getElementById('systemStatus');
-            
-            // Show system status after loader
-            setTimeout(() => {
-                loader.classList.add('hidden');
-                setTimeout(() => {
-                    loader.style.display = 'none';
-                    systemStatus.style.display = 'block';
-                }, 300);
-            }, 800);
-
             // Active navigation highlighting
             const currentPage = new URLSearchParams(window.location.search).get('page') || 'dashboard';
             const navLinks = document.querySelectorAll('.nav-link');
@@ -235,7 +226,8 @@ $memoryStart = memory_get_usage(true);
             alerts.forEach(alert => {
                 if (!alert.classList.contains('alert-danger')) {
                     setTimeout(() => {
-                        alert.classList.add('fade-out');
+                        alert.style.transition = 'opacity 0.5s';
+                        alert.style.opacity = '0';
                         setTimeout(() => alert.remove(), 500);
                     }, 5000);
                 }

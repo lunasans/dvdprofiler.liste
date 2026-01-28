@@ -11,200 +11,281 @@ $baseUrl = $protocol . $host . dirname(dirname($_SERVER['PHP_SELF']));
 $baseUrl = rtrim($baseUrl, '/');
 ?>
 
-<style>
-    .banner-card {
-        background: white;
-        border-radius: 12px;
-        padding: 2rem;
-        margin-bottom: 2rem;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-    }
-    
-    .banner-preview {
-        background: #f8f9fa;
-        border: 2px dashed #dee2e6;
-        border-radius: 8px;
-        padding: 1rem;
-        text-align: center;
-        margin: 1rem 0;
-    }
-    
-    .banner-preview img {
-        max-width: 100%;
-        height: auto;
-        border-radius: 4px;
-    }
-    
-    .url-box {
-        background: #f8f9fa;
-        border: 1px solid #dee2e6;
-        border-radius: 8px;
-        padding: 1rem;
-        margin: 1rem 0;
-    }
-    
-    .url-box code {
-        display: block;
-        padding: 0.5rem;
-        background: white;
-        border-radius: 4px;
-        margin: 0.5rem 0;
-        word-break: break-all;
-    }
-    
-    .btn-copy {
-        margin-top: 0.5rem;
-    }
-    
-    .badge-status {
-        font-size: 0.85rem;
-        padding: 0.35rem 0.75rem;
-    }
-</style>
+<!-- Page Header -->
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="mb-1">
+            <i class="bi bi-image"></i> Signatur-Banner Vorschau
+        </h2>
+        <p class="text-muted mb-0">
+            Alle verfügbaren Banner-Varianten mit aktuellen Einstellungen
+        </p>
+    </div>
+    <div>
+        <a href="?page=settings#signature" class="btn btn-primary">
+            <i class="bi bi-gear"></i> Einstellungen
+        </a>
+    </div>
+</div>
 
-<div class="container-fluid">
-    <div class="row">
-        <div class="col-12">
-            <div class="d-flex justify-content-between align-items-center mb-4">
-                <div>
-                    <h2>
-                        <i class="bi bi-image"></i> Signatur-Banner Vorschau
-                    </h2>
-                    <p class="text-muted mb-0">
-                        Alle verfügbaren Banner-Varianten mit aktuellen Einstellungen
-                    </p>
+<!-- Variante 1 -->
+<?php if (getSetting('signature_enable_type1', '1') == '1'): ?>
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0">
+            <i class="bi bi-grid-3x3"></i> Variante 1: Cover Grid + Statistik
+            <span class="badge bg-success ms-2">Aktiviert</span>
+        </h5>
+    </div>
+    <div class="card-body">
+        <p class="text-muted mb-3">
+            Statistik-Box links + <?= getSetting('signature_film_count', '10') ?> Film-Cover in kompakter Ansicht
+        </p>
+        
+        <!-- Banner Preview -->
+        <div class="p-3 bg-light border rounded text-center mb-3">
+            <img src="<?= $baseUrl ?>/signature.php?type=1&t=<?= time() ?>" 
+                 alt="Banner Typ 1" 
+                 class="img-fluid rounded"
+                 style="max-width: 100%; height: auto;">
+        </div>
+        
+        <!-- URLs -->
+        <div class="row">
+            <div class="col-md-6">
+                <div class="mb-3">
+                    <label class="form-label fw-bold">
+                        <i class="bi bi-link-45deg"></i> Direkt-URL
+                    </label>
+                    <div class="input-group">
+                        <input type="text" 
+                               class="form-control" 
+                               value="<?= $baseUrl ?>/signature.php?type=1" 
+                               id="url1" 
+                               readonly>
+                        <button class="btn btn-outline-primary" 
+                                type="button" 
+                                onclick="copyUrl('url1')">
+                            <i class="bi bi-clipboard"></i>
+                        </button>
+                    </div>
                 </div>
-                <div>
-                    <a href="?page=settings#signature" class="btn btn-primary">
-                        <i class="bi bi-gear"></i> Einstellungen
-                    </a>
+            </div>
+            <div class="col-md-6">
+                <div class="mb-3">
+                    <label class="form-label fw-bold">
+                        <i class="bi bi-code-square"></i> BBCode für Foren
+                    </label>
+                    <div class="input-group">
+                        <input type="text" 
+                               class="form-control" 
+                               value="[img]<?= $baseUrl ?>/signature.php?type=1[/img]" 
+                               id="bb1" 
+                               readonly>
+                        <button class="btn btn-outline-primary" 
+                                type="button" 
+                                onclick="copyUrl('bb1')">
+                            <i class="bi bi-clipboard"></i>
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
+</div>
+<?php endif; ?>
 
-    <!-- Variante 1 -->
-    <?php if (getSetting('signature_enable_type1', '1') == '1'): ?>
-    <div class="banner-card">
-        <h3 class="mb-3">
-            <i class="bi bi-grid-3x3"></i> Variante 1: Cover Grid
-            <span class="badge bg-success badge-status">Aktiviert</span>
-        </h3>
-        <p class="text-muted">
-            <?= getSetting('signature_film_count', '10') ?> Film-Cover nebeneinander in kompakter Ansicht
-        </p>
-        
-        <div class="banner-preview">
-            <img src="<?= $baseUrl ?>/signature.php?type=1&t=<?= time() ?>" alt="Banner Typ 1">
-        </div>
-        
-        <div class="url-box">
-            <strong>Direkt-URL:</strong>
-            <code id="url1"><?= $baseUrl ?>/signature.php?type=1</code>
-            <button class="btn btn-sm btn-primary btn-copy" onclick="copyUrl('url1')">
-                <i class="bi bi-clipboard"></i> Kopieren
-            </button>
-        </div>
-        
-        <div class="url-box">
-            <strong>BBCode für Foren:</strong>
-            <code id="bb1">[img]<?= $baseUrl ?>/signature.php?type=1[/img]</code>
-            <button class="btn btn-sm btn-primary btn-copy" onclick="copyUrl('bb1')">
-                <i class="bi bi-clipboard"></i> Kopieren
-            </button>
-        </div>
-    </div>
-    <?php endif; ?>
-
-    <!-- Variante 2 -->
-    <?php if (getSetting('signature_enable_type2', '1') == '1'): ?>
-    <div class="banner-card">
-        <h3 class="mb-3">
+<!-- Variante 2 -->
+<?php if (getSetting('signature_enable_type2', '1') == '1'): ?>
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0">
             <i class="bi bi-bar-chart"></i> Variante 2: Cover + Statistiken
-            <span class="badge bg-success badge-status">Aktiviert</span>
-        </h3>
-        <p class="text-muted">
+            <span class="badge bg-success ms-2">Aktiviert</span>
+        </h5>
+    </div>
+    <div class="card-body">
+        <p class="text-muted mb-3">
             Header mit Sammlungs-Statistiken + <?= getSetting('signature_film_count', '10') ?> neueste Filme
         </p>
         
-        <div class="banner-preview">
-            <img src="<?= $baseUrl ?>/signature.php?type=2&t=<?= time() ?>" alt="Banner Typ 2">
+        <!-- Banner Preview -->
+        <div class="p-3 bg-light border rounded text-center mb-3">
+            <img src="<?= $baseUrl ?>/signature.php?type=2&t=<?= time() ?>" 
+                 alt="Banner Typ 2" 
+                 class="img-fluid rounded"
+                 style="max-width: 100%; height: auto;">
         </div>
         
-        <div class="url-box">
-            <strong>Direkt-URL:</strong>
-            <code id="url2"><?= $baseUrl ?>/signature.php?type=2</code>
-            <button class="btn btn-sm btn-primary btn-copy" onclick="copyUrl('url2')">
-                <i class="bi bi-clipboard"></i> Kopieren
-            </button>
-        </div>
-        
-        <div class="url-box">
-            <strong>BBCode für Foren:</strong>
-            <code id="bb2">[img]<?= $baseUrl ?>/signature.php?type=2[/img]</code>
-            <button class="btn btn-sm btn-primary btn-copy" onclick="copyUrl('bb2')">
-                <i class="bi bi-clipboard"></i> Kopieren
-            </button>
+        <!-- URLs -->
+        <div class="row">
+            <div class="col-md-6">
+                <div class="mb-3">
+                    <label class="form-label fw-bold">
+                        <i class="bi bi-link-45deg"></i> Direkt-URL
+                    </label>
+                    <div class="input-group">
+                        <input type="text" 
+                               class="form-control" 
+                               value="<?= $baseUrl ?>/signature.php?type=2" 
+                               id="url2" 
+                               readonly>
+                        <button class="btn btn-outline-primary" 
+                                type="button" 
+                                onclick="copyUrl('url2')">
+                            <i class="bi bi-clipboard"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="mb-3">
+                    <label class="form-label fw-bold">
+                        <i class="bi bi-code-square"></i> BBCode für Foren
+                    </label>
+                    <div class="input-group">
+                        <input type="text" 
+                               class="form-control" 
+                               value="[img]<?= $baseUrl ?>/signature.php?type=2[/img]" 
+                               id="bb2" 
+                               readonly>
+                        <button class="btn btn-outline-primary" 
+                                type="button" 
+                                onclick="copyUrl('bb2')">
+                            <i class="bi bi-clipboard"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
-    <?php endif; ?>
+</div>
+<?php endif; ?>
 
-    <!-- Variante 3 -->
-    <?php if (getSetting('signature_enable_type3', '1') == '1'): ?>
-    <div class="banner-card">
-        <h3 class="mb-3">
+<!-- Variante 3 -->
+<?php if (getSetting('signature_enable_type3', '1') == '1'): ?>
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0">
             <i class="bi bi-view-list"></i> Variante 3: Compact Liste
-            <span class="badge bg-success badge-status">Aktiviert</span>
-        </h3>
-        <p class="text-muted">
-            2 Zeilen mit Covern
+            <span class="badge bg-success ms-2">Aktiviert</span>
+        </h5>
+    </div>
+    <div class="card-body">
+        <p class="text-muted mb-3">
+            Eine Zeile mit Covern
             <?php if (getSetting('signature_show_title', '1') == '1'): ?>+ Titeln<?php endif; ?>
             <?php if (getSetting('signature_show_year', '1') == '1'): ?>+ Jahren<?php endif; ?>
         </p>
         
-        <div class="banner-preview">
-            <img src="<?= $baseUrl ?>/signature.php?type=3&t=<?= time() ?>" alt="Banner Typ 3">
+        <!-- Banner Preview -->
+        <div class="p-3 bg-light border rounded text-center mb-3">
+            <img src="<?= $baseUrl ?>/signature.php?type=3&t=<?= time() ?>" 
+                 alt="Banner Typ 3" 
+                 class="img-fluid rounded"
+                 style="max-width: 100%; height: auto;">
         </div>
         
-        <div class="url-box">
-            <strong>Direkt-URL:</strong>
-            <code id="url3"><?= $baseUrl ?>/signature.php?type=3</code>
-            <button class="btn btn-sm btn-primary btn-copy" onclick="copyUrl('url3')">
-                <i class="bi bi-clipboard"></i> Kopieren
-            </button>
-        </div>
-        
-        <div class="url-box">
-            <strong>BBCode für Foren:</strong>
-            <code id="bb3">[img]<?= $baseUrl ?>/signature.php?type=3[/img]</code>
-            <button class="btn btn-sm btn-primary btn-copy" onclick="copyUrl('bb3')">
-                <i class="bi bi-clipboard"></i> Kopieren
-            </button>
-        </div>
-    </div>
-    <?php endif; ?>
-
-    <!-- Info-Box -->
-    <div class="banner-card">
-        <h4><i class="bi bi-info-circle"></i> Aktuelle Einstellungen</h4>
+        <!-- URLs -->
         <div class="row">
             <div class="col-md-6">
-                <ul class="list-unstyled">
-                    <li><strong>Anzahl Filme:</strong> <?= getSetting('signature_film_count', '10') ?></li>
-                    <li><strong>Film-Quelle:</strong> <?= getSetting('signature_film_source', 'newest') ?></li>
-                    <li><strong>Cache-Zeit:</strong> <?= getSetting('signature_cache_time', '3600') / 60 ?> Minuten</li>
+                <div class="mb-3">
+                    <label class="form-label fw-bold">
+                        <i class="bi bi-link-45deg"></i> Direkt-URL
+                    </label>
+                    <div class="input-group">
+                        <input type="text" 
+                               class="form-control" 
+                               value="<?= $baseUrl ?>/signature.php?type=3" 
+                               id="url3" 
+                               readonly>
+                        <button class="btn btn-outline-primary" 
+                                type="button" 
+                                onclick="copyUrl('url3')">
+                            <i class="bi bi-clipboard"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="mb-3">
+                    <label class="form-label fw-bold">
+                        <i class="bi bi-code-square"></i> BBCode für Foren
+                    </label>
+                    <div class="input-group">
+                        <input type="text" 
+                               class="form-control" 
+                               value="[img]<?= $baseUrl ?>/signature.php?type=3[/img]" 
+                               id="bb3" 
+                               readonly>
+                        <button class="btn btn-outline-primary" 
+                                type="button" 
+                                onclick="copyUrl('bb3')">
+                            <i class="bi bi-clipboard"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
+
+<!-- Info-Card -->
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0">
+            <i class="bi bi-info-circle"></i> Aktuelle Einstellungen
+        </h5>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6">
+                <ul class="list-unstyled mb-3" style="color: var(--bs-body-color);">
+                    <li class="mb-2">
+                        <i class="bi bi-collection text-primary"></i>
+                        <strong>Anzahl Filme:</strong> <?= getSetting('signature_film_count', '10') ?>
+                    </li>
+                    <li class="mb-2">
+                        <i class="bi bi-funnel text-primary"></i>
+                        <strong>Film-Quelle:</strong> 
+                        <?php 
+                        $sources = [
+                            'newest' => 'Neueste',
+                            'newest_release' => 'Neueste Veröffentlichungen',
+                            'best_rated' => 'Bestbewertet',
+                            'random' => 'Zufällig'
+                        ];
+                        echo $sources[getSetting('signature_film_source', 'newest')] ?? 'Neueste';
+                        ?>
+                    </li>
+                    <li class="mb-2">
+                        <i class="bi bi-clock text-primary"></i>
+                        <strong>Cache-Zeit:</strong> <?= getSetting('signature_cache_time', '3600') / 60 ?> Minuten
+                    </li>
                 </ul>
             </div>
             <div class="col-md-6">
-                <ul class="list-unstyled">
-                    <li><strong>Bildqualität:</strong> <?= getSetting('signature_quality', '9') ?>/9</li>
-                    <li><strong>Titel anzeigen:</strong> <?= getSetting('signature_show_title', '1') == '1' ? 'Ja' : 'Nein' ?></li>
-                    <li><strong>Jahr anzeigen:</strong> <?= getSetting('signature_show_year', '1') == '1' ? 'Ja' : 'Nein' ?></li>
+                <ul class="list-unstyled mb-3" style="color: var(--bs-body-color);">
+                    <li class="mb-2">
+                        <i class="bi bi-image text-primary"></i>
+                        <strong>Bildqualität:</strong> <?= getSetting('signature_quality', '9') ?>/9
+                    </li>
+                    <li class="mb-2">
+                        <i class="bi bi-tag text-primary"></i>
+                        <strong>Titel anzeigen:</strong> 
+                        <?= getSetting('signature_show_title', '1') == '1' ? '<span class="badge bg-success">Ja</span>' : '<span class="badge bg-secondary">Nein</span>' ?>
+                    </li>
+                    <li class="mb-2">
+                        <i class="bi bi-calendar text-primary"></i>
+                        <strong>Jahr anzeigen:</strong> 
+                        <?= getSetting('signature_show_year', '1') == '1' ? '<span class="badge bg-success">Ja</span>' : '<span class="badge bg-secondary">Nein</span>' ?>
+                    </li>
                 </ul>
             </div>
         </div>
         
-        <div class="mt-3">
+        <div class="d-flex gap-2 mt-3">
             <button class="btn btn-warning" onclick="clearCache()">
                 <i class="bi bi-trash"></i> Cache leeren
             </button>
@@ -218,7 +299,7 @@ $baseUrl = rtrim($baseUrl, '/');
 <script>
     function copyUrl(elementId) {
         const element = document.getElementById(elementId);
-        const text = element.textContent;
+        const text = element.value;
         
         navigator.clipboard.writeText(text).then(() => {
             // Visuelles Feedback
@@ -226,11 +307,11 @@ $baseUrl = rtrim($baseUrl, '/');
             const originalHTML = button.innerHTML;
             button.innerHTML = '<i class="bi bi-check"></i> Kopiert!';
             button.classList.add('btn-success');
-            button.classList.remove('btn-primary');
+            button.classList.remove('btn-outline-primary');
             
             setTimeout(() => {
                 button.innerHTML = originalHTML;
-                button.classList.add('btn-primary');
+                button.classList.add('btn-outline-primary');
                 button.classList.remove('btn-success');
             }, 2000);
         });

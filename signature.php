@@ -47,18 +47,21 @@ if (file_exists($cacheFile) && (time() - filemtime($cacheFile)) < $cacheTime) {
     exit;
 }
 
-// Banner-Dimensionen (fest 600x100)
-$width = 600;
-$height = 600;
+// Banner-Dimensionen (fest 800x120)
+$width = 800;
+$height = 120;
 
 // Erstelle Bild
 $img = imagecreatetruecolor($width, $height);
 imagesavealpha($img, true);
 
-// Farben
+// Farben - Heller Glaseffekt mit Gradient
 $transparent = imagecolorallocatealpha($img, 0, 0, 0, 127);
-$glass_bg = imagecolorallocatealpha($img, 30, 30, 40, 25);
-$glass_border = imagecolorallocatealpha($img, 255, 255, 255, 100);
+$glass_bg_top = imagecolorallocatealpha($img, 240, 245, 255, 15);  // Noch transparenter
+$glass_bg_bottom = imagecolorallocatealpha($img, 220, 230, 245, 30);  
+$glass_border = imagecolorallocatealpha($img, 200, 210, 230, 50);  // Dunklerer Rahmen für bessere Sichtbarkeit
+$glass_shadow = imagecolorallocatealpha($img, 0, 0, 0, 40);  // Dezenter Schatten
+$cover_shadow = imagecolorallocatealpha($img, 0, 0, 0, 60);  // Schatten für Cover
 $text_white = imagecolorallocate($img, 228, 228, 231);
 $text_muted = imagecolorallocate($img, 161, 161, 170);
 $accent = imagecolorallocate($img, 102, 126, 234);
@@ -113,11 +116,98 @@ try {
 }
 
 // Hilfsfunktionen
-function drawGlassBackground($img, $x, $y, $w, $h, $bg, $border) {
-    imagefilledrectangle($img, $x + 2, $y, $x + $w - 2, $y + $h, $bg);
-    imagefilledrectangle($img, $x, $y + 2, $x + $w, $y + $h - 2, $bg);
-    imagerectangle($img, $x, $y, $x + $w, $y + $h, $border);
+function imagefilledroundedrectangle($img, $x1, $y1, $x2, $y2, $radius, $color) {
+    // Hauptrechteck (ohne Ecken)
+    imagefilledrectangle($img, $x1 + $radius, $y1, $x2 - $radius, $y2, $color);
+    imagefilledrectangle($img, $x1, $y1 + $radius, $x2, $y2 - $radius, $color);
+    
+    // Vier abgerundete Ecken
+    imagefilledellipse($img, $x1 + $radius, $y1 + $radius, $radius * 2, $radius * 2, $color); // Oben links
+    imagefilledellipse($img, $x2 - $radius, $y1 + $radius, $radius * 2, $radius * 2, $color); // Oben rechts
+    imagefilledellipse($img, $x1 + $radius, $y2 - $radius, $radius * 2, $radius * 2, $color); // Unten links
+    imagefilledellipse($img, $x2 - $radius, $y2 - $radius, $radius * 2, $radius * 2, $color); // Unten rechts
 }
+
+function drawGlassBackground($img, $x, $y, $w, $h, $bg_top, $bg_bottom, $border, $shadow) {
+    $radius = 12; // Abrundungs-Radius
+    
+    // Gradient von oben nach unten mit abgerundeten Ecken zeichnen
+    for ($i = 0; $i < $h; $i++) {
+        $ratio = $i / $h;
+        // Interpoliere zwischen top und bottom Farbe
+        $r = imagecolorsforindex($img, $bg_top)['red'] * (1 - $ratio) + imagecolorsforindex($img, $bg_bottom)['red'] * $ratio;
+        $g = imagecolorsforindex($img, $bg_top)['green'] * (1 - $ratio) + imagecolorsforindex($img, $bg_bottom)['green'] * $ratio;
+        $b = imagecolorsforindex($img, $bg_top)['blue'] * (1 - $ratio) + imagecolorsforindex($img, $bg_bottom)['blue'] * $ratio;
+        $a = imagecolorsforindex($img, $bg_top)['alpha'] * (1 - $ratio) + imagecolorsforindex($img, $bg_bottom)['alpha'] * $ratio;
+        
+        $color = imagecolorallocatealpha($img, $r, $g, $b, $a);
+        
+        // Berechne Breite der Linie für abgerundete Ecken
+        $lineStart = $x;
+        $lineEnd = $x + $w;
+        
+        // Oben: erste Radius-Pixel
+        if ($i < $radius) {
+            $offset = $radius - sqrt($radius * $radius - ($radius - $i) * ($radius - $i));
+            $lineStart = $x + $offset;
+            $lineEnd = $x + $w - $offset;
+        }
+        // Unten: letzte Radius-Pixel
+        elseif ($i > $h - $radius) {
+            $offset = $radius - sqrt($radius * $radius - ($i - ($h - $radius)) * ($i - ($h - $radius)));
+            $lineStart = $x + $offset;
+            $lineEnd = $x + $w - $offset;
+        }
+        
+        imageline($img, $lineStart, $y + $i, $lineEnd, $y + $i, $color);
+    }
+    
+    // Weicher Schatten unten mit leicht abgerundeten Ecken
+    for ($i = 0; $i < 3; $i++) {
+        $shadowAlpha = 60 + ($i * 20);
+        $shadowColor = imagecolorallocatealpha($img, 0, 0, 0, $shadowAlpha);
+        $offset = $i * 2;
+        imageline($img, $x + $radius + $offset, $y + $h + $i, $x + $w - $radius - $offset, $y + $h + $i, $shadowColor);
+    }
+    
+    // Abgerundeter Rahmen (approximiert durch viele Linien)
+    imagesetthickness($img, 1);
+    for ($angle = 0; $angle < 360; $angle += 2) {
+        $rad = deg2rad($angle);
+        
+        // Oben links
+        if ($angle >= 180 && $angle < 270) {
+            $px = $x + $radius + cos($rad) * $radius;
+            $py = $y + $radius + sin($rad) * $radius;
+            imagesetpixel($img, $px, $py, $border);
+        }
+        // Oben rechts
+        if ($angle >= 270 && $angle < 360) {
+            $px = $x + $w - $radius + cos($rad) * $radius;
+            $py = $y + $radius + sin($rad) * $radius;
+            imagesetpixel($img, $px, $py, $border);
+        }
+        // Unten links
+        if ($angle >= 90 && $angle < 180) {
+            $px = $x + $radius + cos($rad) * $radius;
+            $py = $y + $h - $radius + sin($rad) * $radius;
+            imagesetpixel($img, $px, $py, $border);
+        }
+        // Unten rechts
+        if ($angle >= 0 && $angle < 90) {
+            $px = $x + $w - $radius + cos($rad) * $radius;
+            $py = $y + $h - $radius + sin($rad) * $radius;
+            imagesetpixel($img, $px, $py, $border);
+        }
+    }
+    
+    // Gerade Linien zwischen den Ecken
+    imageline($img, $x + $radius, $y, $x + $w - $radius, $y, $border); // Oben
+    imageline($img, $x + $radius, $y + $h, $x + $w - $radius, $y + $h, $border); // Unten
+    imageline($img, $x, $y + $radius, $x, $y + $h - $radius, $border); // Links
+    imageline($img, $x + $w, $y + $radius, $x + $w, $y + $h - $radius, $border); // Rechts
+}
+
 
 function loadCover($coverId, $targetWidth, $targetHeight) {
     if (empty($coverId)) return null;
@@ -153,6 +243,32 @@ function loadCover($coverId, $targetWidth, $targetHeight) {
                 imagesx($src), imagesy($src)
             );
             
+            // Abgerundete Ecken hinzufügen (6px Radius für Cover)
+            $radius = 6;
+            $transparent = imagecolorallocatealpha($dst, 0, 0, 0, 127);
+            
+            // Ecken maskieren
+            for ($x = 0; $x < $radius; $x++) {
+                for ($y = 0; $y < $radius; $y++) {
+                    // Oben links
+                    if (($x - $radius) * ($x - $radius) + ($y - $radius) * ($y - $radius) > $radius * $radius) {
+                        imagesetpixel($dst, $x, $y, $transparent);
+                    }
+                    // Oben rechts
+                    if (($targetWidth - 1 - $x - $radius) * ($targetWidth - 1 - $x - $radius) + ($y - $radius) * ($y - $radius) > $radius * $radius) {
+                        imagesetpixel($dst, $targetWidth - 1 - $x, $y, $transparent);
+                    }
+                    // Unten links
+                    if (($x - $radius) * ($x - $radius) + ($targetHeight - 1 - $y - $radius) * ($targetHeight - 1 - $y - $radius) > $radius * $radius) {
+                        imagesetpixel($dst, $x, $targetHeight - 1 - $y, $transparent);
+                    }
+                    // Unten rechts
+                    if (($targetWidth - 1 - $x - $radius) * ($targetWidth - 1 - $x - $radius) + ($targetHeight - 1 - $y - $radius) * ($targetHeight - 1 - $y - $radius) > $radius * $radius) {
+                        imagesetpixel($dst, $targetWidth - 1 - $x, $targetHeight - 1 - $y, $transparent);
+                    }
+                }
+            }
+            
             imagedestroy($src);
             return $dst;
         }
@@ -162,27 +278,87 @@ function loadCover($coverId, $targetWidth, $targetHeight) {
 }
 
 // ============================================
-// VARIANTE 1: Cover Grid
+// VARIANTE 1: Cover Grid mit Statistik
 // ============================================
 if ($type === 1) {
-    drawGlassBackground($img, 0, 0, $width - 1, $height - 1, $glass_bg, $glass_border);
+    drawGlassBackground($img, 0, 0, $width - 1, $height - 1, $glass_bg_top, $glass_bg_bottom, $glass_border, $glass_shadow);
     
-    $coverWidth = 55;
-    $coverHeight = 80;
-    $startX = 10;
+    // Linke Statistik-Box
+    $statsBoxWidth = 90;
+    $statsBoxHeight = 100;
+    $statsBoxX = 15;
+    $statsBoxY = 10;
+    
+    // Statistik-Box Hintergrund (leicht dunkler)
+    $statsBoxBg = imagecolorallocatealpha($img, 200, 210, 230, 40);
+    imagefilledroundedrectangle($img, $statsBoxX, $statsBoxY, $statsBoxX + $statsBoxWidth, $statsBoxY + $statsBoxHeight, 8, $statsBoxBg);
+    
+    // Rahmen um Statistik-Box
+    $statsBoxBorder = imagecolorallocatealpha($img, 180, 190, 210, 60);
+    for ($angle = 0; $angle < 360; $angle += 2) {
+        $rad = deg2rad($angle);
+        $radius = 8;
+        // Approximiere abgerundeten Rahmen
+        if ($angle >= 180 && $angle < 270) {
+            $px = $statsBoxX + $radius + cos($rad) * $radius;
+            $py = $statsBoxY + $radius + sin($rad) * $radius;
+            imagesetpixel($img, $px, $py, $statsBoxBorder);
+        }
+        if ($angle >= 270 && $angle < 360) {
+            $px = $statsBoxX + $statsBoxWidth - $radius + cos($rad) * $radius;
+            $py = $statsBoxY + $radius + sin($rad) * $radius;
+            imagesetpixel($img, $px, $py, $statsBoxBorder);
+        }
+        if ($angle >= 90 && $angle < 180) {
+            $px = $statsBoxX + $radius + cos($rad) * $radius;
+            $py = $statsBoxY + $statsBoxHeight - $radius + sin($rad) * $radius;
+            imagesetpixel($img, $px, $py, $statsBoxBorder);
+        }
+        if ($angle >= 0 && $angle < 90) {
+            $px = $statsBoxX + $statsBoxWidth - $radius + cos($rad) * $radius;
+            $py = $statsBoxY + $statsBoxHeight - $radius + sin($rad) * $radius;
+            imagesetpixel($img, $px, $py, $statsBoxBorder);
+        }
+    }
+    imageline($img, $statsBoxX + 8, $statsBoxY, $statsBoxX + $statsBoxWidth - 8, $statsBoxY, $statsBoxBorder);
+    imageline($img, $statsBoxX + 8, $statsBoxY + $statsBoxHeight, $statsBoxX + $statsBoxWidth - 8, $statsBoxY + $statsBoxHeight, $statsBoxBorder);
+    imageline($img, $statsBoxX, $statsBoxY + 8, $statsBoxX, $statsBoxY + $statsBoxHeight - 8, $statsBoxBorder);
+    imageline($img, $statsBoxX + $statsBoxWidth, $statsBoxY + 8, $statsBoxX + $statsBoxWidth, $statsBoxY + $statsBoxHeight - 8, $statsBoxBorder);
+    
+    // Statistik-Text
+    imagestring($img, 3, $statsBoxX + 8, $statsBoxY + 15, "Filme", $text_white);
+    imagestring($img, 3, $statsBoxX + 8, $statsBoxY + 30, "gesamt:", $text_muted);
+    
+    // Große Zahl
+    imagestring($img, 5, $statsBoxX + 20, $statsBoxY + 55, (string)$totalFilms, $accent);
+    
+    // Cover versetzt nach rechts
+    $coverWidth = 65;
+    $coverHeight = 100;
+    $startX = $statsBoxX + $statsBoxWidth + 15;  // Nach der Statistik-Box
     $startY = 10;
-    $gap = 2;
+    $gap = 4;
     
     foreach ($films as $i => $film) {
         $x = $startX + ($i * ($coverWidth + $gap));
         
+        // Prüfe ob noch Platz ist
+        if ($x + $coverWidth > $width - 15) break;
+        
         $cover = loadCover($film['cover_id'], $coverWidth, $coverHeight);
         
         if ($cover) {
+            // Schatten unter dem Cover (für bessere Sichtbarkeit)
+            for ($s = 0; $s < 3; $s++) {
+                $shadowAlpha = 80 - ($s * 15);
+                $shadowCol = imagecolorallocatealpha($img, 0, 0, 0, $shadowAlpha);
+                imagerectangle($img, $x + $s, $startY + $s, $x + $coverWidth + $s, $startY + $coverHeight + $s, $shadowCol);
+            }
+            
             imagecopy($img, $cover, $x, $startY, 0, 0, $coverWidth, $coverHeight);
             imagedestroy($cover);
         } else {
-            imagefilledrectangle($img, $x, $startY, $x + $coverWidth, $startY + $coverHeight, $glass_bg);
+            imagefilledrectangle($img, $x, $startY, $x + $coverWidth, $startY + $coverHeight, $glass_bg_top);
             imagerectangle($img, $x, $startY, $x + $coverWidth, $startY + $coverHeight, $glass_border);
         }
     }
@@ -192,33 +368,43 @@ if ($type === 1) {
 // VARIANTE 2: Cover + Stats
 // ============================================
 elseif ($type === 2) {
-    drawGlassBackground($img, 0, 0, $width - 1, $height - 1, $glass_bg, $glass_border);
+    drawGlassBackground($img, 0, 0, $width - 1, $height - 1, $glass_bg_top, $glass_bg_bottom, $glass_border, $glass_shadow);
     
     // Header
-    imagestring($img, 4, 10, 8, "DVD Profiler Liste", $text_white);
-    imagestring($img, 3, 150, 10, "{$totalFilms} Filme", $accent);
-    imagestring($img, 3, 250, 10, "{$filmCount} Neueste:", $text_muted);
+    imagestring($img, 4, 15, 8, "DVD Profiler Liste", $text_white);
+    imagestring($img, 3, 180, 10, "{$totalFilms} Filme", $accent);
+    imagestring($img, 3, 290, 10, "{$filmCount} Neueste:", $text_muted);
     
     // Trennlinie
-    imageline($img, 10, 25, $width - 10, 25, $glass_border);
+    imageline($img, 15, 28, $width - 15, 28, $glass_border);
     
-    // Cover
-    $coverWidth = 50;
-    $coverHeight = 65;
-    $startX = 15;
+    // Cover - größer für bessere Sichtbarkeit
+    $coverWidth = 60;
+    $coverHeight = 85;
+    $startX = 20;
     $startY = 32;
-    $gap = 3;
+    $gap = 5;
     
     foreach ($films as $i => $film) {
         $x = $startX + ($i * ($coverWidth + $gap));
         
+        // Prüfe ob noch Platz ist
+        if ($x + $coverWidth > $width - 15) break;
+        
         $cover = loadCover($film['cover_id'], $coverWidth, $coverHeight);
         
         if ($cover) {
+            // Schatten unter dem Cover
+            for ($s = 0; $s < 3; $s++) {
+                $shadowAlpha = 80 - ($s * 15);
+                $shadowCol = imagecolorallocatealpha($img, 0, 0, 0, $shadowAlpha);
+                imagerectangle($img, $x + $s, $startY + $s, $x + $coverWidth + $s, $startY + $coverHeight + $s, $shadowCol);
+            }
+            
             imagecopy($img, $cover, $x, $startY, 0, 0, $coverWidth, $coverHeight);
             imagedestroy($cover);
         } else {
-            imagefilledrectangle($img, $x, $startY, $x + $coverWidth, $startY + $coverHeight, $glass_bg);
+            imagefilledrectangle($img, $x, $startY, $x + $coverWidth, $startY + $coverHeight, $glass_bg_top);
             imagerectangle($img, $x, $startY, $x + $coverWidth, $startY + $coverHeight, $glass_border);
         }
     }
@@ -228,38 +414,43 @@ elseif ($type === 2) {
 // VARIANTE 3: Compact Liste
 // ============================================
 elseif ($type === 3) {
-    drawGlassBackground($img, 0, 0, $width - 1, $height - 1, $glass_bg, $glass_border);
+    drawGlassBackground($img, 0, 0, $width - 1, $height - 1, $glass_bg_top, $glass_bg_bottom, $glass_border, $glass_shadow);
     
-    $coverWidth = 55;
-    $coverHeight = 40;
-    $startX = 10;
-    $gap = 5;
+    $coverWidth = 60;
+    $coverHeight = 90;
+    $startX = 15;
+    $startY = 15;
+    $gap = 8;
     
     foreach ($films as $i => $film) {
-        $row = floor($i / 5);
-        $col = $i % 5;
+        $x = $startX + ($i * ($coverWidth + $gap));
         
-        $x = $startX + ($col * ($coverWidth + $gap + 50));
-        $y = 10 + ($row * ($coverHeight + 5));
+        // Begrenze auf Breite (bei 10 Filmen würden sonst manche abgeschnitten)
+        if ($x + $coverWidth > $width - 15) break;
         
         $cover = loadCover($film['cover_id'], $coverWidth, $coverHeight);
         
         if ($cover) {
-            imagecopy($img, $cover, $x, $y, 0, 0, $coverWidth, $coverHeight);
+            // Schatten unter dem Cover
+            for ($s = 0; $s < 3; $s++) {
+                $shadowAlpha = 80 - ($s * 15);
+                $shadowCol = imagecolorallocatealpha($img, 0, 0, 0, $shadowAlpha);
+                imagerectangle($img, $x + $s, $startY + $s, $x + $coverWidth + $s, $startY + $coverHeight + $s, $shadowCol);
+            }
+            
+            imagecopy($img, $cover, $x, $startY, 0, 0, $coverWidth, $coverHeight);
             imagedestroy($cover);
         } else {
-            imagefilledrectangle($img, $x, $y, $x + $coverWidth, $y + $coverHeight, $glass_bg);
-            imagerectangle($img, $x, $y, $x + $coverWidth, $y + $coverHeight, $glass_border);
+            imagefilledrectangle($img, $x, $startY, $x + $coverWidth, $startY + $coverHeight, $glass_bg_top);
+            imagerectangle($img, $x, $startY, $x + $coverWidth, $startY + $coverHeight, $glass_border);
         }
         
-        // Optionale Texte
-        if ($showTitle) {
-            $title = mb_substr($film['title'], 0, 10) . '...';
-            imagestring($img, 2, $x + $coverWidth + 3, $y + 5, $title, $text_muted);
-        }
-        
-        if ($showYear) {
-            imagestring($img, 2, $x + $coverWidth + 3, $y + 20, $film['year'], $text_muted);
+        // Optionale Texte unter dem Cover
+        if ($showTitle && $showYear) {
+            $title = mb_substr($film['title'], 0, 8);
+            imagestring($img, 2, $x, $startY + $coverHeight + 2, $title, $text_white);
+        } elseif ($showYear) {
+            imagestring($img, 2, $x + 15, $startY + $coverHeight + 2, $film['year'], $text_muted);
         }
     }
 }
