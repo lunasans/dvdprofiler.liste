@@ -65,7 +65,7 @@ jobs:
 
       # arm64 ist Pflicht: ein grosser Teil der Selfhoster laeuft auf NAS,
       # Raspberry Pi oder Apple Silicon.
-      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-qemu-action@v4
       - uses: docker/setup-buildx-action@v3
 
       # Bei Pull Requests nur bauen, nicht pushen.
